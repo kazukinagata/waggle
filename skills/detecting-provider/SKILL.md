@@ -24,8 +24,7 @@ Do NOT use MCP search/fetch tools for task queries until you have read the provi
 
 ## Layer 2: Conflict Resolution (multiple provider MCPs detected)
 If multiple provider MCPs are detected, determine the environment:
-- **Claude Code**: Check `env.AGENTIC_TASKS_PROVIDER` in `~/.claude/settings.json`
-- **Cowork / Global Instructions**: Look for `AGENTIC_TASKS_PROVIDER: <value>` in the Global Instructions or CLAUDE.md
+- Check `env.AGENTIC_TASKS_PROVIDER` in `~/.claude/settings.json`
 
 If a value is found, use it as active_provider. **REQUIRED — Read the corresponding provider SKILL.md** (same instruction as Layer 1).
 
@@ -42,12 +41,15 @@ After detecting the provider, also determine the execution environment and set `
 **Skip if already set in this conversation.**
 
 Detection logic:
-1. If environment variable `CLAUDE_CODE_IS_COWORK` is `1` → `execution_environment = "cowork"`
-2. Otherwise → `execution_environment = "claude-code"`
-
-(`CLAUDECODE=1` is common to both environments, so it is not used for detection.)
+1. If environment variable `CLAUDE_CODE_ENTRYPOINT` is `claude-desktop` → `execution_environment = "claude-desktop"`
+2. Otherwise → `execution_environment = "cli"`
 
 This value is used by downstream skills (executing-tasks, managing-tasks, etc.) for execution flow branching.
+
+| Environment | Parallel Execution | Session Type |
+|---|---|---|
+| `claude-desktop` | Scheduled Tasks | Claude Desktop |
+| `cli` | tmux panes | Terminal CLI |
 
 ## Config Retrieval
 
