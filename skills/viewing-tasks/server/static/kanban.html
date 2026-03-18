@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tasks — Kanban</title>
+  <style>
+    :root {
+      --bg: #000000;
+      --surface-primary: rgba(28, 28, 30, 0.8);
+      --surface-secondary: rgba(44, 44, 46, 0.6);
+      --surface-tertiary: rgba(58, 58, 60, 0.4);
+      --separator: rgba(84, 84, 88, 0.35);
+      --label-primary: #ffffff;
+      --label-secondary: rgba(235, 235, 245, 0.6);
+      --label-tertiary: rgba(235, 235, 245, 0.3);
+      --blue: #0a84ff;
+      --green: #30d158;
+      --orange: #ff9f0a;
+      --red: #ff453a;
+      --purple: #bf5af2;
+      --indigo: #5e5ce6;
+      --gray: #98989d;
+      --font: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Helvetica Neue', sans-serif;
+      --radius-card: 12px;
+      --radius-badge: 8px;
+      --radius-pill: 20px;
+      --shadow: 0 0 0 0.5px rgba(0,0,0,0.3), 0 2px 12px rgba(0,0,0,0.3);
+      --transition: cubic-bezier(0.25, 0.46, 0.45, 0.94) 250ms;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--label-primary);
+      font-family: var(--font);
+      font-size: 14px;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    header {
+      background: var(--surface-primary);
+      backdrop-filter: saturate(180%) blur(20px);
+      -webkit-backdrop-filter: saturate(180%) blur(20px);
+      border-bottom: 0.5px solid var(--separator);
+      padding: 14px 24px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      flex-wrap: wrap;
+      flex-shrink: 0;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    header h1 {
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--label-primary);
+      letter-spacing: -0.01em;
+      flex: 1;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .sse-indicator {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      font-weight: 400;
+      color: var(--label-secondary);
+    }
+
+    .sse-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--green);
+      display: inline-block;
+      flex-shrink: 0;
+    }
+
+    .sse-dot.disconnected {
+      background: var(--red);
+    }
+
+    .filter-bar {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+
+    #search {
+      background: var(--surface-secondary);
+      border: none;
+      color: var(--label-primary);
+      padding: 7px 12px 7px 32px;
+      border-radius: var(--radius-pill);
+      font-size: 13px;
+      font-family: var(--font);
+      outline: none;
+      width: 180px;
+      transition: background var(--transition);
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='rgba(235,235,245,0.3)' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cline x1='21' y1='21' x2='16.65' y2='16.65'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: 10px center;
+    }
+
+    #search::placeholder {
+      color: var(--label-tertiary);
+    }
+
+    #search:focus {
+      background-color: var(--surface-tertiary);
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='rgba(235,235,245,0.6)' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cline x1='21' y1='21' x2='16.65' y2='16.65'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: 10px center;
+    }
+
+    select {
+      background: var(--surface-secondary);
+      border: none;
+      color: var(--label-secondary);
+      padding: 7px 12px;
+      border-radius: var(--radius-badge);
+      font-size: 13px;
+      font-family: var(--font);
+      outline: none;
+      cursor: pointer;
+      -webkit-appearance: none;
+      appearance: none;
+      padding-right: 28px;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='rgba(235,235,245,0.3)' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 10px center;
+    }
+
+    .back-link {
+      color: var(--label-secondary);
+      text-decoration: none;
+      font-size: 13px;
+      padding: 6px 14px;
+      border-radius: var(--radius-pill);
+      background: var(--surface-secondary);
+      transition: background var(--transition);
+    }
+
+    .back-link:hover {
+      background: var(--surface-tertiary);
+    }
+
+    .board {
+      display: flex;
+      gap: 14px;
+      padding: 20px 24px;
+      overflow-x: auto;
+      flex: 1;
+      align-items: flex-start;
+    }
+
+    .column {
+      background: var(--surface-primary);
+      border: none;
+      border-radius: var(--radius-card);
+      width: 272px;
+      min-width: 272px;
+      display: flex;
+      flex-direction: column;
+      max-height: calc(100vh - 100px);
+      box-shadow: var(--shadow);
+    }
+
+    .col-header {
+      padding: 14px 16px;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--label-primary);
+      border-bottom: 0.5px solid var(--separator);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      position: sticky;
+      top: 0;
+      background: transparent;
+      border-radius: var(--radius-card) var(--radius-card) 0 0;
+      flex-shrink: 0;
+    }
+
+    .col-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      display: inline-block;
+      flex-shrink: 0;
+    }
+
+    .col-dot-backlog { background: var(--gray); }
+    .col-dot-ready { background: var(--indigo); }
+    .col-dot-progress { background: var(--orange); }
+    .col-dot-review { background: var(--purple); }
+    .col-dot-done { background: var(--green); }
+
+    .col-count {
+      background: var(--surface-tertiary);
+      color: var(--label-secondary);
+      padding: 2px 8px;
+      border-radius: var(--radius-pill);
+      font-size: 11px;
+      font-weight: 600;
+      margin-left: auto;
+    }
+
+    .cards {
+      padding: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      overflow-y: auto;
+      flex: 1;
+    }
+
+    .card {
+      background: var(--surface-secondary);
+      border: none;
+      border-radius: var(--radius-card);
+      padding: 14px 16px;
+      cursor: pointer;
+      transition: box-shadow var(--transition), transform var(--transition);
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+    }
+
+    .card:hover {
+      box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+      transform: translateY(-1px);
+    }
+
+    .card-title {
+      font-size: 13px;
+      font-weight: 500;
+      line-height: 1.45;
+      color: var(--label-primary);
+      word-break: break-word;
+    }
+
+    .card-meta {
+      display: flex;
+      gap: 6px;
+      margin-top: 10px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .prio-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      display: inline-block;
+      flex-shrink: 0;
+    }
+
+    .prio-dot.p-urgent { background: var(--red); }
+    .prio-dot.p-high { background: var(--orange); }
+    .prio-dot.p-medium { background: var(--blue); }
+    .prio-dot.p-low { background: var(--gray); }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 2px 8px;
+      border-radius: var(--radius-pill);
+      font-size: 10px;
+      font-weight: 600;
+      gap: 4px;
+    }
+
+    .p-urgent { color: var(--red); background: rgba(255, 69, 58, 0.15); }
+    .p-high   { color: var(--orange); background: rgba(255, 159, 10, 0.15); }
+    .p-medium { color: var(--blue); background: rgba(10, 132, 255, 0.15); }
+    .p-low    { color: var(--gray); background: rgba(152, 152, 157, 0.15); }
+
+    .avatars { display: flex; gap: 2px; }
+
+    .avatar {
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: var(--surface-tertiary);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 9px;
+      font-weight: 700;
+      color: var(--label-primary);
+      box-shadow: 0 0 0 1.5px rgba(0,0,0,0.3);
+    }
+
+    .due {
+      font-size: 11px;
+      color: var(--label-secondary);
+    }
+
+    .due.overdue {
+      color: var(--red);
+      font-weight: 600;
+    }
+
+    .tags {
+      display: flex;
+      gap: 4px;
+      flex-wrap: wrap;
+      margin-top: 8px;
+    }
+
+    .tag {
+      background: var(--surface-tertiary);
+      color: var(--label-tertiary);
+      padding: 2px 8px;
+      border-radius: var(--radius-pill);
+      font-size: 10px;
+    }
+
+    .empty-col {
+      color: var(--label-tertiary);
+      font-size: 12px;
+      text-align: center;
+      padding: 24px 12px;
+    }
+
+    .toast {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      background: var(--surface-primary);
+      backdrop-filter: saturate(180%) blur(20px);
+      -webkit-backdrop-filter: saturate(180%) blur(20px);
+      color: var(--label-primary);
+      padding: 12px 20px;
+      border-radius: var(--radius-card);
+      font-size: 13px;
+      opacity: 0;
+      transition: opacity 0.3s;
+      pointer-events: none;
+      z-index: 999;
+      box-shadow: var(--shadow);
+    }
+
+    .toast.show { opacity: 1; }
+
+    .task-count {
+      font-size: 12px;
+      color: var(--label-tertiary);
+      font-weight: 400;
+    }
+  </style>
+</head>
+<body>
+<header>
+  <h1>
+    Kanban
+    <span class="sse-indicator">
+      <span class="sse-dot disconnected" id="sse-dot"></span>
+      <span id="sse-status">Connecting...</span>
+    </span>
+    <span class="task-count" id="task-count"></span>
+  </h1>
+  <div class="filter-bar">
+    <input type="text" id="search" placeholder="Search...">
+    <select id="filter-priority">
+      <option value="">All Priority</option>
+      <option>Urgent</option><option>High</option><option>Medium</option><option>Low</option>
+    </select>
+    <a href="/selector.html" class="back-link">Views</a>
+  </div>
+</header>
+<div class="board" id="board">
+  <div class="column">
+    <div class="col-header"><span class="col-dot col-dot-backlog"></span>Backlog <span class="col-count" id="cnt-backlog">0</span></div>
+    <div class="cards" id="col-backlog"></div>
+  </div>
+  <div class="column">
+    <div class="col-header"><span class="col-dot col-dot-ready"></span>Ready <span class="col-count" id="cnt-ready">0</span></div>
+    <div class="cards" id="col-ready"></div>
+  </div>
+  <div class="column">
+    <div class="col-header"><span class="col-dot col-dot-progress"></span>In Progress <span class="col-count" id="cnt-progress">0</span></div>
+    <div class="cards" id="col-progress"></div>
+  </div>
+  <div class="column">
+    <div class="col-header"><span class="col-dot col-dot-review"></span>In Review <span class="col-count" id="cnt-review">0</span></div>
+    <div class="cards" id="col-review"></div>
+  </div>
+  <div class="column">
+    <div class="col-header"><span class="col-dot col-dot-done"></span>Done <span class="col-count" id="cnt-done">0</span></div>
+    <div class="cards" id="col-done"></div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+  let allTasks = [];
+  const today = new Date().toISOString().split('T')[0];
+  const colMap = { 'Backlog':'backlog', 'Ready':'ready', 'In Progress':'progress', 'In Review':'review', 'Done':'done' };
+  const prioClass = { Urgent:'p-urgent', High:'p-high', Medium:'p-medium', Low:'p-low' };
+
+  function esc(s) {
+    return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+  function initials(name) {
+    return name.split(' ').map(n=>n[0]).join('').slice(0,2).toUpperCase();
+  }
+
+  function render() {
+    const search = document.getElementById('search').value.toLowerCase();
+    const priority = document.getElementById('filter-priority').value;
+    const filtered = allTasks.filter(t =>
+      (!search || t.title.toLowerCase().includes(search)) &&
+      (!priority || t.priority === priority)
+    );
+
+    const grouped = { backlog:[], ready:[], progress:[], review:[], done:[] };
+    filtered.forEach(t => {
+      const col = colMap[t.status] || 'backlog';
+      grouped[col].push(t);
+    });
+
+    Object.entries(grouped).forEach(([col, tasks]) => {
+      const el = document.getElementById('col-'+col);
+      const cnt = document.getElementById('cnt-'+col);
+      cnt.textContent = tasks.length;
+      if (tasks.length === 0) {
+        el.innerHTML = '<div class="empty-col">No tasks</div>';
+        return;
+      }
+      el.innerHTML = tasks.map(t => {
+        const pc = t.priority ? prioClass[t.priority] : '';
+        const overdue = t.dueDate && t.dueDate < today;
+        return `<div class="card" onclick="copyId('${t.id}')" title="Click to copy ID">
+          <div class="card-title">${esc(t.title)}</div>
+          <div class="card-meta">
+            ${t.priority ? `<span class="prio-dot ${pc}"></span><span class="badge ${pc}">${esc(t.priority)}</span>` : ''}
+            <div class="avatars">${(t.assignees||[]).map(a=>`<div class="avatar" title="${esc(a.name)}">${initials(a.name)}</div>`).join('')}</div>
+            ${t.dueDate ? `<span class="due${overdue?' overdue':''}">${t.dueDate}${overdue?' ⚠':''}</span>` : ''}
+          </div>
+          ${t.tags&&t.tags.length ? `<div class="tags">${t.tags.map(g=>`<span class="tag">${esc(g)}</span>`).join('')}</div>` : ''}
+        </div>`;
+      }).join('');
+    });
+
+    document.getElementById('task-count').textContent = `${filtered.length} tasks`;
+  }
+
+  function copyId(id) {
+    navigator.clipboard.writeText(id).catch(()=>{});
+    showToast('ID copied: ' + id.slice(0,8) + '...');
+  }
+
+  function showToast(msg) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    clearTimeout(t._timer);
+    t._timer = setTimeout(() => t.classList.remove('show'), 2000);
+  }
+
+  async function fetchTasks() {
+    try {
+      const res = await fetch('/api/tasks');
+      if (!res.ok) throw new Error(res.statusText);
+      const data = await res.json();
+      allTasks = data.tasks || [];
+      render();
+    } catch(e) {
+      document.getElementById('sse-status').textContent = 'Error: ' + e.message;
+    }
+  }
+
+  ['search','filter-priority'].forEach(id =>
+    document.getElementById(id).addEventListener('input', render)
+  );
+
+  // SSE
+  function connectSSE() {
+    const dot = document.getElementById('sse-dot');
+    const status = document.getElementById('sse-status');
+    const es = new EventSource('/api/events');
+    es.addEventListener('connected', () => {
+      dot.classList.remove('disconnected');
+      status.textContent = 'Live';
+    });
+    es.addEventListener('refresh', (e) => {
+      try {
+        const data = JSON.parse(e.data);
+        allTasks = data.tasks || [];
+        render();
+      } catch(err) { fetchTasks(); }
+    });
+    es.onerror = () => {
+      dot.classList.add('disconnected');
+      status.textContent = 'Reconnecting...';
+      es.close();
+      setTimeout(connectSSE, 3000);
+    };
+  }
+
+  // Static mode: if data is embedded, use it directly (no server needed)
+  if (window.__STATIC_DATA__) {
+    allTasks = window.__STATIC_DATA__.tasks || [];
+    document.getElementById('sse-dot').style.display = 'none';
+    document.getElementById('sse-status').textContent = 'Static';
+    render();
+  } else {
+    fetchTasks();
+    connectSSE();
+  }
+</script>
+</body>
+</html>

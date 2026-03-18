@@ -1,0 +1,145 @@
+---
+name: executing-tasks
+description: >
+  Orchestrates autonomous task execution via current session, tmux parallel,
+  or Cowork scheduled tasks. Fetches ready tasks, validates working directories,
+  and dispatches to the chosen execution mode.
+  Triggers on: "do the next task", "process tasks",
+  "execute tasks", "ready tasks",
+  "タスク実行", "次のタスクを実行", "タスク処理".
+user-invocable: true
+---
+
+# Agentic Tasks — Task Execution
+
+You orchestrate the execution of tasks. Tasks can be executed one at a time in the current session, or in parallel (tmux panes in Claude Code / Scheduled Tasks in Cowork).
+
+## Provider Detection + Identity Resolve (once per session)
+
+1. Load `${CLAUDE_PLUGIN_ROOT}/skills/detecting-provider/SKILL.md` and determine `active_provider` + `headless_config`. Skip if already set.
+2. Load `${CLAUDE_PLUGIN_ROOT}/skills/resolving-identity/SKILL.md` and resolve `current_user`. Skip if already set.
+
+## Schema Validation
+
+After loading the provider SKILL.md and config, verify Core fields exist in the Tasks data source (same check as managing-tasks). Required Core fields: `Title`, `Description`, `Acceptance Criteria`, `Status`, `Blocked By`, `Priority`, `Executor`, `Requires Review`, `Execution Plan`, `Working Directory`, `Session Reference`, `Dispatched At`, `Agent Output`, `Error Message`.
+
+If any Core field is missing, follow the active provider SKILL.md's instructions for handling missing fields (auto-repair or stop, as defined per provider).
+
+## Execution Flow
+
+### Phase 1: Fetch & Concurrency Check
+
+1. Query Ready tasks using the active provider's "Querying Tasks" section:
+   - Filter: Status = "Ready" AND Executor = current executor type AND Assignees = `current_user.id`
+     - `execution_environment = "claude-code"` → Executor = "claude-code"
+     - `execution_environment = "cowork"` → Executor = "cowork"
+   - Post-process: Blocked By is empty or all Blocked By tasks are Done (cannot be filtered server-side)
+2. Count In Progress tasks using the same query path:
+   - Filter: Status = "In Progress" AND Executor = current executor type AND Assignees = `current_user.id`
+3. Calculate `available_slots = headless_config.maxConcurrentAgents - in_progress_count` (default: 3)
+4. If `available_slots <= 0`: report "N tasks are in progress (limit: M). Wait for completion or increase maxConcurrentAgents" and stop
+5. Sort by Priority (Urgent > High > Medium > Low), then Due Date ascending
+6. Take the first `min(ready_count, available_slots)` tasks
+
+### Phase 2: Validate & Choose Execution Mode
+
+For each fetched task:
+- Verify Working Directory exists: `test -d "$WORKING_DIR"`
+- If not found: exclude that task, set Status = "Blocked", Error Message = "Working directory not found"
+
+### Dispatch Readiness Check (hard gate)
+
+For each task that passed Working Directory validation, verify ALL of the following
+fields are filled. If any field is empty or insufficient, do NOT dispatch.
+Instead, present the gaps to the user and ask them to fill each one via AskUserQuestion.
+
+| Field | Check | If missing |
+|---|---|---|
+| Description | Non-empty, at least ~50 tokens | Ask: "What should this task accomplish?" |
+| Acceptance Criteria | Non-empty, contains testable conditions | Ask: "What are the verifiable completion conditions?" |
+| Execution Plan | Non-empty | Ask: "What is the step-by-step plan for this task?" and propose one based on Description |
+| Working Directory | Non-empty AND directory exists | Ask: "What is the absolute path to the working directory?" |
+
+After the user provides the missing information, update the task via the provider's
+update tool, then re-validate. Only proceed to dispatch when all checks pass.
+
+Display the validated task(s) with a "Ready for dispatch" confirmation:
+
+Display the task list:
+
+```
+Executable tasks:
+1. [Urgent] Feature Login   → /home/user/project-a
+2. [High]   API Tests       → /home/user/project-b  (branch: feature/api)
+3. [Medium] Fix Bug #42     → /home/user/project-c
+```
+
+Use AskUserQuestion to choose execution method:
+
+**Claude Code environment (`execution_environment = "claude-code"`):**
+
+| Option | Description |
+|--------|-------------|
+| One at a time (Recommended) | Select one task and execute in the current session |
+| tmux parallel execution | Execute multiple tasks simultaneously in tmux panes |
+
+**Cowork environment (`execution_environment = "cowork"`):**
+
+| Option | Description |
+|--------|-------------|
+| One at a time (Recommended) | Select one task and execute in the current session |
+| Cowork Scheduled Task parallel creation | Register each task as a Scheduled Task for parallel execution |
+
+### When "One at a time" is selected
+
+1. Use AskUserQuestion to let the user choose which task to execute
+2. Claim: Status → "In Progress", Dispatched At → now
+3. Execute within the current session:
+   - `cd <Working Directory>`
+   - If Branch is set: `git checkout <branch> || git checkout -b <branch>`
+   - Perform work based on the task's Description, Acceptance Criteria, and Execution Plan
+   - On completion: record results in Agent Output, update Status to "In Review" or "Done" based on Requires Review
+   - On error: record error details in Error Message, update Status to "Blocked"
+
+### When "tmux parallel execution" is selected (Claude Code environment only)
+
+1. Use AskUserQuestion to choose permission mode:
+   - plan (Recommended)
+   - default
+   - acceptEdits
+   - bypassPermissions
+2. Load `tmux-parallel.md` (this directory) and follow Phases 3–6.
+
+### When "Cowork Scheduled Task parallel creation" is selected (Cowork environment only)
+
+Load `cowork-parallel.md` (this directory) and follow Steps 1–5.
+
+## Dispatch Prompt Template
+
+See `dispatch-prompt.md` in this directory.
+
+## Fallback: Sequential Execution
+
+**Claude Code environment:** If tmux is unavailable, fall back to sequential execution via the Agent tool:
+
+For each task:
+1. Set Status → "In Progress", Dispatched At → now
+2. Spawn the `task-agent` agent using the Agent tool with the assembled dispatch prompt
+3. Record any returned session reference in `Session Reference`
+4. On success: write result to `Agent Output`, transition Status per `Requires Review`
+5. On failure: write error to `Error Message`, set Status → "Blocked"
+
+**Cowork environment:** If Scheduled Task creation fails, fall back to executing one at a time within the current session (same flow as "One at a time").
+
+## Safety
+
+- Default: single task in current session
+- Parallel execution is opt-in via AskUserQuestion (tmux in Claude Code, Scheduled Tasks in Cowork)
+- Default permission mode for tmux agents: plan
+- Never use `--dangerously-skip-permissions`
+- Respect `maxConcurrentAgents` limit by subtracting current In Progress count
+- Claude Code: Order strictly: generate files → claim in Notion → launch tmux
+- Cowork: Order strictly: generate prompts → claim in Notion → create Scheduled Tasks
+- Write Session Reference only after pane/task creation succeeds (no speculative writes)
+- On tmux unavailable (Claude Code): error message + fallback to sequential Agent tool execution
+- On Scheduled Task creation failure (Cowork): fallback to sequential in-session execution

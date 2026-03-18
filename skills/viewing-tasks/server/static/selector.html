@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Agentic Tasks — Views</title>
+  <style>
+    :root {
+      --bg: #000000;
+      --surface-primary: rgba(28, 28, 30, 0.8);
+      --surface-secondary: rgba(44, 44, 46, 0.6);
+      --surface-tertiary: rgba(58, 58, 60, 0.4);
+      --separator: rgba(84, 84, 88, 0.35);
+      --label-primary: #ffffff;
+      --label-secondary: rgba(235, 235, 245, 0.6);
+      --label-tertiary: rgba(235, 235, 245, 0.3);
+      --blue: #0a84ff;
+      --green: #30d158;
+      --orange: #ff9f0a;
+      --red: #ff453a;
+      --purple: #bf5af2;
+      --indigo: #5e5ce6;
+      --gray: #98989d;
+      --font: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Helvetica Neue', sans-serif;
+      --radius-card: 12px;
+      --radius-badge: 8px;
+      --radius-pill: 20px;
+      --shadow: 0 0 0 0.5px rgba(0,0,0,0.3), 0 2px 12px rgba(0,0,0,0.3);
+      --transition: cubic-bezier(0.25, 0.46, 0.45, 0.94) 250ms;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--label-primary);
+      font-family: var(--font);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 40px 20px;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    h1 {
+      font-size: 32px;
+      font-weight: 300;
+      color: var(--label-primary);
+      letter-spacing: -0.01em;
+      margin-bottom: 8px;
+    }
+
+    .subtitle {
+      color: var(--label-secondary);
+      font-size: 15px;
+      font-weight: 400;
+      letter-spacing: 0.01em;
+      margin-bottom: 48px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 14px;
+      width: 100%;
+      max-width: 720px;
+    }
+
+    .card {
+      background: var(--surface-primary);
+      backdrop-filter: saturate(180%) blur(20px);
+      -webkit-backdrop-filter: saturate(180%) blur(20px);
+      border-radius: var(--radius-card);
+      padding: 32px 28px;
+      text-decoration: none;
+      color: inherit;
+      cursor: pointer;
+      position: relative;
+      overflow: hidden;
+      box-shadow: var(--shadow);
+      transition: transform var(--transition), box-shadow var(--transition);
+    }
+
+    .card:hover {
+      transform: scale(1.02);
+      box-shadow: 0 0 0 0.5px rgba(0,0,0,0.3), 0 8px 32px rgba(0,0,0,0.5);
+    }
+
+    .card.coming-soon {
+      opacity: 0.4;
+      cursor: default;
+    }
+
+    .card.coming-soon:hover {
+      transform: none;
+      box-shadow: var(--shadow);
+    }
+
+    .card-icon {
+      width: 28px;
+      height: 28px;
+      margin-bottom: 16px;
+      display: block;
+    }
+
+    .card-icon svg {
+      width: 28px;
+      height: 28px;
+    }
+
+    .card-title {
+      font-size: 15px;
+      font-weight: 600;
+      margin-bottom: 6px;
+      letter-spacing: -0.01em;
+    }
+
+    .card-desc {
+      font-size: 13px;
+      color: var(--label-secondary);
+      line-height: 1.5;
+      font-weight: 400;
+    }
+
+    .soon-badge {
+      position: absolute;
+      top: 14px;
+      right: 14px;
+      color: var(--label-tertiary);
+      font-size: 11px;
+      font-weight: 500;
+      padding: 3px 10px;
+      border-radius: var(--radius-pill);
+      background: var(--surface-tertiary);
+      letter-spacing: 0.02em;
+    }
+
+    footer {
+      margin-top: 48px;
+      color: var(--label-tertiary);
+      font-size: 13px;
+      font-weight: 400;
+      letter-spacing: 0.01em;
+    }
+  </style>
+</head>
+<body>
+  <h1>Agentic Tasks</h1>
+  <p class="subtitle">Choose a view to explore your tasks</p>
+  <div class="grid">
+    <a href="/list.html" class="card">
+      <span class="card-icon">
+        <svg viewBox="0 0 28 28" fill="none" stroke="var(--blue)" stroke-width="2" stroke-linecap="round">
+          <line x1="4" y1="8" x2="24" y2="8"/>
+          <line x1="4" y1="14" x2="24" y2="14"/>
+          <line x1="4" y1="20" x2="24" y2="20"/>
+        </svg>
+      </span>
+      <div class="card-title">List View</div>
+      <div class="card-desc">Sortable table with filters. Best for scanning all tasks at once.</div>
+    </a>
+    <a href="/kanban.html" class="card">
+      <span class="card-icon">
+        <svg viewBox="0 0 28 28" fill="none" stroke="var(--blue)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="3" width="8" height="22" rx="2"/>
+          <rect x="17" y="3" width="8" height="14" rx="2"/>
+        </svg>
+      </span>
+      <div class="card-title">Kanban Board</div>
+      <div class="card-desc">Columns by status. Visualize flow from Backlog to Done.</div>
+    </a>
+    <a href="/sprint-backlog.html" class="card">
+      <span class="card-icon">
+        <svg viewBox="0 0 28 28" fill="none" stroke="var(--blue)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polygon points="10,4 24,14 10,24"/>
+        </svg>
+      </span>
+      <div class="card-title">Sprint Backlog</div>
+      <div class="card-desc">Active sprint kanban with stall detection and Complexity Score progress.</div>
+    </a>
+    <a href="/product-backlog.html" class="card">
+      <span class="card-icon">
+        <svg viewBox="0 0 28 28" fill="none" stroke="var(--blue)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="4" y="4" width="20" height="6" rx="1.5"/>
+          <rect x="6" y="12" width="16" height="6" rx="1.5"/>
+          <rect x="8" y="20" width="12" height="6" rx="1.5"/>
+        </svg>
+      </span>
+      <div class="card-title">Product Backlog</div>
+      <div class="card-desc">Ordered backlog with dependency chains and Complexity Score visualization.</div>
+    </a>
+    <a href="/calendar.html" class="card">
+      <span class="card-icon">
+        <svg viewBox="0 0 28 28" fill="none" stroke="var(--blue)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="4" y="5" width="20" height="19" rx="2"/>
+          <line x1="4" y1="11" x2="24" y2="11"/>
+          <line x1="10" y1="3" x2="10" y2="7"/>
+          <line x1="18" y1="3" x2="18" y2="7"/>
+        </svg>
+      </span>
+      <div class="card-title">Calendar</div>
+      <div class="card-desc">Tasks on a timeline by due date.</div>
+    </a>
+    <a href="/gantt.html" class="card">
+      <span class="card-icon">
+        <svg viewBox="0 0 28 28" fill="none" stroke="var(--blue)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="4" y="16" width="4" height="8" rx="1"/>
+          <rect x="12" y="10" width="4" height="14" rx="1"/>
+          <rect x="20" y="4" width="4" height="20" rx="1"/>
+        </svg>
+      </span>
+      <div class="card-title">Gantt Chart</div>
+      <div class="card-desc">Dependencies and estimates as a Gantt timeline.</div>
+    </a>
+  </div>
+  <footer>Agentic Tasks &bull; Real-time updates via SSE</footer>
+  <script>
+    (async () => {
+      try {
+        const res = await fetch('/api/views');
+        const { views } = await res.json();
+        if (!views || views.length === 0) return;
+
+        const grid = document.querySelector('.grid');
+
+        const heading = document.createElement('h2');
+        heading.textContent = 'Custom Views';
+        heading.style.cssText = 'font-size:24px;font-weight:300;color:var(--label-primary);letter-spacing:-0.01em;margin-top:48px;margin-bottom:14px;width:100%;max-width:720px;';
+        grid.parentNode.insertBefore(heading, grid.nextSibling);
+
+        const customGrid = document.createElement('div');
+        customGrid.className = 'grid';
+        customGrid.style.marginTop = '0';
+        heading.after(customGrid);
+
+        views.forEach(v => {
+          const a = document.createElement('a');
+          a.href = '/custom/' + v.slug + '.html';
+          a.className = 'card';
+          a.innerHTML = `
+            <span class="card-icon">
+              <svg viewBox="0 0 28 28" fill="none" stroke="var(--purple)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="14" cy="14" r="10"/>
+                <path d="M14 8v6l4 2"/>
+              </svg>
+            </span>
+            <div class="card-title">${v.name}</div>
+            <div class="card-desc">${v.description || 'Custom view'}</div>
+          `;
+          customGrid.appendChild(a);
+        });
+      } catch {
+        // silently ignore — server might not support /api/views
+      }
+    })();
+  </script>
+</body>
+</html>
