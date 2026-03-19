@@ -2,7 +2,7 @@
 name: executing-tasks
 description: >
   Orchestrates autonomous task execution via current session, tmux parallel,
-  or Cowork scheduled tasks. Fetches ready tasks, validates working directories,
+  or Scheduled Tasks. Fetches ready tasks, validates working directories,
   and dispatches to the chosen execution mode.
   Triggers on: "do the next task", "process tasks",
   "execute tasks", "ready tasks",
@@ -12,7 +12,7 @@ user-invocable: true
 
 # Agentic Tasks — Task Execution
 
-You orchestrate the execution of tasks. Tasks can be executed one at a time in the current session, or in parallel (tmux panes in Claude Code / Scheduled Tasks in Cowork).
+You orchestrate the execution of tasks. Tasks can be executed one at a time in the current session, or in parallel (tmux panes in Terminal CLI / Scheduled Tasks in Claude Desktop).
 
 ## Provider Detection + Identity Resolve (once per session)
 
@@ -31,8 +31,8 @@ If any Core field is missing, follow the active provider SKILL.md's instructions
 
 1. Query Ready tasks using the active provider's "Querying Tasks" section:
    - Filter: Status = "Ready" AND Executor = current executor type AND Assignees = `current_user.id`
-     - `execution_environment = "claude-code"` → Executor = "claude-code"
-     - `execution_environment = "cowork"` → Executor = "cowork"
+     - `execution_environment = "cli"` → Executor = "cli"
+     - `execution_environment = "claude-desktop"` → Executor = "claude-desktop"
    - Post-process: Blocked By is empty or all Blocked By tasks are Done (cannot be filtered server-side)
 2. Count In Progress tasks using the same query path:
    - Filter: Status = "In Progress" AND Executor = current executor type AND Assignees = `current_user.id`
@@ -76,19 +76,19 @@ Executable tasks:
 
 Use AskUserQuestion to choose execution method:
 
-**Claude Code environment (`execution_environment = "claude-code"`):**
+**Terminal CLI (`execution_environment = "cli"`):**
 
 | Option | Description |
 |--------|-------------|
 | One at a time (Recommended) | Select one task and execute in the current session |
 | tmux parallel execution | Execute multiple tasks simultaneously in tmux panes |
 
-**Cowork environment (`execution_environment = "cowork"`):**
+**Claude Desktop (`execution_environment = "claude-desktop"`):**
 
 | Option | Description |
 |--------|-------------|
 | One at a time (Recommended) | Select one task and execute in the current session |
-| Cowork Scheduled Task parallel creation | Register each task as a Scheduled Task for parallel execution |
+| Scheduled Task parallel creation | Register each task as a Scheduled Task for parallel execution |
 
 ### When "One at a time" is selected
 
@@ -101,7 +101,7 @@ Use AskUserQuestion to choose execution method:
    - On completion: record results in Agent Output, update Status to "In Review" or "Done" based on Requires Review
    - On error: record error details in Error Message, update Status to "Blocked"
 
-### When "tmux parallel execution" is selected (Claude Code environment only)
+### When "tmux parallel execution" is selected (Terminal CLI only)
 
 1. Use AskUserQuestion to choose permission mode:
    - plan (Recommended)
@@ -110,9 +110,9 @@ Use AskUserQuestion to choose execution method:
    - bypassPermissions
 2. Load `tmux-parallel.md` (this directory) and follow Phases 3–6.
 
-### When "Cowork Scheduled Task parallel creation" is selected (Cowork environment only)
+### When "Scheduled Task parallel creation" is selected (Claude Desktop only)
 
-Load `cowork-parallel.md` (this directory) and follow Steps 1–5.
+Load `desktop-parallel.md` (this directory) and follow Steps 1–5.
 
 ## Dispatch Prompt Template
 
@@ -120,7 +120,7 @@ See `dispatch-prompt.md` in this directory.
 
 ## Fallback: Sequential Execution
 
-**Claude Code environment:** If tmux is unavailable, fall back to sequential execution via the Agent tool:
+**Terminal CLI:** If tmux is unavailable, fall back to sequential execution via the Agent tool:
 
 For each task:
 1. Set Status → "In Progress", Dispatched At → now
@@ -129,17 +129,17 @@ For each task:
 4. On success: write result to `Agent Output`, transition Status per `Requires Review`
 5. On failure: write error to `Error Message`, set Status → "Blocked"
 
-**Cowork environment:** If Scheduled Task creation fails, fall back to executing one at a time within the current session (same flow as "One at a time").
+**Claude Desktop:** If Scheduled Task creation fails, fall back to executing one at a time within the current session (same flow as "One at a time").
 
 ## Safety
 
 - Default: single task in current session
-- Parallel execution is opt-in via AskUserQuestion (tmux in Claude Code, Scheduled Tasks in Cowork)
+- Parallel execution is opt-in via AskUserQuestion (tmux in Terminal CLI, Scheduled Tasks in Claude Desktop)
 - Default permission mode for tmux agents: plan
 - Never use `--dangerously-skip-permissions`
 - Respect `maxConcurrentAgents` limit by subtracting current In Progress count
-- Claude Code: Order strictly: generate files → claim in Notion → launch tmux
-- Cowork: Order strictly: generate prompts → claim in Notion → create Scheduled Tasks
+- Terminal CLI: Order strictly: generate files → claim in Notion → launch tmux
+- Claude Desktop: Order strictly: generate prompts → claim in Notion → create Scheduled Tasks
 - Write Session Reference only after pane/task creation succeeds (no speculative writes)
-- On tmux unavailable (Claude Code): error message + fallback to sequential Agent tool execution
-- On Scheduled Task creation failure (Cowork): fallback to sequential in-session execution
+- On tmux unavailable (Terminal CLI): error message + fallback to sequential Agent tool execution
+- On Scheduled Task creation failure (Claude Desktop): fallback to sequential in-session execution
