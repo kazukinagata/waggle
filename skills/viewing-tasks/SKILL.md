@@ -22,7 +22,7 @@ Before starting, detect the runtime environment:
 
 ```bash
 # Check if running in a remote/sandboxed environment where localhost is not accessible from the user's browser
-if [ -n "${COWORK_SESSION_ID:-}" ] || [ -n "${CLOUD_SHELL:-}" ]; then
+if [ -n "${CLOUD_SHELL:-}" ]; then
   # Use static HTML export mode (see below)
   STATIC_MODE=true
 else
@@ -124,7 +124,7 @@ All views support:
 
 ## Static HTML Export
 
-When running in a remote environment (e.g. Cowork VM) where localhost is not accessible from the user's browser, generate a standalone HTML file with embedded task data instead of starting the server.
+When running in a remote environment (e.g. cloud shell) where localhost is not accessible from the user's browser, generate a standalone HTML file with embedded task data instead of starting the server.
 
 ### Steps
 
@@ -157,7 +157,7 @@ ${CLAUDE_PLUGIN_ROOT}/skills/viewing-tasks/scripts/generate-static-html.sh sprin
 
 Supported views: `kanban`, `list`, `sprint-backlog`, `product-backlog`
 
-5. Present the generated HTML file to the user. In environments that support artifacts (e.g. Claude Desktop, Cowork), output the HTML content directly so it can be rendered in the browser. Otherwise, inform the user of the file path.
+5. Present the generated HTML file to the user. In environments that support artifacts (e.g. Claude Desktop), output the HTML content directly so it can be rendered in the browser. Otherwise, inform the user of the file path.
 
 6. Clean up temporary files:
 

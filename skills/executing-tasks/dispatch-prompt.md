@@ -38,7 +38,7 @@ On completion, perform the following:
 3. On error: write error details to "Error Message" and update Status to "Blocked"
 4. If the Notion update fails, ignore the error and complete execution
 
-Note: Working Directory is an absolute path in Claude Code and a workspace-relative path in Cowork.
+Note: Working Directory is an absolute path.
 
 ## Rules
 - Follow existing code patterns and conventions

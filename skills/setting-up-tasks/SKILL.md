@@ -45,8 +45,8 @@ Then guide MCP setup based on the environment:
 
 ### Determining the Environment
 
-- **Claude Code**: `~/.claude/settings.json` exists or `CLAUDE_PLUGIN_ROOT` is set
-- **Cowork**: Global Instructions / CLAUDE.md is accessible from the current context
+- **Terminal CLI**: `~/.claude/settings.json` exists or `CLAUDE_PLUGIN_ROOT` is set
+- **Claude Desktop**: Global Instructions / CLAUDE.md is accessible from the current context
 
 ### Claude Code — MCP Setup Instructions
 
@@ -62,10 +62,10 @@ Add the following to `~/.claude/settings.json` under `"mcpServers"`:
 
 After adding, authenticate by visiting `https://mcp.notion.com/mcp` in a browser and following the OAuth flow. Then restart Claude Code and run the setup skill again.
 
-### Cowork — MCP Setup Instructions
+### Claude Desktop — MCP Setup Instructions
 
 **Notion:**
-Open Cowork settings → MCP Servers → Add Server → Enter `https://mcp.notion.com/mcp`.
+Open Claude Desktop settings → MCP Servers → Add Server → Enter `https://mcp.notion.com/mcp`.
 Authenticate with your Notion account when prompted. Then run the setup skill again.
 
 ## Step 3: Run Provider-Specific Setup
@@ -78,15 +78,15 @@ ${CLAUDE_PLUGIN_ROOT}/skills/providers/{active_provider}/setup.md
 
 This file contains all provider-specific database creation, schema initialization, and verification steps.
 
-## Step 4: Daily Routine Scheduled Task Registration (Cowork only)
+## Step 4: Daily Routine Scheduled Task Registration (Claude Desktop only)
 
 After provider-specific setup completes, check the execution environment.
 
 ### Environment Check
 
 Determine the environment:
-1. If environment variable `CLAUDE_CODE_IS_COWORK` is `1` → Cowork
-2. Otherwise → Claude Code (skip this step entirely)
+1. If environment variable `CLAUDE_CODE_ENTRYPOINT` is `claude-desktop` → Claude Desktop
+2. Otherwise → Terminal CLI (skip this step entirely)
 
 ### Prompt User
 
@@ -127,7 +127,7 @@ Example: "Taro Yamada" → `taro-yamada`
 ```
 Daily routine registered: runs every day at <HH:MM>.
 Scheduled Task ID: daily-tasks-<user_name_slug>
-To modify: Cowork → Scheduled Tasks
+To modify: Claude Desktop → Scheduled Tasks
 ```
 
 ## Language

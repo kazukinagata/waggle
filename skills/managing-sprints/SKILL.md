@@ -144,10 +144,10 @@ Flag STALLED tasks (In Progress with Dispatched At > Score × stallThresholdMult
 
 #  | Title                        | Priority | Score | Executor    | Blocked By
 ---|------------------------------|----------|-------|-------------|----------
-1  | Implement OAuth login        | Urgent   | 8     | claude-code | —
-2  | Add rate limiting            | High     | 3     | claude-code | —
+1  | Implement OAuth login        | Urgent   | 8     | cli | —
+2  | Add rate limiting            | High     | 3     | cli | —
 3  | Write onboarding docs        | Medium   | 2     | human       | 🔒 #1
-4  | Dashboard perf fix           | Medium   | 3     | claude-code | —
+4  | Dashboard perf fix           | Medium   | 3     | cli | —
 ```
 
 🔒 = blocked by another backlog task (shows dependency)

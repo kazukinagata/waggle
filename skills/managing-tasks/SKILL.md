@@ -179,7 +179,7 @@ In AskUserQuestion, include a description with each option explaining why it is 
 
 ### Branch (git worktree support)
 
-For tasks with Executor=claude-code where the target is a git repository:
+For tasks with Executor=cli where the target is a git repository:
 - Suggest setting the Branch field (not mandatory)
 - Default candidate: `feature/<task-title-slug>`
 - If set, executing-tasks can create an isolated environment via `git worktree add`

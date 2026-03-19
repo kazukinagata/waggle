@@ -15,7 +15,7 @@ You are executing a development task dispatched by the Agentic Tasks Orchestrato
 - **Acceptance criteria**: How to verify completion
 - **Context**: Background information and constraints
 - **Execution Plan**: The Orchestrator's pre-written plan (follow this; do not modify)
-- **Environment**: Repository URL and Working Directory (absolute path for claude-code)
+- **Environment**: Repository URL and Working Directory (absolute path)
 - **On Completion**: Instructions for writing results back to the task data store
 
 ## Your Process

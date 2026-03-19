@@ -2,7 +2,7 @@
 name: running-daily-tasks
 description: >
   Unified daily routine: ingests messages into tasks, then guides user through
-  task refinement and dispatch. Works in both Claude Code and Cowork.
+  task refinement and dispatch. Works in both Terminal CLI and Claude Desktop.
   Triggers on: "daily tasks", "daily routine", "run daily tasks",
   "デイリータスク", "日次ルーティン"
 user-invocable: true
@@ -10,7 +10,7 @@ user-invocable: true
 
 # Agentic Tasks — Daily Routine
 
-Unified daily routine that ingests messages into tasks, then guides the user through task refinement and dispatch. Works in both Claude Code and Cowork environments.
+Unified daily routine that ingests messages into tasks, then guides the user through task refinement and dispatch. Works in both Terminal CLI and Claude Desktop environments.
 
 ---
 
