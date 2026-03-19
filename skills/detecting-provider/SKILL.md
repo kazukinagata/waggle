@@ -31,6 +31,9 @@ If no MCP provider was detected in Layer 1, check for a local config file:
    - `"provider": "sqlite"` → `active_provider = "sqlite"`
    - `"provider": "turso"` → `active_provider = "turso"`
    - **REQUIRED — Read the corresponding provider SKILL.md** (same instruction as Layer 1).
+3. Alternatively, if `TURSO_URL` environment variable is set (check via Bash: `[ -n "$TURSO_URL" ] && echo "SET"`):
+   - `active_provider = "turso"`
+   - **REQUIRED — Read the corresponding provider SKILL.md.**
 
 ## Layer 2: Conflict Resolution (multiple provider MCPs detected)
 If multiple provider MCPs are detected, determine the environment:
