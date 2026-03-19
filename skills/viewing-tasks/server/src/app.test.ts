@@ -15,7 +15,7 @@ function makeTask(overrides: Partial<Task> = {}): Task {
     status: "Ready",
     blockedBy: [],
     priority: "Medium",
-    executor: "claude-code",
+    executor: "cli",
     requiresReview: true,
     executionPlan: "step 1, step 2",
     workingDirectory: "/home/user/project",
@@ -80,11 +80,11 @@ describe("POST /api/data and GET /api/tasks", () => {
 
   it("preserves all Core fields through the data pipeline", async () => {
     const task = makeTask({
-      executor: "cowork",
+      executor: "claude-desktop",
       requiresReview: false,
       executionPlan: "Build the feature",
       workingDirectory: "packages/api",
-      sessionReference: "cowork-task-42",
+      sessionReference: "scheduled-task-42",
       dispatchedAt: "2026-03-05T10:00:00.000Z",
       errorMessage: "",
     });
@@ -100,11 +100,11 @@ describe("POST /api/data and GET /api/tasks", () => {
     const body = await getRes.json() as TasksResponse;
     const returned = body.tasks[0];
 
-    expect(returned.executor).toBe("cowork");
+    expect(returned.executor).toBe("claude-desktop");
     expect(returned.requiresReview).toBe(false);
     expect(returned.executionPlan).toBe("Build the feature");
     expect(returned.workingDirectory).toBe("packages/api");
-    expect(returned.sessionReference).toBe("cowork-task-42");
+    expect(returned.sessionReference).toBe("scheduled-task-42");
     expect(returned.dispatchedAt).toBe("2026-03-05T10:00:00.000Z");
   });
 
@@ -134,9 +134,9 @@ describe("POST /api/data and GET /api/tasks", () => {
 
   it("stores multiple tasks preserving per-task executor types", async () => {
     const tasks: Task[] = [
-      makeTask({ id: "t1", executor: "claude-code", requiresReview: true }),
+      makeTask({ id: "t1", executor: "cli", requiresReview: true }),
       makeTask({ id: "t2", executor: "human", requiresReview: false }),
-      makeTask({ id: "t3", executor: "cowork", requiresReview: true }),
+      makeTask({ id: "t3", executor: "claude-desktop", requiresReview: true }),
     ];
     const payload: TasksResponse = { tasks, updatedAt: "2026-03-05T12:00:00.000Z" };
 
@@ -151,9 +151,9 @@ describe("POST /api/data and GET /api/tasks", () => {
 
     expect(body.tasks).toHaveLength(3);
     const byId = Object.fromEntries(body.tasks.map((t) => [t.id, t]));
-    expect(byId["t1"].executor).toBe("claude-code");
+    expect(byId["t1"].executor).toBe("cli");
     expect(byId["t2"].executor).toBe("human");
-    expect(byId["t3"].executor).toBe("cowork");
+    expect(byId["t3"].executor).toBe("claude-desktop");
     expect(byId["t2"].requiresReview).toBe(false);
   });
 

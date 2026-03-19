@@ -4,7 +4,7 @@ import type { Task, TasksResponse } from "./types.js";
 describe("Task type — Core fields", () => {
   it("executor replaces agentType and accepts correct values", () => {
     expectTypeOf<Task["executor"]>().toEqualTypeOf<
-      "claude-code" | "cowork" | "antigravity" | "human" | null
+      "claude-desktop" | "cli" | "human" | null
     >();
   });
 
