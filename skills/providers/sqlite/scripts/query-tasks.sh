@@ -52,7 +52,12 @@ if [ -n "$LIMIT" ]; then
 fi
 
 # Execute and output JSON
-sqlite3 -json "$DB_PATH" "$SQL" | jq '{
+RAW=$(sqlite3 -json "$DB_PATH" "$SQL")
+if [ -z "$RAW" ]; then
+  echo '{"results": []}'
+  exit 0
+fi
+echo "$RAW" | jq '{
   results: [.[] | {
     id: .id,
     title: .title,
