@@ -225,8 +225,6 @@ Finally, set the token as an environment variable:
 export NOTION_TOKEN="ntn_xxxxxxxxxxxxx"
 ```
 
-> **Claude Desktop users**: Install the `notion-query` Desktop Extension instead. It stores the token securely in your OS keychain. See the project README for details.
-
 This step is optional — the plugin works without it using MCP-only queries, but server-side filtering is significantly faster for large task databases.
 
 ## Step 6: Verify

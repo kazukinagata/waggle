@@ -138,8 +138,8 @@ For each task:
 - Default permission mode for tmux agents: plan
 - Never use `--dangerously-skip-permissions`
 - Respect `maxConcurrentAgents` limit by subtracting current In Progress count
-- Terminal CLI: Order strictly: generate files → claim in Notion → launch tmux
-- Claude Desktop: Order strictly: generate prompts → claim in Notion → create Scheduled Tasks
+- Terminal CLI: Order strictly: generate files → claim in data source → launch tmux
+- Claude Desktop: Order strictly: generate prompts → claim in data source → create Scheduled Tasks
 - Write Session Reference only after pane/task creation succeeds (no speculative writes)
 - On tmux unavailable (Terminal CLI): error message + fallback to sequential Agent tool execution
 - On Scheduled Task creation failure (Claude Desktop): fallback to sequential in-session execution

@@ -186,8 +186,7 @@ For single-task detail views (update, status change), use the full page object.
 To retrieve all tasks (e.g. for view server data push), use the detected query path with no filter:
 
 - **Path 1**: `bash ${CLAUDE_PLUGIN_ROOT}/skills/providers/notion/scripts/query-tasks.sh "<tasksDatabaseId>"` (no filter/sort args)
-- **Path 2**: `mcp__Notion_Query_for_Agentic_Tasks__notion-query({ database_id: "<tasksDatabaseId>" })` (no filter/sorts)
-- **Path 3**: `notion-search` with `data_source_url` + `notion-fetch` per page
+- **Path 2**: `notion-search` with `data_source_url` + `notion-fetch` per page
 
 No post-processing needed (no Blocked By filter, no sort required).
 
