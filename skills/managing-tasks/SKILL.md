@@ -41,11 +41,11 @@ After provider detection, also check the config for sprint fields (if present):
 | Status | select | Backlog / Ready / In Progress / In Review / Done / Blocked |
 | Blocked By | relation | Self-relation (dependency). Empty or all blockers Done = actionable |
 | Priority | select | Urgent / High / Medium / Low |
-| Executor | select | claude-code / cowork / human |
+| Executor | select | claude-desktop / cli / human |
 | Requires Review | checkbox | On → must pass In Review. Off → can go directly to Done |
 | Execution Plan | rich_text | Orchestrator's plan written before dispatch. write-once |
-| Working Directory | rich_text | claude-code: absolute path. cowork: workspace-relative path |
-| Session Reference | rich_text | Written after dispatch: tmux session name / Cowork task ID |
+| Working Directory | rich_text | Absolute path to the working directory |
+| Session Reference | rich_text | Written after dispatch: tmux session name / Scheduled task ID |
 | Dispatched At | date | Dispatch timestamp. Used for timeout detection |
 | Agent Output | rich_text | Execution result |
 | Error Message | rich_text | Written on failure only. Query with "Error Message is not empty" |
@@ -152,7 +152,7 @@ Do NOT infer and commit to values from the task description.
 
 | Field | Reason |
 |---|---|
-| Executor | Execution method varies entirely by executor type |
+| Executor | Execution method varies entirely by executor type (cli / claude-desktop / human) |
 | Priority | Urgency depends on the user's current context |
 | Working Directory | Wrong path directly causes agent execution errors |
 | Sprint (if Active sprint exists) | "Should this task go into the sprint or the backlog?" |
@@ -164,18 +164,18 @@ Present options and recommended reasons to the user and let them decide.
 
 | Executor | Best for |
 |---|---|
-| `claude-code` | Code implementation, research, documentation, script execution |
-| `cowork` | Slack integration, external service notifications, delegating interviews to others |
+| `cli` | Code implementation, research, documentation, script execution via Terminal CLI |
+| `claude-desktop` | Tasks dispatched as Scheduled Tasks in Claude Desktop |
 | `human` | Tasks requiring human judgment, relationships, or direct interaction |
 
 In AskUserQuestion, include a description with each option explaining why it is recommended.
 
 ### Environment-Specific Recommendations
 
-- When `execution_environment = "cowork"`: Recommend `cowork` for AI-executed tasks.
-  `claude-code` is also selectable, but inform the user that a separate Claude Code environment is required.
-- When `execution_environment = "claude-code"`: Recommend `claude-code` for AI-executed tasks.
-  `cowork` is also selectable, but inform the user that a Cowork environment is required.
+- When `execution_environment = "claude-desktop"`: Recommend `claude-desktop` for AI-executed tasks.
+  `cli` is also selectable, but inform the user that a separate Terminal CLI environment is required.
+- When `execution_environment = "cli"`: Recommend `cli` for AI-executed tasks.
+  `claude-desktop` is also selectable, but inform the user that a Claude Desktop environment is required.
 
 ### Branch (git worktree support)
 
@@ -218,8 +218,8 @@ Do not skip fields — ask for each one unless the user has already explicitly p
 ## Human → Agent Re-assignment
 
 When the user wants to change an Executor=human task to an agent:
-- AskUserQuestion: "Execute '{task title}' with an agent? [claude-code / cowork / keep human]"
-- When claude-code or cowork is selected:
+- AskUserQuestion: "Execute '{task title}' with an agent? [cli / claude-desktop / keep human]"
+- When cli or claude-desktop is selected:
   1. Confirm Working Directory (required)
   2. Confirm Branch (optional)
   3. Update Executor, Working Directory, Branch
@@ -267,13 +267,13 @@ Group tasks by Status and display in the following order:
 #### In Progress
 For each task, show:
 - Title, Priority
-- Executor / Session Reference (display as-is if present: whether tmux session name or cowork:xxx)
+- Executor / Session Reference (display as-is if present: whether tmux session name or scheduled:xxx)
 - `Dispatched At` (if set)
 
 #### Ready
 Group by `Executor`:
-- **claude-code**: ready for autonomous execution
-- **cowork**: ready for Cowork agent
+- **cli**: ready for autonomous execution in Terminal CLI
+- **claude-desktop**: ready for Claude Desktop Scheduled Task
 - **human**: waiting for manual action
 
 #### Blocked
