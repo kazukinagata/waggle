@@ -4,46 +4,42 @@ description: Detects the active data source provider and retrieves configuration
 user-invocable: false
 ---
 
-# Agentic Tasks — Provider Detection
+# Waggle — Provider Detection
 
 Determine the active provider using the following layered check.
 **Skip if already determined in this conversation.**
 
-## Layer 1: MCP Tool Auto-Detection
-Inspect which MCP tools are available:
-- `notion-*` tools present → active_provider = **notion**
-- `mcp__airtable__*` tools present → active_provider = **airtable**
-- SQLite/database tools present → active_provider = **sqlite**
+## Layer 1: Config File Detection
 
-If exactly one provider MCP is detected, use it.
+Check for `~/.waggle/config.json` (via Bash: `cat ~/.waggle/config.json 2>/dev/null`):
 
-**REQUIRED — Read `${CLAUDE_PLUGIN_ROOT}/skills/providers/{active_provider}/SKILL.md` now.**
-This file contains query method selection logic (Query Path Detection) and data operation procedures.
-Skipping this step causes incorrect query paths and suboptimal performance.
-Do NOT use MCP search/fetch tools for task queries until you have read the provider SKILL.md.
-
-## Layer 1b: Config File Detection
-
-If no MCP provider was detected in Layer 1, check for a local config file:
-
-1. Read `~/.waggle/config.json` (via Bash: `cat ~/.waggle/config.json 2>/dev/null`)
-2. If the file exists and contains `"provider"`:
+1. If the file exists and contains `"provider"`:
+   - `"provider": "notion"` → `active_provider = "notion"`
    - `"provider": "sqlite"` → `active_provider = "sqlite"`
    - `"provider": "turso"` → `active_provider = "turso"`
-   - **REQUIRED — Read the corresponding provider SKILL.md** (same instruction as Layer 1).
-3. Alternatively, if `TURSO_URL` environment variable is set (check via Bash: `[ -n "$TURSO_URL" ] && echo "SET"`):
+   - **REQUIRED — Read `${CLAUDE_PLUGIN_ROOT}/skills/providers/{active_provider}/SKILL.md` now.**
+
+2. Alternatively, if `TURSO_URL` environment variable is set:
    - `active_provider = "turso"`
    - **REQUIRED — Read the corresponding provider SKILL.md.**
 
-## Layer 2: Conflict Resolution (multiple provider MCPs detected)
+## Layer 2: MCP Tool Auto-Detection (fallback)
+
+If no config file was found, inspect available MCP tools:
+- `notion-*` tools present → `active_provider = "notion"`
+
+If detected, **REQUIRED — Read the corresponding provider SKILL.md.**
+This file contains query method selection logic and data operation procedures.
+
+## Layer 3: Conflict Resolution
 If multiple provider MCPs are detected, determine the environment:
-- Check `env.AGENTIC_TASKS_PROVIDER` in `~/.claude/settings.json`
+- Check `env.WAGGLE_PROVIDER` in `~/.claude/settings.json`
 
-If a value is found, use it as active_provider. **REQUIRED — Read the corresponding provider SKILL.md** (same instruction as Layer 1).
+If a value is found, use it as active_provider. **REQUIRED — Read the corresponding provider SKILL.md** (same instruction as Layer 2).
 
-## Layer 3: Ask User
+## Layer 4: Ask User
 If provider is still undetermined, use AskUserQuestion:
-> "Multiple data source MCPs are available. Which provider should I use for agentic-tasks? Available: [list detected providers]"
+> "Multiple data source MCPs are available. Which provider should I use for waggle? Available: [list detected providers]"
 
 ## No Provider Detected
 If no provider is found via MCP tools or config file, inform the user they need to run the **setting-up-tasks** skill first to configure a data source, then stop.

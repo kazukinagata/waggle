@@ -227,6 +227,24 @@ export NOTION_TOKEN="ntn_xxxxxxxxxxxxx"
 
 This step is optional — the plugin works without it using MCP-only queries, but server-side filtering is significantly faster for large task databases.
 
+## Step 5c: Write ~/.waggle/config.json
+
+After the Config page is created, write a local config file so waggle can detect the Notion provider without relying solely on MCP tool auto-detection:
+
+```bash
+mkdir -p ~/.waggle
+cat > ~/.waggle/config.json << EOF
+{
+  "provider": "notion",
+  "tasksDatabaseId": "<TASKS_DB_ID from Step 4>",
+  "teamsDatabaseId": "<TEAMS_DB_ID from Step 4>",
+  "maxConcurrentAgents": 3
+}
+EOF
+```
+
+Replace the placeholders with the actual IDs from Step 4.
+
 ## Step 6: Verify
 
 Use `AskUserQuestion` to confirm:

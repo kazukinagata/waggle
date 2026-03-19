@@ -31,8 +31,8 @@ Use AskUserQuestion to ask which one to use:
 
 Then skip to Step 3 with the selected provider.
 
-### If `~/.waggle/config.json` exists with `"provider": "sqlite"`
-SQLite is already configured. Skip to Step 3 with `sqlite` as the active provider.
+### If `~/.waggle/config.json` exists with a `"provider"` field
+The provider is already configured. Skip to Step 3 with that provider as the active provider.
 
 ### If no provider MCP is present
 Continue to Step 2 to guide the user through MCP setup.

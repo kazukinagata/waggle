@@ -7,16 +7,20 @@ Load this file when the active provider is **notion**.
 
 When `detecting-provider` requests config retrieval for the Notion provider, follow these steps to populate `headless_config`:
 
-1. Search for the "Agentic Tasks Config" page using `notion-search`
-2. Retrieve the page body using `notion-fetch`
-3. Parse the JSON code block and set the following as the `headless_config` session variable:
-   - `tasksDatabaseId` (required)
-   - `teamsDatabaseId` (optional)
-   - `sprintsDatabaseId` (optional — exists after setting-up-scrum)
-   - `maxConcurrentAgents` (optional — default: 3)
-   - `intakeLogDatabaseId` (optional — exists after first ingesting-messages run)
+1. First, check `~/.waggle/config.json` (via Bash: `cat ~/.waggle/config.json 2>/dev/null`):
+   - If the file exists and contains `tasksDatabaseId`, use those values to populate `headless_config`.
+   - If `sprintsDatabaseId` or `intakeLogDatabaseId` are not in the file, proceed to the Notion Config page to check for them.
 
-If the Config page is not found, instruct the user to run the setting-up-tasks skill, then stop.
+2. If `~/.waggle/config.json` does not exist or is missing required fields, fall back to searching for the "Agentic Tasks Config" page using `notion-search`:
+   - Retrieve the page body using `notion-fetch`
+   - Parse the JSON code block and set the following as the `headless_config` session variable:
+     - `tasksDatabaseId` (required)
+     - `teamsDatabaseId` (optional)
+     - `sprintsDatabaseId` (optional — exists after setting-up-scrum)
+     - `maxConcurrentAgents` (optional — default: 3)
+     - `intakeLogDatabaseId` (optional — exists after first ingesting-messages run)
+
+If neither source provides the config, instruct the user to run the setting-up-tasks skill, then stop.
 
 ## Schema Validation
 
