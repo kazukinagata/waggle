@@ -19,8 +19,8 @@ Add the following to `~/.claude/settings.json` under `"mcpServers"`:
 ```
 Then restart Claude Code and run the setup skill again.
 
-**Cowork:**
-Open Cowork settings → MCP Servers → Add Server → Enter `https://mcp.notion.com/mcp`.
+**Claude Desktop:**
+Open Claude Desktop settings → MCP Servers → Add Server → Enter `https://mcp.notion.com/mcp`.
 Authenticate with your Notion account when prompted.
 
 ## Step 1b: Detect Existing Setup
@@ -110,7 +110,7 @@ Create with all non-relation fields:
 | Acceptance Criteria | rich_text | — |
 | Status | select | Options: Backlog, Ready, In Progress, In Review, Done, Blocked |
 | Priority | select | Options: Urgent, High, Medium, Low |
-| Executor | select | Options: claude-code, cowork, human |
+| Executor | select | Options: cli, claude-desktop, human |
 | Requires Review | checkbox | — |
 | Execution Plan | rich_text | — |
 | Working Directory | rich_text | — |
@@ -225,7 +225,7 @@ Finally, set the token as an environment variable:
 export NOTION_TOKEN="ntn_xxxxxxxxxxxxx"
 ```
 
-> **Cowork users**: Install the `notion-query` Desktop Extension instead. It stores the token securely in your OS keychain. See the project README for details.
+> **Claude Desktop users**: Install the `notion-query` Desktop Extension instead. It stores the token securely in your OS keychain. See the project README for details.
 
 This step is optional — the plugin works without it using MCP-only queries, but server-side filtering is significantly faster for large task databases.
 

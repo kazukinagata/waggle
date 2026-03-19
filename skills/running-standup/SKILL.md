@@ -91,13 +91,13 @@ A task is "stalled" when:
 
 Recommend actions for stalled tasks:
 
-**Claude Code environment:**
+**Terminal CLI:**
 - Check tmux session: `tmux has-session -t <session-ref> 2>/dev/null`
 - If the session is dead, mark as stalled
 
-**Cowork environment:**
+**Claude Desktop:**
 - Check the task status via `mcp__scheduled-tasks__list_scheduled_tasks`
-- Extract taskId from Session Reference `cowork:<taskId>` and search
+- Extract taskId from Session Reference `scheduled:<taskId>` and search
 
 **Common:**
 - Consider restarting the task

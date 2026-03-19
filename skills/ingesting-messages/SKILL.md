@@ -14,10 +14,10 @@ user-invocable: true
 Reads incoming messages from messaging tools addressed to the current user and auto-converts them into Notion tasks.
 **read-only**: Does not send any messages. Only creates tasks.
 
-## Cowork Scheduled Task Setup
+## Scheduled Task Setup (Claude Desktop)
 
-To run automatically every morning via Cowork:
-1. Cowork → Scheduled Tasks → New
+To run automatically every morning via Claude Desktop:
+1. Claude Desktop → Scheduled Tasks → New
 2. Trigger: Daily / 09:00 (user's timezone)
 3. Prompt: `Run the ingesting-messages skill`
 
@@ -109,7 +109,7 @@ Classify each message into one of 3 categories:
 | Category | Criteria | Action |
 |---|---|---|
 | **A: Hearing Needed** | Insufficient info, question format, ambiguous request, seeking approval | Main task (Status=Blocked) + Blocker task (Status=Ready, executor=human, Assignees=requester) |
-| **B: Self-Action** | AI-processable implementation, research, documentation, clear work request | Task (Status=Ready, executor=cowork or claude-code, Assignees=self) |
+| **B: Self-Action** | AI-processable implementation, research, documentation, clear work request | Task (Status=Ready, executor=claude-desktop or cli, Assignees=self) |
 | **C: Delegate** | Clearly intended for another team member (name explicitly mentioned, etc.) | Task (Status=Backlog, executor=human, Assignees=assignee) |
 
 **When classification is unclear**: Treat as Category A (safe default).
@@ -198,8 +198,8 @@ Before creating each task:
 **Category B (Self-Action):**
 - Status: `Ready`
 - Executor: Determine from environment and context:
-  - `execution_environment = "cowork"`: Default for AI-executed tasks is `cowork`
-  - `execution_environment = "claude-code"`: Code work → `claude-code`, external integrations → `cowork`
+  - `execution_environment = "claude-desktop"`: Default for AI-executed tasks is `claude-desktop`
+  - `execution_environment = "cli"`: Code work → `cli`, external integrations → `claude-desktop`
 - Assignees: `[current_user]`
 - Working Directory: Empty (user sets later)
 

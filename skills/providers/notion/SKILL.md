@@ -34,7 +34,7 @@ Then run the appropriate DDL (one `ADD COLUMN` per call):
 |---|---|
 | Status | `ADD COLUMN "Status" SELECT('Backlog':gray, 'Ready':blue, 'In Progress':yellow, 'In Review':orange, 'Done':green, 'Blocked':red)` |
 | Priority | `ADD COLUMN "Priority" SELECT('Urgent':red, 'High':orange, 'Medium':yellow, 'Low':blue)` |
-| Executor | `ADD COLUMN "Executor" SELECT('claude-code':purple, 'cowork':green, 'human':gray)` |
+| Executor | `ADD COLUMN "Executor" SELECT('cli':purple, 'claude-desktop':green, 'human':gray)` |
 | Dispatched At / Due Date | `ADD COLUMN "<field>" DATE` |
 | (other text fields) | `ADD COLUMN "<field>" RICH_TEXT` |
 
@@ -60,11 +60,11 @@ After repair, re-verify and continue. **Never ask the user to manually fix the s
 | Status | select | `task_status` | Backlog / Ready / In Progress / In Review / Done / Blocked |
 | Blocked By | relation | `task_blocked_by` | Self-relation (dependency). Empty or all blockers Done = actionable |
 | Priority | select | `task_priority` | Urgent / High / Medium / Low |
-| Executor | select | `task_executor` | claude-code / cowork / human |
+| Executor | select | `task_executor` | cli / claude-desktop / human |
 | Requires Review | checkbox | `task_requires_review` | On → must pass In Review. Off → can go directly to Done |
 | Execution Plan | rich_text | `task_execution_plan` | Orchestrator's plan written before dispatch. write-once |
-| Working Directory | rich_text | `task_working_directory` | claude-code: absolute path. cowork: workspace-relative path |
-| Session Reference | rich_text | `task_session_ref` | Written after dispatch: tmux session name / Cowork task ID |
+| Working Directory | rich_text | `task_working_directory` | Absolute path to the working directory |
+| Session Reference | rich_text | `task_session_ref` | Written after dispatch: tmux session name / Scheduled task ID |
 | Dispatched At | date | `task_dispatched_at` | Dispatch timestamp. Used for timeout detection |
 | Agent Output | rich_text | `task_agent_output` | Execution result |
 | Error Message | rich_text | `task_error_message` | Written on failure only. Query with "Error Message is not empty" |
@@ -108,7 +108,7 @@ Use the first available query path (checked in order):
 
 ### Query Path Detection
 
-1. **`execution_environment = "cowork"` AND `mcp__Notion_Query_for_Agentic_Tasks__notion-query` tool available** → Path 2 (Extension)
+1. **`execution_environment = "claude-desktop"` AND `mcp__Notion_Query_for_Agentic_Tasks__notion-query` tool available** → Path 2 (Extension)
 2. **`NOTION_TOKEN` env var set** (check: run `[ -n "$NOTION_TOKEN" ] && echo "SET" || echo "NOT SET"` via Bash) → Path 1 (API script)
 3. **Otherwise** → Path 3 (MCP fallback)
 
@@ -142,7 +142,7 @@ The script returns `{"results": [...]}` with full page objects including all pro
 
 **Ready tasks by executor and assignee:**
 ```json
-{"and":[{"property":"Status","select":{"equals":"Ready"}},{"property":"Executor","select":{"equals":"claude-code"}},{"property":"Assignees","people":{"contains":"<user_id>"}}]}
+{"and":[{"property":"Status","select":{"equals":"Ready"}},{"property":"Executor","select":{"equals":"cli"}},{"property":"Assignees","people":{"contains":"<user_id>"}}]}
 ```
 
 **Sort by Priority then Due Date:**
@@ -150,7 +150,7 @@ The script returns `{"results": [...]}` with full page objects including all pro
 [{"property":"Priority","direction":"ascending"},{"property":"Due Date","direction":"ascending"}]
 ```
 
-### Path 2: notion-query Extension (Cowork)
+### Path 2: notion-query Extension (Claude Desktop)
 
 When the `notion-query` MCP tool is available (installed via Desktop Extension), call it directly:
 
@@ -210,7 +210,7 @@ When referring to a task in dispatch prompts and completion instructions, use:
 - **Task ID**: the Notion page ID (from the `id` field when the task was created)
 - **Update instruction**: "Use `notion-update-page` with page ID `<Page ID>` to write results to Agent Output and update Status."
 
-In the Cowork environment, the dispatch prompt is set as the Scheduled Task's prompt.
+In the Claude Desktop environment, the dispatch prompt is set as the Scheduled Task's prompt.
 Notion MCP tools (notion-update-page) are available in both environments.
 
 ## Pushing Data to View Server
