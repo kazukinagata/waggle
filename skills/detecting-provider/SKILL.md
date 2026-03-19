@@ -22,6 +22,16 @@ This file contains query method selection logic (Query Path Detection) and data 
 Skipping this step causes incorrect query paths and suboptimal performance.
 Do NOT use MCP search/fetch tools for task queries until you have read the provider SKILL.md.
 
+## Layer 1b: Config File Detection
+
+If no MCP provider was detected in Layer 1, check for a local config file:
+
+1. Read `~/.waggle/config.json` (via Bash: `cat ~/.waggle/config.json 2>/dev/null`)
+2. If the file exists and contains `"provider"`:
+   - `"provider": "sqlite"` → `active_provider = "sqlite"`
+   - `"provider": "turso"` → `active_provider = "turso"`
+   - **REQUIRED — Read the corresponding provider SKILL.md** (same instruction as Layer 1).
+
 ## Layer 2: Conflict Resolution (multiple provider MCPs detected)
 If multiple provider MCPs are detected, determine the environment:
 - Check `env.AGENTIC_TASKS_PROVIDER` in `~/.claude/settings.json`
@@ -32,8 +42,8 @@ If a value is found, use it as active_provider. **REQUIRED — Read the correspo
 If provider is still undetermined, use AskUserQuestion:
 > "Multiple data source MCPs are available. Which provider should I use for agentic-tasks? Available: [list detected providers]"
 
-## No MCP Detected
-If no provider MCP is found at all, inform the user they need to run the **setting-up-tasks** skill first to configure a data source, then stop.
+## No Provider Detected
+If no provider is found via MCP tools or config file, inform the user they need to run the **setting-up-tasks** skill first to configure a data source, then stop.
 
 ## Environment Detection
 
@@ -57,6 +67,8 @@ After detecting the provider, retrieve database IDs and constants from the Confi
 **Skip if `headless_config` is already set in this conversation.**
 
 Follow the active provider SKILL.md's Config Retrieval section to populate `headless_config`.
+
+For `sqlite` and `turso` providers, config is read directly from `~/.waggle/config.json` and stored in `headless_config`. The provider SKILL.md Config Retrieval section has the details.
 
 ## Constants
 
