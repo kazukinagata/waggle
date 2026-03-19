@@ -44,9 +44,9 @@ Or browse interactively — run `/plugin`, go to **Discover**, and select **wagg
 ```
 
 Choose your provider:
+- **SQLite** — instant local setup, zero external dependencies
 - **Notion** — team collaboration via Notion workspace
-- **SQLite** — local, instant, zero-setup *(coming soon)*
-- **Turso** — remote SQLite, multi-agent sync *(coming soon)*
+- **Turso** — remote SQLite for multi-agent sync (requires Turso account)
 
 ### Use
 
@@ -74,9 +74,9 @@ See [`spec/protocol.md`](spec/protocol.md) for the full specification.
 
 | Provider | Use Case | Status |
 |---|---|---|
+| **SQLite** | Local, instant, zero-setup | Available |
 | **Notion** | Team collaboration via Notion workspace | Available |
-| **SQLite** | Local, instant, zero-setup | Planned |
-| **Turso** | Remote SQLite, multi-agent sync | Planned |
+| **Turso** | Remote SQLite, multi-agent sync | Available |
 
 The provider abstraction means you can add your own backend. Implement the [Provider Interface](spec/protocol.md#provider-interface) and register it.
 
@@ -107,8 +107,8 @@ skills/
 ├── managing-views/           # Custom view management
 └── providers/
     ├── notion/               # Notion provider
-    ├── sqlite/               # SQLite provider (planned)
-    └── turso/                # Turso provider (planned)
+    ├── sqlite/               # SQLite provider
+    └── turso/                # Turso provider
 spec/
 └── protocol.md               # Waggle Protocol v1
 agents/
