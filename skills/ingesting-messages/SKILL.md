@@ -9,7 +9,7 @@ description: >
 user-invocable: true
 ---
 
-# Agentic Tasks — Message Intake
+# Waggle — Message Intake
 
 Reads incoming messages from messaging tools addressed to the current user and auto-converts them into Notion tasks.
 **read-only**: Does not send any messages. Only creates tasks.
@@ -51,7 +51,7 @@ The Intake Log is a Notion database (`Intake Log`) that tracks which messages ha
 
 1. Read the config page and check for `intakeLogDatabaseId`.
 2. If `intakeLogDatabaseId` is missing or the database does not exist:
-   - Create a new database named "Intake Log" under the Agentic Tasks parent page using `notion-create-database`.
+   - Create a new database named "Intake Log" under the Waggle parent page using `notion-create-database`.
    - Schema:
      | Property | Notion Type | Description |
      |---|---|---|

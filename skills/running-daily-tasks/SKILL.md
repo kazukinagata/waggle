@@ -8,7 +8,7 @@ description: >
 user-invocable: true
 ---
 
-# Agentic Tasks — Daily Routine
+# Waggle — Daily Routine
 
 Unified daily routine that ingests messages into tasks, then guides the user through task refinement and dispatch. Works in both Terminal CLI and Claude Desktop environments.
 

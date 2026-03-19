@@ -1,16 +1,16 @@
 ---
 name: setting-up-tasks
 description: >
-  Guides initial setup of the Agentic Tasks plugin — detects or configures
+  Guides initial setup of the waggle plugin — detects or configures
   MCP connections and runs provider-specific database initialization.
-  Triggers on: "setup agentic tasks", "initialize task management",
+  Triggers on: "setup waggle", "initialize task management",
   "configure notion tasks", "configure data source",
   "タスク管理セットアップ", "タスク管理初期化".
 ---
 
-# Agentic Tasks — Setup Guide
+# Waggle — Setup Guide
 
-You are guiding the user through the initial setup of the Agentic Tasks plugin.
+You are guiding the user through the initial setup of the waggle plugin.
 
 ## Step 1: Check for Existing MCP Configuration
 
@@ -21,13 +21,13 @@ Inspect available MCP tools to detect any already-configured providers:
 
 ### If a single provider MCP is already present
 Use AskUserQuestion to confirm:
-> "I detected an existing [provider] MCP connection. Would you like to set up Agentic Tasks using [provider]?"
+> "I detected an existing [provider] MCP connection. Would you like to set up waggle using [provider]?"
 
 If yes, skip to Step 3 with that provider.
 
 ### If multiple provider MCPs are present
 Use AskUserQuestion to ask which one to use:
-> "I detected multiple data source MCPs: [list providers]. Which one should I set up Agentic Tasks for?"
+> "I detected multiple data source MCPs: [list providers]. Which one should I set up waggle for?"
 
 Then skip to Step 3 with the selected provider.
 
@@ -115,7 +115,7 @@ Accept the user's answer or default to 09:00.
 Call `mcp__scheduled-tasks__create_scheduled_task`:
 - `taskId`: `daily-tasks-<current_user_name_slug>` (see Slug Generation Rules below)
 - `prompt`: `Run the running-daily-tasks skill`
-- `description`: `Agentic Tasks: Daily routine for <user_name>`
+- `description`: `waggle: Daily routine for <user_name>`
 - `cronExpression`: `0 <HH> * * *` (based on user's chosen time, e.g. `0 9 * * *` for 09:00)
 
 ### Slug Generation Rules

@@ -11,7 +11,7 @@ description: >
   "スプリント開始", "スプリント計画", "スプリント状況", "バックログ".
 ---
 
-# Agentic Tasks — Sprint Management
+# Waggle — Sprint Management
 
 Manages the sprint (batch) lifecycle and product backlog. A "sprint" here is a scope-box (Objective), not a time-box.
 

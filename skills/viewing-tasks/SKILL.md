@@ -8,7 +8,7 @@ description: >
   "カンバン", "リスト表示", "タスク表示", "ガント", "カレンダー".
 ---
 
-# Agentic Tasks — View Server
+# Waggle — View Server
 
 You manage the local view server that renders task data as interactive HTML pages.
 
@@ -103,7 +103,7 @@ wslview http://localhost:3456/custom/<slug>.html
 ### Listing Custom Views
 
 ```bash
-ls ~/.agentic-tasks/views/*.html
+ls ~/.waggle/views/*.html
 ```
 
 ### Static Export for Custom Views

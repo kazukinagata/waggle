@@ -1,4 +1,4 @@
-# Agentic Tasks — Notion Provider Setup
+# Waggle — Notion Provider Setup
 
 This file contains Notion-specific setup steps. It is called by the setting-up-tasks skill
 after the active provider has been confirmed as **notion**.
@@ -25,7 +25,7 @@ Authenticate with your Notion account when prompted.
 
 ## Step 1b: Detect Existing Setup
 
-1. Call `notion-search` with query "Agentic Tasks Config" to check for an existing configuration.
+1. Call `notion-search` with query "Waggle Config" to check for an existing configuration.
 2. If a Config page is found → enter **Migration Mode**:
 
 ### Migration Mode
@@ -63,7 +63,7 @@ Call `notion-get-teams` to retrieve available teamspaces and display them to the
 ### 2b: Ask the user for a shared parent page
 
 Use `AskUserQuestion` to ask:
-> "Where should I create the Agentic Tasks workspace? To ensure all team members can discover the configuration, please specify an existing **page** inside a shared teamspace (e.g. a page name or URL).
+> "Where should I create the Waggle workspace? To ensure all team members can discover the configuration, please specify an existing **page** inside a shared teamspace (e.g. a page name or URL).
 >
 > **Note:** Please choose a normal page, not a database. If you want it directly under a teamspace root, first create a new empty page there in the Notion UI, then tell me its name."
 
@@ -86,7 +86,7 @@ Once confirmed, note the page ID as `TARGET_PARENT_PAGE_ID`.
 ## Step 3: Create Parent Page
 
 Create a parent page using `notion-create-pages`:
-- Title: "Agentic Tasks" (or as specified by user)
+- Title: "Waggle" (or as specified by user)
 - Parent: `{ "page_id": "<TARGET_PARENT_PAGE_ID>" }` (always use the resolved page ID from Step 2c; only omit for solo users who accepted the private-root fallback)
 
 Note the returned page ID as `PARENT_PAGE_ID`.
@@ -169,7 +169,7 @@ Add the following relations in separate calls:
 ## Step 5: Create Config Page
 
 Create a page using `notion-create-pages` under `PARENT_PAGE_ID`:
-- Title: "Agentic Tasks Config"
+- Title: "Waggle Config"
 - Body: a code block (language: `json`) containing:
 
 ```json
@@ -185,7 +185,7 @@ Replace the placeholders with the actual IDs from Step 4.
 After the JSON block, append the following as plain text:
 
 ```
-**WARNING: Do not rename this page.** The plugin discovers configuration by searching for a page titled "Agentic Tasks Config". Renaming it will break auto-discovery for all team members.
+**WARNING: Do not rename this page.** The plugin discovers configuration by searching for a page titled "Waggle Config". Renaming it will break auto-discovery for all team members.
 
 ## Schema Contract
 - Core fields: Do not rename or delete (skills depend on them)
@@ -199,15 +199,15 @@ For faster task queries with server-side filtering (by assignee, status, etc.), 
 
 1. Go to https://www.notion.so/profile/integrations
 2. Click **New integration**
-3. Name: `Agentic Tasks CLI`
-4. Select the workspace that contains your Agentic Tasks databases
+3. Name: `Waggle CLI`
+4. Select the workspace that contains your Waggle databases
 5. Capabilities: **Read content** (minimum required)
 6. Click **Submit** and copy the **Internal Integration Secret** (`ntn_...`)
 
 Then connect the integration to your databases:
 
-1. Open the **Agentic Tasks** parent page in Notion
-2. Click **⋯** menu → **Connections** → **Connect to** → select **Agentic Tasks CLI**
+1. Open the **Waggle** parent page in Notion
+2. Click **⋯** menu → **Connections** → **Connect to** → select **Waggle CLI**
 
 Finally, set the token as an environment variable:
 
@@ -248,7 +248,7 @@ Replace the placeholders with the actual IDs from Step 4.
 ## Step 6: Verify
 
 Use `AskUserQuestion` to confirm:
-> "Setup complete! I've created the Agentic Tasks workspace in Notion with Tasks, Teams, and Intake Log databases, and a Config page storing the database IDs. Would you like me to create a test task to verify everything is working?"
+> "Setup complete! I've created the Waggle workspace in Notion with Tasks, Teams, and Intake Log databases, and a Config page storing the database IDs. Would you like me to create a test task to verify everything is working?"
 
 If yes, create a test task using `notion-create-pages` with the Tasks database as parent:
 - Title: "Test task — delete me"

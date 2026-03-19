@@ -7,7 +7,7 @@ description: >
   "スクラム設定", "スプリント設定".
 ---
 
-# Agentic Tasks — Scrum Setup
+# Waggle — Scrum Setup
 
 This skill provisions the Sprints (Objectives) database and extends the Tasks DB with sprint-related fields. It is opt-in and idempotent.
 

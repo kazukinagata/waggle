@@ -7,7 +7,7 @@ description: >
   "スプリントメトリクス", "振り返り", "レトロ".
 ---
 
-# Agentic Tasks — Sprint Metrics
+# Waggle — Sprint Metrics
 
 Automated agent performance analysis derived from Notion task data. Replaces human retrospective with quantitative metrics.
 

@@ -67,7 +67,7 @@ After detecting the provider, retrieve database IDs and constants from the Confi
 
 Follow the active provider SKILL.md's Config Retrieval section to populate `headless_config`.
 
-For `sqlite` and `turso` providers, config is read directly from `~/.waggle/config.json` and stored in `headless_config`. The provider SKILL.md Config Retrieval section has the details.
+For all providers, config can be read from `~/.waggle/config.json` and stored in `headless_config`. The provider SKILL.md Config Retrieval section has the details.
 
 ## Constants
 

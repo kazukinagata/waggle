@@ -9,7 +9,7 @@ import { EventBus } from "./sse.js";
 import type { TasksResponse, SprintsResponse } from "./types.js";
 
 function getCustomViewsDir(): string {
-  return process.env.CUSTOM_VIEWS_DIR || join(homedir(), ".agentic-tasks", "views");
+  return process.env.CUSTOM_VIEWS_DIR || join(homedir(), ".waggle", "views");
 }
 
 const eventBus = new EventBus();

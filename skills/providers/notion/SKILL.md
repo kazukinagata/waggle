@@ -1,6 +1,6 @@
-# Agentic Tasks — Notion Provider
+# Waggle — Notion Provider
 
-This file contains all Notion-specific implementation details for agentic-tasks.
+This file contains all Notion-specific implementation details for waggle.
 Load this file when the active provider is **notion**.
 
 ## Config Retrieval
@@ -11,7 +11,7 @@ When `detecting-provider` requests config retrieval for the Notion provider, fol
    - If the file exists and contains `tasksDatabaseId`, use those values to populate `headless_config`.
    - If `sprintsDatabaseId` or `intakeLogDatabaseId` are not in the file, proceed to the Notion Config page to check for them.
 
-2. If `~/.waggle/config.json` does not exist or is missing required fields, fall back to searching for the "Agentic Tasks Config" page using `notion-search`:
+2. If `~/.waggle/config.json` does not exist or is missing required fields, fall back to searching for the "Waggle Config" page using `notion-search`:
    - Retrieve the page body using `notion-fetch`
    - Parse the JSON code block and set the following as the `headless_config` session variable:
      - `tasksDatabaseId` (required)

@@ -7,7 +7,7 @@ description: >
   "スプリントレビュー", "スプリント終了".
 ---
 
-# Agentic Tasks — Sprint Review
+# Waggle — Sprint Review
 
 Generates an automated batch completion summary and closes the sprint. The agent generates the summary; the human only approves the disposition of unfinished tasks.
 

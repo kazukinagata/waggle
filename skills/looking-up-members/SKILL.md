@@ -4,7 +4,7 @@ description: Internal shared skill to resolve member names or email addresses to
 user-invocable: false
 ---
 
-# Agentic Tasks — Member Lookup
+# Waggle — Member Lookup
 
 Resolve a member name or email to a provider user ID.
 Uses the `org_members` cache populated by `resolving-identity`.

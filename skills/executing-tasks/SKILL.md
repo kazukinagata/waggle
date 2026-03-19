@@ -10,7 +10,7 @@ description: >
 user-invocable: true
 ---
 
-# Agentic Tasks — Task Execution
+# Waggle — Task Execution
 
 You orchestrate the execution of tasks. Tasks can be executed one at a time in the current session, or in parallel (tmux panes in Terminal CLI / Scheduled Tasks in Claude Desktop).
 

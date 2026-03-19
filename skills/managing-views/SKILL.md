@@ -8,7 +8,7 @@ description: >
 user-invocable: true
 ---
 
-# Agentic Tasks — Custom View Management
+# Waggle — Custom View Management
 
 You manage custom task visualizations that users can create via natural language.
 
@@ -21,7 +21,7 @@ Load `${CLAUDE_PLUGIN_ROOT}/skills/detecting-provider/SKILL.md` and follow its i
 Custom views are stored outside the plugin directory so they survive updates:
 
 ```bash
-mkdir -p ~/.agentic-tasks/views
+mkdir -p ~/.waggle/views
 ```
 
 ## Operations
@@ -32,7 +32,7 @@ When the user asks to create a custom view (e.g., "create a view showing blocked
 
 1. Derive a slug from the user's description (e.g., "team progress dashboard" -> `team-progress-dashboard`)
 2. Generate a standalone HTML file using the **Reference Template** below
-3. Write it to `~/.agentic-tasks/views/<slug>.html`
+3. Write it to `~/.waggle/views/<slug>.html`
 4. Confirm creation and provide the URL: `http://localhost:3456/custom/<slug>.html`
 5. Open the view in the browser using platform detection (see viewing-tasks skill)
 
@@ -41,7 +41,7 @@ When the user asks to create a custom view (e.g., "create a view showing blocked
 When the user asks to list custom views:
 
 ```bash
-ls ~/.agentic-tasks/views/*.html 2>/dev/null
+ls ~/.waggle/views/*.html 2>/dev/null
 ```
 
 Or use the API: `curl -s http://localhost:3456/api/views | jq`
@@ -51,7 +51,7 @@ Or use the API: `curl -s http://localhost:3456/api/views | jq`
 When the user asks to delete a custom view:
 
 ```bash
-rm ~/.agentic-tasks/views/<slug>.html
+rm ~/.waggle/views/<slug>.html
 ```
 
 Confirm deletion with the user before removing.
@@ -62,7 +62,7 @@ When the user asks to regenerate or update a custom view:
 
 1. Read the existing file to understand what it does
 2. Generate a new version incorporating the user's feedback
-3. Overwrite the file at `~/.agentic-tasks/views/<slug>.html`
+3. Overwrite the file at `~/.waggle/views/<slug>.html`
 4. The view will update on next browser refresh
 
 ## Reference Template
@@ -77,7 +77,7 @@ When generating a custom view HTML file, use this skeleton. Fill in the visualiz
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="view-name" content="VIEW_NAME_HERE">
   <meta name="view-description" content="VIEW_DESCRIPTION_HERE">
-  <title>VIEW_NAME_HERE — Agentic Tasks</title>
+  <title>VIEW_NAME_HERE — Waggle</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {

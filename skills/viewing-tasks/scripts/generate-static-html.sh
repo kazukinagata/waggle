@@ -22,7 +22,7 @@ case "$VIEW" in
     ;;
   custom:*)
     SLUG="${VIEW#custom:}"
-    TEMPLATE="$HOME/.agentic-tasks/views/${SLUG}.html"
+    TEMPLATE="$HOME/.waggle/views/${SLUG}.html"
     ;;
   *)
     echo "Error: Unknown view '$VIEW'. Supported: kanban, list, sprint-backlog, product-backlog, custom:<slug>" >&2

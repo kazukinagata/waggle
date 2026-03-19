@@ -8,7 +8,7 @@ description: >
 user-invocable: true
 ---
 
-# Agentic Tasks — Task Delegate
+# Waggle — Task Delegate
 
 Delegates a task to another organization member. Changes Assignees to the recipient and appends delegation history to Context.
 

@@ -180,7 +180,7 @@ describe("POST /api/data and GET /api/tasks", () => {
 });
 
 describe("Custom views", () => {
-  const testDir = join(tmpdir(), `agentic-tasks-test-${Date.now()}`);
+  const testDir = join(tmpdir(), `waggle-test-${Date.now()}`);
 
   beforeEach(() => {
     process.env.CUSTOM_VIEWS_DIR = testDir;

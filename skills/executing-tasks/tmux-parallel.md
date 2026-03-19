@@ -4,8 +4,8 @@ Phases 3–6 of the executing-tasks skill. Loaded when the user chooses "tmux pa
 
 ## Phase 3: Prepare Files
 
-Set session name: `SESSION="agentic-tasks-$(date +%s)"`
-Set session directory: `SDIR="/tmp/agentic-tasks/$SESSION"`
+Set session name: `SESSION="waggle-$(date +%s)"`
+Set session directory: `SDIR="/tmp/waggle/$SESSION"`
 Create directory: `mkdir -p "$SDIR"`
 
 For each task `i` (0-indexed), generate two files:
@@ -97,7 +97,7 @@ fi
 After each pane is created successfully, set pane titles and write Session Reference to Notion:
 - Inside tmux: `tmux select-pane -t "$CURRENT:$SESSION:0.$i" -T "<task-i-title>"`
 - Outside tmux: `tmux select-pane -t "$SESSION:0.$i" -T "<task-i-title>"`
-- Session Reference format: `<session-name>:0.<pane-index>` (e.g., `agentic-tasks-1741305052:0.2`)
+- Session Reference format: `<session-name>:0.<pane-index>` (e.g., `waggle-1741305052:0.2`)
 
 ## Phase 6: Report & Fire-and-Forget
 
@@ -105,15 +105,15 @@ Report to the user:
 
 ```
 Running N tasks in parallel:
-- agentic-tasks-<ts>:0.0 → Feature Login
-- agentic-tasks-<ts>:0.1 → API Tests
-- agentic-tasks-<ts>:0.2 → Fix Bug #42
+- waggle-<ts>:0.0 → Feature Login
+- waggle-<ts>:0.1 → API Tests
+- waggle-<ts>:0.2 → Fix Bug #42
 
 Monitoring:
-  tmux attach -t agentic-tasks-<ts>         (from outside tmux)
-  tmux switch-client -t agentic-tasks-<ts>  (from inside tmux)
+  tmux attach -t waggle-<ts>         (from outside tmux)
+  tmux switch-client -t waggle-<ts>  (from inside tmux)
 
-Check completion status: /managing-tasks (my tasks)  or  ls /tmp/agentic-tasks/agentic-tasks-<ts>/
+Check completion status: /managing-tasks (my tasks)  or  ls /tmp/waggle/waggle-<ts>/
 ```
 
 The Orchestrator exits here. Each Sub-Agent runs independently and handles its own completion.

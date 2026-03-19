@@ -8,7 +8,7 @@ description: >
   "スタンドアップ", "ステータスレポート", "進捗報告".
 ---
 
-# Agentic Tasks — Sprint Standup
+# Waggle — Sprint Standup
 
 Generates an automated status report for the active sprint. Focuses on stall detection and blocked task analysis rather than a human "yesterday/today/blockers" format.
 

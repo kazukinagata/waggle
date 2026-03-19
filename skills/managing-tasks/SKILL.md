@@ -15,7 +15,7 @@ description: >
   people or filtering by status/priority.
 ---
 
-# Agentic Tasks — Task Management
+# Waggle — Task Management
 
 You are managing tasks in the configured data source. Use the provider-specific tools for all data operations.
 
