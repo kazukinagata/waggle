@@ -31,15 +31,19 @@ Use AskUserQuestion to ask which one to use:
 
 Then skip to Step 3 with the selected provider.
 
+### If `~/.waggle/config.json` exists with `"provider": "sqlite"`
+SQLite is already configured. Skip to Step 3 with `sqlite` as the active provider.
+
 ### If no provider MCP is present
 Continue to Step 2 to guide the user through MCP setup.
 
 ## Step 2: Choose a Data Source and Configure MCP
 
 Use AskUserQuestion to ask which data source the user wants to use:
-> "Which data source would you like to use for Agentic Tasks?
-> - **Notion** — recommended for teams, rich UI, free tier available
-> - Other providers coming soon (SQLite, Airtable, etc.)"
+> "Which data source would you like to use for waggle?
+> - **SQLite** — instant local setup, zero external dependencies
+> - **Notion** — team collaboration via Notion workspace
+> - **Turso** — remote SQLite for multi-agent sync (requires Turso account)"
 
 Then guide MCP setup based on the environment:
 
@@ -67,6 +71,10 @@ After adding, authenticate by visiting `https://mcp.notion.com/mcp` in a browser
 **Notion:**
 Open Claude Desktop settings → MCP Servers → Add Server → Enter `https://mcp.notion.com/mcp`.
 Authenticate with your Notion account when prompted. Then run the setup skill again.
+
+### SQLite — No MCP Required
+
+SQLite requires no external MCP server. Proceed directly to Step 3.
 
 ## Step 3: Run Provider-Specific Setup
 
