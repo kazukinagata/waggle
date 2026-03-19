@@ -108,9 +108,8 @@ Use the first available query path (checked in order):
 
 ### Query Path Detection
 
-1. **`execution_environment = "claude-desktop"` AND `mcp__Notion_Query_for_Agentic_Tasks__notion-query` tool available** → Path 2 (Extension)
-2. **`NOTION_TOKEN` env var set** (check: run `[ -n "$NOTION_TOKEN" ] && echo "SET" || echo "NOT SET"` via Bash) → Path 1 (API script)
-3. **Otherwise** → Path 3 (MCP fallback)
+1. **`NOTION_TOKEN` env var set** (check: run `[ -n "$NOTION_TOKEN" ] && echo "SET" || echo "NOT SET"` via Bash) → Path 1 (API script)
+2. **Otherwise** → Path 2 (MCP fallback)
 
 ### Path 1: Notion API Script (requires NOTION_TOKEN)
 
@@ -150,23 +149,11 @@ The script returns `{"results": [...]}` with full page objects including all pro
 [{"property":"Priority","direction":"ascending"},{"property":"Due Date","direction":"ascending"}]
 ```
 
-### Path 2: notion-query Extension (Claude Desktop)
-
-When the `notion-query` MCP tool is available (installed via Desktop Extension), call it directly:
-
-```
-mcp__Notion_Query_for_Agentic_Tasks__notion-query({ database_id: "<tasksDatabaseId>", filter: <filter_object>, sorts: <sort_array> })
-```
-
-The tool accepts the same filter/sort objects as Path 1's filter recipes. It returns `{"results": [...]}` with full page objects.
-
-**Build & install:** See `skills/providers/notion/extension/` for source and build instructions.
-
-### Path 3: MCP Fallback (no token, no extension)
+### Path 2: MCP Fallback (no token)
 
 Use `notion-search` with `data_source_url` to find task pages, then `notion-fetch` each page individually to get properties. Filter client-side by checking property values.
 
-This is the slowest path — use only when Path 1 and Path 2 are unavailable.
+This is the slower path — use only when Path 1 is unavailable.
 
 ### Post-Processing (all paths)
 
