@@ -3,6 +3,7 @@
 #
 # Usage: query-tasks.sh <database_id> [filter_json] [sort_json]
 #
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 # Environment:
 #   NOTION_TOKEN (required) — Notion internal integration token
 #

@@ -1,6 +1,6 @@
 # Dispatch Prompt Template
 
-Content of `$SDIR/task-{i}.md`. Replace `<On Completion>` with the provider-specific update instruction from the active provider's SKILL.md (Task Record Reference section).
+Content of `$SDIR/task-{i}.md`. The `<ON_COMPLETION_BLOCK>` placeholder is replaced at generation time by the active provider's On Completion Template (rendered with actual task IDs, database paths, and absolute script paths).
 
 The template below uses placeholders in angle brackets. Omit sections whose source field is empty.
 
@@ -28,15 +28,7 @@ Complete the task autonomously.
 - Git Branch: <Branch> (only if set)
 
 ## On Completion
-Notion page ID for this task: `<page-id>`
-
-On completion, perform the following:
-1. Use `notion-update-page` to write execution results to the "Agent Output" field (available in both environments)
-2. Update Status:
-   - If Requires Review = ON: "In Review"
-   - If Requires Review = OFF: "Done"
-3. On error: write error details to "Error Message" and update Status to "Blocked"
-4. If the Notion update fails, ignore the error and complete execution
+<ON_COMPLETION_BLOCK>
 
 Note: Working Directory is an absolute path.
 

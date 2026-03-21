@@ -23,7 +23,7 @@ You are managing tasks in the configured data source. Use the provider-specific 
 
 Load `${CLAUDE_PLUGIN_ROOT}/skills/detecting-provider/SKILL.md` and follow its instructions to determine `active_provider`. Skip if already determined in this conversation.
 
-After provider detection completes, you MUST read `${CLAUDE_PLUGIN_ROOT}/skills/providers/{active_provider}/SKILL.md` if you have not already done so. This file defines the Query Path Detection logic — do NOT query tasks using MCP tools directly without first determining the correct query path from the provider SKILL.md.
+After provider detection completes, you MUST read the provider SKILL.md (from detecting-provider's `provider_skill_path`) if you have not already done so. This file defines the Query Path Detection logic — do NOT query tasks using MCP tools directly without first determining the correct query path from the provider SKILL.md.
 
 After provider detection, also check the config for sprint fields (if present):
 - `sprintsDatabaseId` (optional — present only if scrum is enabled)

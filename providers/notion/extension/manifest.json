@@ -1,0 +1,41 @@
+{
+  "manifest_version": "0.3",
+  "name": "notion-query",
+  "display_name": "Notion Query for Agentic Tasks",
+  "version": "0.1.1",
+  "description": "Server-side Notion database querying with people property filters. Designed for Agentic Tasks plugin.",
+  "author": {
+    "name": "Kazuki Nagata"
+  },
+  "server": {
+    "type": "node",
+    "entry_point": "server/index.js",
+    "mcp_config": {
+      "command": "node",
+      "args": ["${__dirname}/server/index.js"],
+      "env": {
+        "NOTION_TOKEN": "${user_config.notion_token}"
+      }
+    }
+  },
+  "tools": [
+    {
+      "name": "notion-query",
+      "description": "Query a Notion database with server-side filtering, sorting, and pagination. Supports people property filters (Assignees) that the Notion hosted MCP cannot handle."
+    }
+  ],
+  "user_config": {
+    "notion_token": {
+      "type": "string",
+      "title": "Notion Internal Integration Token",
+      "description": "Your Notion internal integration token (ntn_...). Create one at https://www.notion.so/profile/integrations with Read content permission, then connect it to your Agentic Tasks page.",
+      "sensitive": true,
+      "required": true
+    }
+  },
+  "keywords": ["notion", "query", "agentic-tasks", "database", "filter"],
+  "license": "MIT",
+  "compatibility": {
+    "platforms": ["darwin", "win32", "linux"]
+  }
+}

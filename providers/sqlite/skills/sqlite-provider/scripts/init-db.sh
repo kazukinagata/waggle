@@ -3,6 +3,7 @@
 #
 # Usage: init-db.sh [db_path]
 #   db_path defaults to ~/.waggle/tasks.db
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 set -euo pipefail
 

@@ -18,7 +18,7 @@ If `active_provider` is not set, stop and return an error to the caller.
 
 If `current_user` is already set in this session, skip to Step 2.
 
-Load `${CLAUDE_PLUGIN_ROOT}/skills/providers/{active_provider}/SKILL.md` and follow the
+Load the provider SKILL.md (already determined by detecting-provider and stored in `provider_skill_path`) and follow the
 **Identity: Resolve Current User** section.
 
 Result: set session variable `current_user: { id, name, email }`.
@@ -32,7 +32,7 @@ Result: set session variable `current_user: { id, name, email }`.
 
 If `teamsDatabaseId` exists in `headless_config`:
 
-1. Load `${CLAUDE_PLUGIN_ROOT}/skills/providers/{active_provider}/SKILL.md` and follow the
+1. Load the provider SKILL.md (from detecting-provider's `provider_skill_path`) and follow the
    **Identity: Resolve Team Membership** section.
 2. Result: set `current_user.teams: [{ id, name, members: [{ id, name }] }]` and `current_team`.
    - 1 team → automatically set `current_team`.
@@ -46,7 +46,7 @@ If `teamsDatabaseId` is not in config, skip this step (`current_team: null`).
 Only execute if the caller explicitly requests member lookup (i.e., `org_members` is needed).
 **Skip if `org_members` is already set in this session.**
 
-Load `${CLAUDE_PLUGIN_ROOT}/skills/providers/{active_provider}/SKILL.md` and follow the
+Load the provider SKILL.md (from detecting-provider's `provider_skill_path`) and follow the
 **Identity: List Org Members** section.
 
 Result: set session variable `org_members: OrgMember[]` where each member has `{ id, name, email }`.
