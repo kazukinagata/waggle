@@ -1,3 +1,16 @@
+---
+name: waggle-protocol
+description: >
+  Waggle Protocol v1 specification. Defines the 14 core fields, 11 extended
+  fields, task state machine, dispatch readiness checks, stall detection
+  formula, and execution environments. Use this skill when you need to
+  understand the waggle protocol, check field definitions, verify state
+  transitions, or reference the stall detection constants. Trigger on:
+  "protocol spec", "waggle spec", "field definitions", "state machine",
+  "stall detection", "task schema", "core fields".
+user-invocable: true
+---
+
 # Waggle Protocol v1
 
 ## Overview
@@ -118,16 +131,17 @@ A Waggle provider is any backend that implements the following operations:
 
 ### Provider Registration
 
-Providers are detected via MCP tool prefixes or explicit configuration. See the detecting-provider skill for the detection algorithm.
+Providers are delivered as separate plugins (e.g., waggle-notion, waggle-sqlite, waggle-turso). Detection happens via `<available_skills>` on Cowork or `installed_plugins.json` on CLI/Desktop. See the detecting-provider skill for the detection algorithm.
 
 ## Execution Environments
 
-| Environment Variable | Value | Parallel Method |
+| Environment | Detection | Parallel Method |
 |---|---|---|
-| `CLAUDE_CODE_ENTRYPOINT` | `claude-desktop` | Scheduled Tasks |
-| `CLAUDE_CODE_ENTRYPOINT` | `cli` (or unset) | tmux panes |
+| Cowork | `CLAUDE_CODE_IS_COWORK=1` | Scheduled Tasks |
+| Claude Desktop | `CLAUDE_CODE_ENTRYPOINT=claude-desktop` | Scheduled Tasks |
+| CLI | `CLAUDE_CODE_ENTRYPOINT=cli` (or unset) | tmux panes |
 
-Both environments support single-task execution in the current session.
+All environments support single-task execution in the current session.
 
 ## Versioning
 
