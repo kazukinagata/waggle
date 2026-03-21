@@ -11,10 +11,34 @@
     {
       "name": "waggle",
       "source": "./",
-      "description": "AI-native task management for agents and humans. Natural language CRUD, real-time HTML views (kanban, list), and autonomous task execution.",
+      "description": "AI-native task management for agents and humans. Natural language CRUD, real-time HTML views (kanban, list), and autonomous task execution. Requires a provider plugin: waggle-notion, waggle-sqlite, or waggle-turso.",
       "license": "MIT",
       "category": "productivity",
       "tags": ["tasks", "kanban", "agent", "ai-native", "headless"]
+    },
+    {
+      "name": "waggle-notion",
+      "source": "./providers/notion",
+      "description": "Notion provider for waggle. Enables team task management via Notion workspace.",
+      "license": "MIT",
+      "category": "productivity",
+      "tags": ["notion", "provider"]
+    },
+    {
+      "name": "waggle-sqlite",
+      "source": "./providers/sqlite",
+      "description": "SQLite provider for waggle. Local zero-config task management.",
+      "license": "MIT",
+      "category": "productivity",
+      "tags": ["sqlite", "provider", "local"]
+    },
+    {
+      "name": "waggle-turso",
+      "source": "./providers/turso",
+      "description": "Turso provider for waggle. Remote SQLite for multi-agent coordination.",
+      "license": "MIT",
+      "category": "productivity",
+      "tags": ["turso", "provider", "remote"]
     }
   ]
 }

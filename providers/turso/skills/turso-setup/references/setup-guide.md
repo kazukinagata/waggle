@@ -58,13 +58,13 @@ Also set env vars in `~/.claude/settings.json` for script access:
 ```bash
 export TURSO_URL="<url>"
 export TURSO_AUTH_TOKEN="<token>"
-bash ${CLAUDE_PLUGIN_ROOT}/skills/providers/turso/scripts/init-db.sh
+bash ${CLAUDE_PLUGIN_ROOT}/skills/turso-provider/scripts/init-db.sh
 ```
 
 ## Step 5: Verify
 
 ```bash
-bash ${CLAUDE_PLUGIN_ROOT}/skills/providers/turso/scripts/turso-exec.sh \
+bash ${CLAUDE_PLUGIN_ROOT}/skills/turso-provider/scripts/turso-exec.sh \
   "INSERT INTO tasks (title, status, priority) VALUES ('Setup test', 'Backlog', 'Low') RETURNING id, title, status;" \
   "DELETE FROM tasks WHERE title = 'Setup test';"
 ```

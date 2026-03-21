@@ -3,6 +3,7 @@
 #
 # Usage: query-tasks.sh <db_path> [where_clause] [order_clause] [limit]
 #
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 # Arguments:
 #   db_path       — Path to SQLite database file
 #   where_clause  — (optional) SQL WHERE clause without "WHERE" keyword

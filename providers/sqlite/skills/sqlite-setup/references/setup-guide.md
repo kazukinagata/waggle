@@ -16,7 +16,7 @@ If either is missing, guide the user:
 ## Step 2: Initialize Database
 
 ```bash
-bash ${CLAUDE_PLUGIN_ROOT}/skills/providers/sqlite/scripts/init-db.sh
+bash ${CLAUDE_PLUGIN_ROOT}/skills/sqlite-provider/scripts/init-db.sh
 ```
 
 This creates `~/.waggle/tasks.db` with all required tables.

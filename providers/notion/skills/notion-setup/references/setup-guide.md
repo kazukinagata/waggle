@@ -20,13 +20,13 @@ Add the following to `~/.claude/settings.json` under `"mcpServers"`:
 Then restart Claude Code and run the setup skill again.
 
 **Claude Desktop:**
-Open Claude Desktop settings → MCP Servers → Add Server → Enter `https://mcp.notion.com/mcp`.
+Open Claude Desktop settings -> MCP Servers -> Add Server -> Enter `https://mcp.notion.com/mcp`.
 Authenticate with your Notion account when prompted.
 
 ## Step 1b: Detect Existing Setup
 
 1. Call `notion-search` with query "Waggle Config" to check for an existing configuration.
-2. If a Config page is found → enter **Migration Mode**:
+2. If a Config page is found -> enter **Migration Mode**:
 
 ### Migration Mode
 
@@ -38,12 +38,12 @@ c. **Remove `projectsDatabaseId`**: If `projectsDatabaseId` exists in the config
 
 d. **Check Teams DB entries**:
    - Fetch teams from `teamsDatabaseId`. Count entries.
-   - 0 entries → Guide the user to Step 4c (Register Initial Teams) of the normal setup flow.
-   - 1+ entries → Display team list and ask if any updates are needed.
+   - 0 entries -> Guide the user to Step 4c (Register Initial Teams) of the normal setup flow.
+   - 1+ entries -> Display team list and ask if any updates are needed.
 
 e. **Check Sprints DB Team relation**: If `sprintsDatabaseId` exists in config:
    - Fetch the Sprints DB schema via `notion-fetch`.
-   - If no `Team` field exists → add it: `ADD COLUMN "Team" RELATION('<TEAMS_DS_ID>')`
+   - If no `Team` field exists -> add it: `ADD COLUMN "Team" RELATION('<TEAMS_DS_ID>')`
 
 f. **Tasks DB Team relation**: If a `Team` relation field exists on the Tasks DB:
    - Inform: "The Team field on Tasks is no longer used by the plugin. It will remain in Notion but the plugin will not read or write it."
@@ -52,7 +52,7 @@ g. **Update Config JSON**: Remove `selfUserId` and `projectsDatabaseId` from the
 
 h. Report: "Migration complete. Your setup has been updated to the latest plugin version."
 
-3. If no Config page is found → proceed with normal new setup flow below.
+3. If no Config page is found -> proceed with normal new setup flow below.
 
 ## Step 2: Choose Parent Page Location
 
@@ -152,8 +152,8 @@ Note the returned data source ID as `INTAKE_LOG_DS_ID`.
 
 Add the following relations in separate calls:
 
-1. Tasks ← `Blocked By` → Tasks (self): `ADD COLUMN "Blocked By" RELATION('<TASKS_DS_ID>')`
-2. Tasks ← `Parent Task` → Tasks (self): `ADD COLUMN "Parent Task" RELATION('<TASKS_DS_ID>')`
+1. Tasks <- `Blocked By` -> Tasks (self): `ADD COLUMN "Blocked By" RELATION('<TASKS_DS_ID>')`
+2. Tasks <- `Parent Task` -> Tasks (self): `ADD COLUMN "Parent Task" RELATION('<TASKS_DS_ID>')`
 
 ### Step 4c: Register Initial Team(s)
 
@@ -207,7 +207,7 @@ For faster task queries with server-side filtering (by assignee, status, etc.), 
 Then connect the integration to your databases:
 
 1. Open the **Waggle** parent page in Notion
-2. Click **⋯** menu → **Connections** → **Connect to** → select **Waggle CLI**
+2. Click **...** menu -> **Connections** -> **Connect to** -> select **Waggle CLI**
 
 Finally, set the token as an environment variable:
 

@@ -1,3 +1,9 @@
+---
+name: notion-provider
+description: Notion-specific provider implementation for waggle. Loaded when the active provider is notion.
+user-invocable: false
+---
+
 # Waggle — Notion Provider
 
 This file contains all Notion-specific implementation details for waggle.
@@ -7,11 +13,11 @@ Load this file when the active provider is **notion**.
 
 When `detecting-provider` requests config retrieval for the Notion provider, follow these steps to populate `headless_config`:
 
-1. First, check `~/.waggle/config.json` (via Bash: `cat ~/.waggle/config.json 2>/dev/null`):
-   - If the file exists and contains `tasksDatabaseId`, use those values to populate `headless_config`.
-   - If `sprintsDatabaseId` or `intakeLogDatabaseId` are not in the file, proceed to the Notion Config page to check for them.
-
-2. If `~/.waggle/config.json` does not exist or is missing required fields, fall back to searching for the "Waggle Config" page using `notion-search`:
+1. First, search for the "Waggle Config" page using `notion-search`:
+   - If multiple pages match:
+     - Filter out trashed/archived pages
+     - Prefer the page that is a child of the same parent as the Tasks database
+     - If still ambiguous, ask the user which Config page to use
    - Retrieve the page body using `notion-fetch`
    - Parse the JSON code block and set the following as the `headless_config` session variable:
      - `tasksDatabaseId` (required)
@@ -19,6 +25,10 @@ When `detecting-provider` requests config retrieval for the Notion provider, fol
      - `sprintsDatabaseId` (optional — exists after setting-up-scrum)
      - `maxConcurrentAgents` (optional — default: 3)
      - `intakeLogDatabaseId` (optional — exists after first ingesting-messages run)
+
+2. If `notion-search` fails or returns no results, fall back to `~/.waggle/config.json` (optional fast cache):
+   - Read via Bash: `cat ~/.waggle/config.json 2>/dev/null`
+   - If the file exists and contains `tasksDatabaseId`, use those values to populate `headless_config`.
 
 If neither source provides the config, instruct the user to run the setting-up-tasks skill, then stop.
 
@@ -52,7 +62,17 @@ After repair, re-verify and continue. **Never ask the user to manually fix the s
 - `notion-search` — Full-text search across tasks; use for filtering by field value
 - `notion-get-comments` / `notion-create-comment` — Read/write task comments
 
-## Schema: Notion Property → Canonical Role
+## Delete Operation
+
+Notion does not support hard delete via the API. To delete a task, archive the page:
+
+```
+notion-update-page page_id="<page_id>" archived=true
+```
+
+This removes the page from views but retains it in Notion's trash (recoverable for 30 days).
+
+## Schema: Notion Property -> Canonical Role
 
 ### Core Fields (required — verify existence at session start)
 
@@ -65,7 +85,7 @@ After repair, re-verify and continue. **Never ask the user to manually fix the s
 | Blocked By | relation | `task_blocked_by` | Self-relation (dependency). Empty or all blockers Done = actionable |
 | Priority | select | `task_priority` | Urgent / High / Medium / Low |
 | Executor | select | `task_executor` | cli / claude-desktop / human |
-| Requires Review | checkbox | `task_requires_review` | On → must pass In Review. Off → can go directly to Done |
+| Requires Review | checkbox | `task_requires_review` | On -> must pass In Review. Off -> can go directly to Done |
 | Execution Plan | rich_text | `task_execution_plan` | Orchestrator's plan written before dispatch. write-once |
 | Working Directory | rich_text | `task_working_directory` | Absolute path to the working directory |
 | Session Reference | rich_text | `task_session_ref` | Written after dispatch: tmux session name / Scheduled task ID |
@@ -98,11 +118,11 @@ ADD COLUMN "Source Message ID" RICH_TEXT
 
 The Intake Log DB tracks processed message IDs to avoid reprocessing. It is created automatically by the ingesting-messages skill on first run.
 
-| Property | Notion Type | Description |
-|---|---|---|
-| Message ID | title | Message unique ID (e.g. Slack: `channel_id:ts`) |
-| Tool Name | select | `slack` / `teams` / `discord` |
-| Processed At | date | Processing timestamp |
+| Property | Notion Type | Required | Description |
+|---|---|---|---|
+| Message ID | title | Yes | Message unique ID (e.g. Slack: `channel_id:ts`) |
+| Tool Name | select | Yes | Options: `slack` / `teams` / `discord` |
+| Processed At | date | Yes | Processing timestamp (ISO 8601) |
 
 The database ID is stored in the config page as `intakeLogDatabaseId`.
 
@@ -112,15 +132,15 @@ Use the first available query path (checked in order):
 
 ### Query Path Detection
 
-1. **`NOTION_TOKEN` env var set** (check: run `[ -n "$NOTION_TOKEN" ] && echo "SET" || echo "NOT SET"` via Bash) → Path 1 (API script)
-2. **Otherwise** → Path 2 (MCP fallback)
+1. **`NOTION_TOKEN` env var set** (check: run `[ -n "$NOTION_TOKEN" ] && echo "SET" || echo "NOT SET"` via Bash) -> Path 1 (API script)
+2. **Otherwise** -> Path 2 (MCP fallback)
 
 ### Path 1: Notion API Script (requires NOTION_TOKEN)
 
 Call the query script for server-side filtering:
 
 ```bash
-bash ${CLAUDE_PLUGIN_ROOT}/skills/providers/notion/scripts/query-tasks.sh \
+bash ${PROVIDER_PLUGIN_ROOT}/skills/notion-provider/scripts/query-tasks.sh \
   "<tasksDatabaseId>" '<filter_json>' '<sort_json>'
 ```
 
@@ -169,7 +189,7 @@ This is the slower path — use only when Path 1 is unavailable.
 When displaying queried tasks to the user in list or table format, extract only display-relevant fields to prevent output truncation:
 
 ```bash
-bash ${CLAUDE_PLUGIN_ROOT}/skills/providers/notion/scripts/query-tasks.sh \
+bash ${PROVIDER_PLUGIN_ROOT}/skills/notion-provider/scripts/query-tasks.sh \
   "<tasksDatabaseId>" '<filter_json>' '<sort_json>' | \
   jq '[.results[] | {
     id: .id,
@@ -189,7 +209,7 @@ For single-task detail views (update, status change), use the full page object.
 
 To retrieve all tasks (e.g. for view server data push), use the detected query path with no filter:
 
-- **Path 1**: `bash ${CLAUDE_PLUGIN_ROOT}/skills/providers/notion/scripts/query-tasks.sh "<tasksDatabaseId>"` (no filter/sort args)
+- **Path 1**: `bash ${PROVIDER_PLUGIN_ROOT}/skills/notion-provider/scripts/query-tasks.sh "<tasksDatabaseId>"` (no filter/sort args)
 - **Path 2**: `notion-search` with `data_source_url` + `notion-fetch` per page
 
 No post-processing needed (no Blocked By filter, no sort required).
@@ -202,6 +222,22 @@ When referring to a task in dispatch prompts and completion instructions, use:
 
 In the Claude Desktop environment, the dispatch prompt is set as the Scheduled Task's prompt.
 Notion MCP tools (notion-update-page) are available in both environments.
+
+## On Completion Template
+
+The following template is injected into dispatch prompts by `executing-tasks`. Placeholders are resolved at dispatch time.
+
+```
+Notion page ID for this task: <task_id>
+
+On completion, perform the following:
+1. Use notion-update-page with page ID <task_id> to write execution results to the "Agent Output" field
+2. Update Status:
+   - If Requires Review = ON: "In Review"
+   - If Requires Review = OFF: "Done"
+3. On error: write error details to "Error Message" and update Status to "Blocked"
+4. If the Notion update fails, ignore the error and complete execution
+```
 
 ## Pushing Data to View Server
 
@@ -221,6 +257,36 @@ curl -s http://localhost:3456/api/health -o /dev/null 2>/dev/null && \
     -H "Content-Type: application/json" -d '<json>' -o /dev/null 2>/dev/null || true
 ```
 
+### View Server Field Mapping
+
+| Notion Property | TasksResponse Field |
+|---|---|
+| `id` (page ID) | `id` |
+| Title | `title` |
+| Description | `description` |
+| Acceptance Criteria | `acceptanceCriteria` |
+| Status | `status` |
+| Blocked By | `blockedBy` (array of page IDs) |
+| Priority | `priority` |
+| Executor | `executor` |
+| Requires Review | `requiresReview` |
+| Execution Plan | `executionPlan` |
+| Working Directory | `workingDirectory` |
+| Session Reference | `sessionReference` |
+| Dispatched At | `dispatchedAt` |
+| Agent Output | `agentOutput` |
+| Error Message | `errorMessage` |
+| Context | `context` |
+| Artifacts | `artifacts` |
+| Repository | `repository` |
+| Due Date | `dueDate` |
+| Tags | `tags` |
+| Parent Task | `parentTaskId` |
+| Assignees | `assignees` |
+| `url` (page URL) | `url` |
+| Sprint (relation) | `sprintId` / `sprintName` |
+| (not in Notion) | `complexityScore`, `backlogOrder` |
+
 ---
 
 ## Identity: Resolve Current User
@@ -229,14 +295,14 @@ Called by `resolving-identity` shared skill when `active_provider = notion`.
 
 1. Call `notion-get-users` with `user_id: "self"`.
 2. Map the response:
-   - `id` ← `response.id`
-   - `name` ← `response.name`
-   - `email` ← `response.person.email` (null if Bot user)
+   - `id` <- `response.id`
+   - `name` <- `response.name`
+   - `email` <- `response.person.email` (null if Bot user)
 3. Save to session variable `current_user: { id, name, email }`.
 4. **Fallback**: If `notion-get-users` is unavailable or fails:
-   - `id` ← `"unknown"`
-   - `name` ← `$USER` environment variable or "local"
-   - `email` ← null
+   - `id` <- `"unknown"`
+   - `name` <- `$USER` environment variable or "local"
+   - `email` <- null
 
 ## Identity: Resolve Team Membership
 
@@ -246,9 +312,9 @@ Called by `resolving-identity` shared skill when `teamsDatabaseId` is present in
 2. For each team, inspect the `Members` people field. Check if `current_user.id` is present in the array.
 3. Set `current_user.teams` to the list of matching teams: `[{ id, name, members: [{ id, name }] }]`.
 4. Determine `current_team`:
-   - 1 matching team → automatically set `current_team` to that team.
-   - 2+ matching teams → use AskUserQuestion: "You belong to multiple teams: [list]. Which team are you working with now?"
-   - 0 matching teams → set `current_team: null`.
+   - 1 matching team -> automatically set `current_team` to that team.
+   - 2+ matching teams -> use AskUserQuestion: "You belong to multiple teams: [list]. Which team are you working with now?"
+   - 0 matching teams -> set `current_team: null`.
 5. If `current_team` is set, populate `current_team.members` with all members from that team's `Members` field (array of `{ id, name }`). This is used by downstream skills for team-scoped filtering.
 
 ## Identity: List Org Members
@@ -257,9 +323,9 @@ Called by `resolving-identity` shared skill when `org_members` lookup is needed.
 
 1. Call `notion-get-users` with no arguments to list all workspace members.
 2. Map each user to `OrgMember { id, name, email }`:
-   - `id` ← `user.id`
-   - `name` ← `user.name`
-   - `email` ← `user.person.email` (null for Bot users)
+   - `id` <- `user.id`
+   - `name` <- `user.name`
+   - `email` <- `user.person.email` (null for Bot users)
 3. Save to session variable `org_members: OrgMember[]`.
 4. **Fallback**: If `notion-get-users` is unavailable, set `org_members: []` and return.
    The `looking-up-members` skill will then fall back to TeamsDB Members field.
@@ -271,3 +337,12 @@ To determine whether a task is assigned to the current user:
 - Fetch the task's `Assignees` property (people type — returns an array of person objects).
 - Check if any element in the array has `id === current_user.id`.
 - Use this check when filtering tasks in `managing-tasks` and `executing-tasks`.
+
+## Error Handling
+
+| Error Category | HTTP Code | Action |
+|---|---|---|
+| Rate limit | 429 | Retryable — wait for `Retry-After` header seconds, then retry |
+| Page not found | 404 | Terminal — the page was deleted or the integration lost access. Report to user |
+| Server error | 500 | Retryable — exponential backoff (1s, 2s, 4s), max 3 attempts |
+| MCP tool unavailable | N/A | Terminal — the Notion MCP server is not configured. Instruct user to check MCP settings |

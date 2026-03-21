@@ -6,68 +6,93 @@ user-invocable: false
 
 # Waggle — Provider Detection
 
-Determine the active provider using the following layered check.
+Determine the active provider and load its SKILL.md.
 **Skip if already determined in this conversation.**
 
-## Layer 1: Config File Detection
+## Step 1: Determine Discovery Method
 
-Check for `~/.waggle/config.json` (via Bash: `cat ~/.waggle/config.json 2>/dev/null`):
+Check `CLAUDE_CODE_IS_COWORK` environment variable (via Bash: `echo "$CLAUDE_CODE_IS_COWORK"`):
+- If `"1"` → use Step 2A (Cowork skill discovery)
+- Otherwise → use Step 2B (CLI/Desktop plugin discovery)
 
-1. If the file exists and contains `"provider"`:
-   - `"provider": "notion"` → `active_provider = "notion"`
-   - `"provider": "sqlite"` → `active_provider = "sqlite"`
-   - `"provider": "turso"` → `active_provider = "turso"`
-   - **REQUIRED — Read `${CLAUDE_PLUGIN_ROOT}/skills/providers/{active_provider}/SKILL.md` now.**
+## Step 2A: Skill Discovery — Cowork
 
-2. Alternatively, if `TURSO_URL` environment variable is set:
-   - `active_provider = "turso"`
-   - **REQUIRED — Read the corresponding provider SKILL.md.**
+Check `<available_skills>` in the system prompt for skill names matching:
+- `notion-provider` → `active_provider = "notion"`
+- `sqlite-provider` → `active_provider = "sqlite"`
+- `turso-provider` → `active_provider = "turso"`
 
-## Layer 2: MCP Tool Auto-Detection (fallback)
+Extract the `<location>` field for the matched skill:
+- `provider_skill_path = {location}/SKILL.md`
+- `provider_plugin_root` = derive from `{location}` by going up 2 directory levels (from `skills/{provider}-provider/` to plugin root)
 
-If no config file was found, inspect available MCP tools:
-- `notion-*` tools present → `active_provider = "notion"`
+If 0 matches → Step 3 (no provider).
+If 2+ matches → Step 4 (conflict resolution).
+Otherwise → skip to Step 5.
 
-If detected, **REQUIRED — Read the corresponding provider SKILL.md.**
-This file contains query method selection logic and data operation procedures.
+## Step 2B: Plugin Discovery — CLI / Desktop
 
-## Layer 3: Conflict Resolution
-If multiple provider MCPs are detected, determine the environment:
-- Check `env.WAGGLE_PROVIDER` in `~/.claude/settings.json`
+Read `~/.claude/plugins/installed_plugins.json` (via Bash: `cat ~/.claude/plugins/installed_plugins.json 2>/dev/null`):
+- Find keys matching the pattern `waggle-notion@*`, `waggle-sqlite@*`, or `waggle-turso@*`
+- Extract `active_provider` from the key name (e.g., `waggle-notion@xxx` → `notion`)
+- Extract `installPath` from the matching entry
+- Set `provider_plugin_root = installPath`
+- Set `provider_skill_path = {installPath}/skills/{active_provider}-provider/SKILL.md`
 
-If a value is found, use it as active_provider. **REQUIRED — Read the corresponding provider SKILL.md** (same instruction as Layer 2).
+If the file does not exist or no matches found → Step 3 (no provider).
+If 2+ matches → Step 4 (conflict resolution).
+Otherwise → skip to Step 5.
 
-## Layer 4: Ask User
-If provider is still undetermined, use AskUserQuestion:
-> "Multiple data source MCPs are available. Which provider should I use for waggle? Available: [list detected providers]"
+## Step 3: No Provider Found
 
-## No Provider Detected
-If no provider is found via MCP tools or config file, inform the user they need to run the **setting-up-tasks** skill first to configure a data source, then stop.
+Error — inform the user:
+> "No waggle provider plugin found. Install one: waggle-notion, waggle-sqlite, or waggle-turso."
 
-## Environment Detection
+Then stop.
 
-After detecting the provider, also determine the execution environment and set `execution_environment` as a conversation context variable.
-**Skip if already set in this conversation.**
+## Step 4: Conflict Resolution
+
+If multiple provider plugins are detected:
+1. Check `WAGGLE_PROVIDER` environment variable → use it if set
+2. Otherwise, AskUserQuestion: "Multiple waggle providers detected: [list]. Which one should I use?"
+
+## Step 5: Validate MCP Availability
+
+Before loading the provider:
+- **Notion**: verify `notion-*` MCP tools are available. If not → "waggle-notion is installed but Notion MCP server is not configured. Run 'setup notion' to configure."
+- **Turso**: verify `TURSO_URL` and `TURSO_AUTH_TOKEN` env vars are set. If not → "TURSO_URL and TURSO_AUTH_TOKEN must be set. Run 'setup turso' to configure."
+- **SQLite**: if `CLAUDE_CODE_IS_COWORK` = `"1"` → "SQLite provider is not supported on Cowork (ephemeral environment). Use waggle-notion or waggle-turso instead."
+
+## Step 6: Load Provider SKILL.md
+
+Set `PROVIDER_PLUGIN_ROOT`:
+- Run: `export PROVIDER_PLUGIN_ROOT="{provider_plugin_root}"`
+
+Read the provider SKILL.md:
+- `{provider_skill_path}`
+
+**REQUIRED — Read this file now.**
+
+## Step 7: Environment Detection
+
+Determine the execution environment. **Skip if already set in this conversation.**
 
 Detection logic:
-1. If environment variable `CLAUDE_CODE_ENTRYPOINT` is `claude-desktop` → `execution_environment = "claude-desktop"`
-2. Otherwise → `execution_environment = "cli"`
-
-This value is used by downstream skills (executing-tasks, managing-tasks, etc.) for execution flow branching.
+1. If environment variable `CLAUDE_CODE_IS_COWORK` is `"1"` (and `CLAUDE_CODE_ENTRYPOINT` is `local-agent`) → `execution_environment = "cowork"`
+2. If environment variable `CLAUDE_CODE_ENTRYPOINT` is `claude-desktop` → `execution_environment = "claude-desktop"`
+3. Otherwise → `execution_environment = "cli"`
 
 | Environment | Parallel Execution | Session Type |
 |---|---|---|
+| `cowork` | Cowork agents | Cowork |
 | `claude-desktop` | Scheduled Tasks | Claude Desktop |
 | `cli` | tmux panes | Terminal CLI |
 
-## Config Retrieval
+## Step 8: Config Retrieval
 
-After detecting the provider, retrieve database IDs and constants from the Config page.
-**Skip if `headless_config` is already set in this conversation.**
+Retrieve database IDs and constants. **Skip if `headless_config` is already set in this conversation.**
 
 Follow the active provider SKILL.md's Config Retrieval section to populate `headless_config`.
-
-For all providers, config can be read from `~/.waggle/config.json` and stored in `headless_config`. The provider SKILL.md Config Retrieval section has the details.
 
 ## Constants
 

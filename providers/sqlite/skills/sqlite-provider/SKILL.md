@@ -1,3 +1,9 @@
+---
+name: sqlite-provider
+description: SQLite-specific provider implementation for waggle. Loaded when the active provider is sqlite.
+user-invocable: false
+---
+
 # Waggle — SQLite Provider
 
 This file contains all SQLite-specific implementation details for waggle.
@@ -29,7 +35,7 @@ Expected tables: `tasks`, `task_dependencies`, `teams`, `sprints`, `intake_log`.
 If any table is missing, run the init script to auto-repair:
 
 ```bash
-bash ${CLAUDE_PLUGIN_ROOT}/skills/providers/sqlite/scripts/init-db.sh "<dbPath>"
+bash ${PROVIDER_PLUGIN_ROOT}/skills/sqlite-provider/scripts/init-db.sh "<dbPath>"
 ```
 
 ## CRUD Operations
@@ -45,7 +51,7 @@ To get the generated ID, use:
 sqlite3 "<dbPath>" "INSERT INTO tasks (title, status) VALUES ('<title>', 'Backlog') RETURNING id;"
 ```
 
-**IMPORTANT:** Escape single quotes in values by doubling them: `'` → `''`.
+**IMPORTANT:** Escape single quotes in values by doubling them: `'` -> `''`.
 
 ### Update Task
 
@@ -89,7 +95,7 @@ sqlite3 "<dbPath>" "DELETE FROM task_dependencies WHERE task_id = '<task_id>' AN
 Use the query script for filtered queries with JSON output:
 
 ```bash
-bash ${CLAUDE_PLUGIN_ROOT}/skills/providers/sqlite/scripts/query-tasks.sh \
+bash ${PROVIDER_PLUGIN_ROOT}/skills/sqlite-provider/scripts/query-tasks.sh \
   "<dbPath>" '<where_clause>' '<order_clause>'
 ```
 
@@ -97,32 +103,32 @@ bash ${CLAUDE_PLUGIN_ROOT}/skills/providers/sqlite/scripts/query-tasks.sh \
 
 **All tasks (no filter):**
 ```bash
-bash ${CLAUDE_PLUGIN_ROOT}/skills/providers/sqlite/scripts/query-tasks.sh "<dbPath>"
+bash ${PROVIDER_PLUGIN_ROOT}/skills/sqlite-provider/scripts/query-tasks.sh "<dbPath>"
 ```
 
 **Ready tasks:**
 ```bash
-bash ${CLAUDE_PLUGIN_ROOT}/skills/providers/sqlite/scripts/query-tasks.sh "<dbPath>" "t.status = 'Ready'"
+bash ${PROVIDER_PLUGIN_ROOT}/skills/sqlite-provider/scripts/query-tasks.sh "<dbPath>" "t.status = 'Ready'"
 ```
 
 **Tasks by executor and status:**
 ```bash
-bash ${CLAUDE_PLUGIN_ROOT}/skills/providers/sqlite/scripts/query-tasks.sh "<dbPath>" "t.status = 'Ready' AND t.executor = 'cli'"
+bash ${PROVIDER_PLUGIN_ROOT}/skills/sqlite-provider/scripts/query-tasks.sh "<dbPath>" "t.status = 'Ready' AND t.executor = 'cli'"
 ```
 
 **Tasks assigned to current user:**
 ```bash
-bash ${CLAUDE_PLUGIN_ROOT}/skills/providers/sqlite/scripts/query-tasks.sh "<dbPath>" "t.assignees LIKE '%<user_id>%'"
+bash ${PROVIDER_PLUGIN_ROOT}/skills/sqlite-provider/scripts/query-tasks.sh "<dbPath>" "t.assignees LIKE '%<user_id>%'"
 ```
 
 **In Progress tasks (for concurrency check):**
 ```bash
-bash ${CLAUDE_PLUGIN_ROOT}/skills/providers/sqlite/scripts/query-tasks.sh "<dbPath>" "t.status = 'In Progress' AND t.assignees LIKE '%<user_id>%'"
+bash ${PROVIDER_PLUGIN_ROOT}/skills/sqlite-provider/scripts/query-tasks.sh "<dbPath>" "t.status = 'In Progress' AND t.assignees LIKE '%<user_id>%'"
 ```
 
 **Sort by Priority then Due Date:**
 ```bash
-bash ${CLAUDE_PLUGIN_ROOT}/skills/providers/sqlite/scripts/query-tasks.sh "<dbPath>" "" \
+bash ${PROVIDER_PLUGIN_ROOT}/skills/sqlite-provider/scripts/query-tasks.sh "<dbPath>" "" \
   "CASE t.priority WHEN 'Urgent' THEN 1 WHEN 'High' THEN 2 WHEN 'Medium' THEN 3 WHEN 'Low' THEN 4 END ASC, t.due_date ASC"
 ```
 
@@ -134,7 +140,7 @@ bash ${CLAUDE_PLUGIN_ROOT}/skills/providers/sqlite/scripts/query-tasks.sh "<dbPa
 ### Displaying Task Lists
 
 ```bash
-bash ${CLAUDE_PLUGIN_ROOT}/skills/providers/sqlite/scripts/query-tasks.sh "<dbPath>" '<where>' '<order>' | \
+bash ${PROVIDER_PLUGIN_ROOT}/skills/sqlite-provider/scripts/query-tasks.sh "<dbPath>" '<where>' '<order>' | \
   jq '[.results[] | {id, title, status, priority, executor, assignees, due_date, blocked_by: (.blocked_by | length | tostring) + " deps"}]'
 ```
 
@@ -144,18 +150,32 @@ When referring to a task in dispatch prompts and completion instructions, use:
 - **Task ID**: the hex string ID from the `id` column
 - **Update instruction**: "Run: `sqlite3 <dbPath> \"UPDATE tasks SET agent_output = '<result>', status = 'Done', updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now') WHERE id = '<task_id>';\"`"
 
+## On Completion Template
+
+The following template is injected into dispatch prompts by `executing-tasks`. Placeholders are resolved at dispatch time.
+
+```
+Task ID: <task_id>
+Database path: <db_path>
+
+On completion:
+1. Run: sqlite3 "<db_path>" "UPDATE tasks SET agent_output='<result>', status='Done', updated_at=strftime('%Y-%m-%dT%H:%M:%SZ','now') WHERE id='<task_id>';"
+   - If Requires Review = ON: set status to 'In Review' instead of 'Done'
+2. On error: sqlite3 "<db_path>" "UPDATE tasks SET error_message='<error>', status='Blocked', updated_at=strftime('%Y-%m-%dT%H:%M:%SZ','now') WHERE id='<task_id>';"
+```
+
 ## Pushing Data to View Server
 
 After any task operation (create, update, delete), push fresh data to the local view server:
 
 1. Fetch all tasks:
 ```bash
-bash ${CLAUDE_PLUGIN_ROOT}/skills/providers/sqlite/scripts/query-tasks.sh "<dbPath>"
+bash ${PROVIDER_PLUGIN_ROOT}/skills/sqlite-provider/scripts/query-tasks.sh "<dbPath>"
 ```
 
 2. Format as TasksResponse and POST:
 ```bash
-TASKS_JSON=$(bash ${CLAUDE_PLUGIN_ROOT}/skills/providers/sqlite/scripts/query-tasks.sh "<dbPath>" | jq -c '{tasks: [.results[] | {
+TASKS_JSON=$(bash ${PROVIDER_PLUGIN_ROOT}/skills/sqlite-provider/scripts/query-tasks.sh "<dbPath>" | jq -c '{tasks: [.results[] | {
   id, title, description, acceptanceCriteria: .acceptance_criteria, status, blockedBy: .blocked_by,
   priority, executor, requiresReview: .requires_review, executionPlan: .execution_plan,
   workingDirectory: .working_directory, sessionReference: .session_reference,
@@ -170,14 +190,47 @@ curl -s http://localhost:3456/api/health -o /dev/null 2>/dev/null && \
     -H "Content-Type: application/json" -d "$TASKS_JSON" -o /dev/null 2>/dev/null || true
 ```
 
+### View Server Field Mapping
+
+| SQLite Column | TasksResponse Field |
+|---|---|
+| id | `id` |
+| title | `title` |
+| description | `description` |
+| acceptance_criteria | `acceptanceCriteria` |
+| status | `status` |
+| blocked_by (via task_dependencies) | `blockedBy` |
+| priority | `priority` |
+| executor | `executor` |
+| requires_review | `requiresReview` (boolean) |
+| execution_plan | `executionPlan` |
+| working_directory | `workingDirectory` |
+| session_reference | `sessionReference` |
+| dispatched_at | `dispatchedAt` |
+| agent_output | `agentOutput` |
+| error_message | `errorMessage` |
+| context | `context` |
+| artifacts | `artifacts` |
+| repository | `repository` |
+| due_date | `dueDate` |
+| tags | `tags` (JSON array) |
+| parent_task_id | `parentTaskId` |
+| project | `project` |
+| team | `team` |
+| assignees | `assignees` (JSON array) |
+| (empty string) | `url` |
+| sprint_id | `sprintId` |
+| complexity_score | `complexityScore` |
+| backlog_order | `backlogOrder` |
+
 ## Identity: Resolve Current User
 
 Called by `resolving-identity` shared skill when `active_provider = sqlite`.
 
 SQLite is local — no remote user system. Set:
-- `id` ← `"local"`
-- `name` ← `$USER` environment variable or `"local"`
-- `email` ← `null`
+- `id` <- `"local"`
+- `name` <- `$USER` environment variable or `"local"`
+- `email` <- `null`
 
 ## Identity: Resolve Team Membership
 
@@ -194,3 +247,11 @@ SQLite is local — return members from teams table if available, otherwise `org
 ```bash
 sqlite3 -json "<dbPath>" "SELECT members FROM teams;" | jq '[.[].members | fromjson | .[] ] | unique_by(.name)'
 ```
+
+## Error Handling
+
+| Error Category | Condition | Action |
+|---|---|---|
+| Database locked | `SQLITE_BUSY` | Retryable — wait 1-2 seconds and retry, max 3 attempts |
+| File not found | DB path does not exist | Terminal — instruct user to run `setting-up-tasks` |
+| Schema mismatch | Missing table or column | Auto-repair — run `init-db.sh` to create missing tables |

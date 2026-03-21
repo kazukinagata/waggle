@@ -16,23 +16,22 @@ You are guiding the user through the initial setup of the waggle plugin.
 
 Inspect available MCP tools to detect any already-configured providers:
 - `notion-*` tools present → Notion MCP is already configured
-- `mcp__airtable__*` tools present → Airtable MCP is already configured
 - SQLite/database tools present → SQLite is already configured
 
 ### If a single provider MCP is already present
 Use AskUserQuestion to confirm:
 > "I detected an existing [provider] MCP connection. Would you like to set up waggle using [provider]?"
 
-If yes, skip to Step 3 with that provider.
+If yes, check if the corresponding provider plugin is installed (use the same discovery method as detecting-provider: check `~/.claude/plugins/installed_plugins.json` for `waggle-{provider}@*` keys, or `<available_skills>` for `{provider}-provider` in Cowork). If not installed → error:
+> "The waggle-{provider} provider plugin is not installed. Install it first, then run setup again."
+
+If installed, skip to Step 3 with that provider.
 
 ### If multiple provider MCPs are present
 Use AskUserQuestion to ask which one to use:
 > "I detected multiple data source MCPs: [list providers]. Which one should I set up waggle for?"
 
-Then skip to Step 3 with the selected provider.
-
-### If `~/.waggle/config.json` exists with a `"provider"` field
-The provider is already configured. Skip to Step 3 with that provider as the active provider.
+Then check if the corresponding provider plugin is installed (same discovery method as above). If not installed → error with install instructions. If installed, skip to Step 3 with the selected provider.
 
 ### If no provider MCP is present
 Continue to Step 2 to guide the user through MCP setup.
@@ -78,13 +77,15 @@ SQLite requires no external MCP server. Proceed directly to Step 3.
 
 ## Step 3: Run Provider-Specific Setup
 
-Once the active provider is confirmed, load and follow:
+The provider plugin's setup skill handles all database creation and configuration.
 
-```
-${CLAUDE_PLUGIN_ROOT}/skills/providers/{active_provider}/setup.md
-```
+If the provider plugin is installed, instruct the user:
+> "Run 'setup {provider}' to initialize the {provider} provider."
 
-This file contains all provider-specific database creation, schema initialization, and verification steps.
+The provider plugin's `{provider}-setup` skill is user-invocable and handles everything:
+- Database/schema creation
+- Config page creation (Notion) or config file generation
+- Validation and testing
 
 ## Step 4: Daily Routine Scheduled Task Registration (Claude Desktop only)
 
