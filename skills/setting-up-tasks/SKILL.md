@@ -110,11 +110,49 @@ If yes, use AskUserQuestion:
 
 Accept the user's answer or default to 09:00.
 
+### Ask Custom Routine Options
+
+Use AskUserQuestion (multiSelect) to ask:
+> "Would you like to add any of the following to your daily routine?"
+> - "Ingest from additional messaging tools (e.g., Google Chat, Discord)"
+> - "Check a spreadsheet for new tasks"
+> - "Run a custom step before/after message intake"
+
+#### If the user selects nothing
+
+Use the default prompt: `Run the running-daily-tasks skill`
+
+#### If the user selects one or more options
+
+Ask follow-up questions for each selected option using AskUserQuestion:
+
+- **Additional messaging tools** → "Which messaging tools should be checked? (e.g., Google Chat, Discord)"
+- **Spreadsheet** → "Which spreadsheet should be scanned? (provide a name or URL)"
+- **Custom step** → "Describe the custom step you'd like to add (free-text):"
+
+Then build the prompt by appending additional instructions to the base prompt:
+
+```
+Run the running-daily-tasks skill.
+
+Additional instructions for this daily routine:
+- <instruction derived from each selected option>
+```
+
+Example with two options selected:
+```
+Run the running-daily-tasks skill.
+
+Additional instructions for this daily routine:
+- After message intake, also check Google Chat DMs for the past 24 hours and create tasks from actionable messages.
+- Before task refinement, scan the "Sprint Tracker" spreadsheet for new rows and create corresponding Backlog tasks.
+```
+
 ### Create Scheduled Task
 
 Call `mcp__scheduled-tasks__create_scheduled_task`:
 - `taskId`: `daily-tasks-<current_user_name_slug>` (see Slug Generation Rules below)
-- `prompt`: `Run the running-daily-tasks skill`
+- `prompt`: The constructed prompt string from the previous step
 - `description`: `waggle: Daily routine for <user_name>`
 - `cronExpression`: `0 <HH> * * *` (based on user's chosen time, e.g. `0 9 * * *` for 09:00)
 

@@ -1,0 +1,20 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "waggle",
+  "owner": {
+    "name": "Kazuki Nagata"
+  },
+  "metadata": {
+    "description": "AI-native task management plugin for agents and humans"
+  },
+  "plugins": [
+    {
+      "name": "waggle",
+      "source": "./",
+      "description": "AI-native task management for agents and humans. Natural language CRUD, real-time HTML views (kanban, list), and autonomous task execution.",
+      "license": "MIT",
+      "category": "productivity",
+      "tags": ["tasks", "kanban", "agent", "ai-native", "headless"]
+    }
+  ]
+}
