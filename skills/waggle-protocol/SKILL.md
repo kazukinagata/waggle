@@ -1,7 +1,7 @@
 ---
 name: waggle-protocol
 description: >
-  Waggle Protocol v1 specification. Defines the 14 core fields, 9 extended
+  Waggle Protocol v1 specification. Defines the 15 core fields, 9 extended
   fields, task state machine, dispatch readiness checks, and execution
   environments. Use this skill when you need to understand the waggle
   protocol, check field definitions, or verify state transitions. Trigger on:
@@ -20,7 +20,7 @@ Agents discover tasks, claim them, execute, and hand off results. The backing da
 
 ## Core Fields
 
-Every Waggle-compatible task board MUST support these 14 fields:
+Every Waggle-compatible task board MUST support these 15 fields:
 
 | Field | Type | Description |
 |---|---|---|
@@ -38,6 +38,7 @@ Every Waggle-compatible task board MUST support these 14 fields:
 | Dispatched At | datetime | Timestamp when the task was dispatched |
 | Agent Output | rich_text | Execution result written by the agent on completion |
 | Error Message | rich_text | Written on failure only |
+| Issuer | person[] | Who created/initiated this task. Auto-populated. Write-once |
 
 ### Extended Fields (optional)
 

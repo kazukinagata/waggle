@@ -124,6 +124,7 @@ Create with all non-relation fields:
 | Due Date | date | — |
 | Tags | multi_select | — |
 | Assignees | people | — |
+| Issuer | people | Who created/initiated this task |
 | Branch | rich_text | Git branch name. Set when using git worktree with Executor=cli |
 
 Note the returned data source ID as `TASKS_DS_ID`.

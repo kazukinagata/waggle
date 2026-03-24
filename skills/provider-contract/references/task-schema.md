@@ -2,7 +2,7 @@
 
 This document defines the canonical JSON shape for a waggle Task object. All provider plugins MUST map their storage-specific representation to this shape when returning query results.
 
-## Core Fields (14 fields — required)
+## Core Fields (15 fields — required)
 
 Every waggle-compatible task board MUST support these fields. Providers MUST auto-repair any missing Core field on schema validation.
 
@@ -22,6 +22,7 @@ Every waggle-compatible task board MUST support these fields. Providers MUST aut
 | Dispatched At | datetime | `dispatchedAt` | ISO 8601 timestamp when the task was dispatched |
 | Agent Output | rich_text | `agentOutput` | Execution result written by the agent on completion |
 | Error Message | rich_text | `errorMessage` | Written on failure only |
+| Issuer | person[] | `issuer` | Who created/initiated this task. Auto-populated. Write-once |
 
 ## Extended Fields (9 fields — optional)
 
@@ -65,6 +66,7 @@ The following fields are used in query results but are NOT pushed to the view se
   "dispatchedAt": null,
   "agentOutput": "",
   "errorMessage": "",
+  "issuer": [{ "id": "user-123", "name": "Alice" }],
   "context": "Part of the auth epic. Design mockups in Figma.",
   "artifacts": "",
   "repository": "https://github.com/org/repo",

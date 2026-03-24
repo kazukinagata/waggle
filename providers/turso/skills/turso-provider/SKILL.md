@@ -165,7 +165,7 @@ TASKS_JSON=$(bash ${PROVIDER_PLUGIN_ROOT}/skills/turso-provider/scripts/query-ta
   workingDirectory: .working_directory, sessionReference: .session_reference,
   dispatchedAt: .dispatched_at, agentOutput: .agent_output, errorMessage: .error_message,
   context, artifacts, repository, dueDate: .due_date, tags, parentTaskId: .parent_task_id,
-  project, team, assignees, url: "", sprintId: .sprint_id, sprintName: null,
+  project, team, assignees, issuer, url: "", sprintId: .sprint_id, sprintName: null,
   complexityScore: .complexity_score, backlogOrder: .backlog_order
 }], updatedAt: (now | strftime("%Y-%m-%dT%H:%M:%SZ"))}')
 
@@ -202,6 +202,7 @@ curl -s http://localhost:3456/api/health -o /dev/null 2>/dev/null && \
 | project | `project` |
 | team | `team` |
 | assignees | `assignees` (JSON array) |
+| issuer | `issuer` |
 | (empty string) | `url` |
 | sprint_id | `sprintId` |
 | complexity_score | `complexityScore` |
