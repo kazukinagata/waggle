@@ -54,9 +54,10 @@ A Hono-based TypeScript server at `skills/viewing-tasks/server/` serves interact
 
 ### Task Execution
 
-Tasks can be executed in two modes based on `CLAUDE_CODE_ENTRYPOINT`:
+Tasks can be executed in three modes based on execution environment:
 - **cli (Terminal)**: Single task in current session, or parallel via tmux panes
 - **claude-desktop (Claude Desktop)**: Single task in current session, or parallel via Scheduled Tasks
+- **cowork (Cowork)**: Single task in current session, or parallel via Scheduled Tasks
 
 ### Task Schema
 

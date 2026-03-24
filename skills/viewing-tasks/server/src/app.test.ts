@@ -141,6 +141,7 @@ describe("POST /api/data and GET /api/tasks", () => {
       makeTask({ id: "t1", executor: "cli", requiresReview: true }),
       makeTask({ id: "t2", executor: "human", requiresReview: false }),
       makeTask({ id: "t3", executor: "claude-desktop", requiresReview: true }),
+      makeTask({ id: "t4", executor: "cowork", requiresReview: true }),
     ];
     const payload: TasksResponse = { tasks, updatedAt: "2026-03-05T12:00:00.000Z" };
 
@@ -153,11 +154,12 @@ describe("POST /api/data and GET /api/tasks", () => {
     const getRes = await app.request("/api/tasks");
     const body = await getRes.json() as TasksResponse;
 
-    expect(body.tasks).toHaveLength(3);
+    expect(body.tasks).toHaveLength(4);
     const byId = Object.fromEntries(body.tasks.map((t) => [t.id, t]));
     expect(byId["t1"].executor).toBe("cli");
     expect(byId["t2"].executor).toBe("human");
     expect(byId["t3"].executor).toBe("claude-desktop");
+    expect(byId["t4"].executor).toBe("cowork");
     expect(byId["t2"].requiresReview).toBe(false);
   });
 
