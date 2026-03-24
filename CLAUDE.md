@@ -24,6 +24,7 @@ skills/
 ├── viewing-tasks/         # Local view server management
 ├── delegating-tasks/      # Reassign tasks to other org members
 ├── ingesting-messages/    # Auto-convert Slack/Teams DMs into tasks
+├── planning-tasks/        # AC/Execution Plan generation with brainstorming agents
 ├── running-daily-tasks/   # Unified daily routine
 ├── managing-views/        # Custom view management
 ├── monitoring-tasks/      # Task health check and quality metrics
