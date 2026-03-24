@@ -19,17 +19,12 @@ skills/
 ├── looking-up-members/    # (shared) Member name/email → provider user ID
 ├── providers/notion/      # Notion-specific implementation
 ├── setting-up-tasks/      # Initial plugin setup and MCP configuration
-├── setting-up-scrum/      # Provisions Sprints DB and sprint-related fields
 ├── managing-tasks/        # Task CRUD + personal task dashboard
-├── managing-sprints/      # Sprint lifecycle, backlog ordering, sprint planning
 ├── executing-tasks/       # Task dispatch orchestration (single, tmux parallel, Scheduled Tasks)
 ├── viewing-tasks/         # Local view server management
 ├── delegating-tasks/      # Reassign tasks to other org members
 ├── ingesting-messages/    # Auto-convert Slack/Teams DMs into tasks
-├── running-standup/       # Automated sprint status report with stall detection
 ├── running-daily-tasks/   # Unified daily routine
-├── reviewing-sprint/      # Sprint close: velocity calculation
-├── analyzing-sprint-metrics/ # Retrospective metrics
 └── managing-views/        # Custom view management
 ```
 
@@ -61,7 +56,7 @@ Tasks can be executed in three modes based on execution environment:
 
 ### Task Schema
 
-Tasks have 14 Core fields (auto-repaired if missing) and 11 Extended fields (graceful degradation). See `spec/protocol.md` for the full specification.
+Tasks have 14 Core fields (auto-repaired if missing) and 9 Extended fields (graceful degradation). See `spec/protocol.md` for the full specification.
 
 ## Development Commands
 
@@ -101,8 +96,7 @@ user-invocable: true|false
 - No cross-references between skills — shared logic is extracted into shared skills
 - Provider-specific logic belongs in `skills/providers/{name}/`
 - The `CLAUDE_PLUGIN_ROOT` variable points to this repository root at runtime
-- Stall detection constants: `stallThresholdMultiplier=4`, `stallDefaultHours=24`
-- `maxConcurrentAgents` defaults to 3 (configurable per sprint)
+- `maxConcurrentAgents` defaults to 3 (configurable in plugin config)
 
 ## Semantic Versioning
 
