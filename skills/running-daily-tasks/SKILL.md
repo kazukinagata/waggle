@@ -40,7 +40,7 @@ Promote the current user's Backlog tasks to Ready by filling quality gates inter
    - **Acceptance Criteria**: Must be non-empty and contain testable/verifiable conditions (not vague phrases like "works correctly"). If missing or vague, propose concrete criteria and confirm.
    - **Execution Plan**: Must be non-empty. If empty, propose a numbered plan based on Description and Acceptance Criteria, then confirm with the user.
    - **Assignees**: Must be set (should already be satisfied by the query filter).
-4. Once all gates pass for a task, calculate `Complexity Score` (if the field exists and is empty) and update Status to **Ready**.
+4. Once all gates pass for a task, update Status to **Ready**.
 5. Record `refinement_result` — e.g., `"3 tasks promoted to Ready"` or `"1 promoted, 2 still in Backlog (user deferred)"`.
 
 If the user chooses to skip or defer a task, leave it in Backlog and note it in the result.

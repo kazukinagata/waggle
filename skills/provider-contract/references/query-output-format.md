@@ -42,7 +42,6 @@ Each Task object in the `results` array contains:
       "errorMessage": "",
       "dueDate": "2026-03-28",
       "assignees": [{ "id": "user-456", "name": "Bob" }],
-      "complexityScore": 8,
       "tags": ["auth", "backend"]
     },
     {
@@ -62,7 +61,6 @@ Each Task object in the `results` array contains:
       "agentOutput": "",
       "errorMessage": "",
       "assignees": [{ "id": "user-456", "name": "Bob" }],
-      "complexityScore": 3,
       "tags": ["docs"]
     }
   ]

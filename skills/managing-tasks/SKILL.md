@@ -3,7 +3,7 @@ name: managing-tasks
 description: >
   Creates, updates, deletes, and queries tasks in the configured data source.
   Handles task creation with required confirmations, state transitions,
-  complexity scoring, "next task" recommendations, and personal task dashboard.
+  "next task" recommendations, and personal task dashboard.
   Triggers on: "add task", "create task", "update task", "done", "change status",
   "list tasks", "what's next", "next task", "block", "assign", "prioritize",
   "show tasks", "get tasks", "fetch tasks", "my tasks", "assigned to me",
@@ -25,8 +25,7 @@ Load `${CLAUDE_PLUGIN_ROOT}/skills/detecting-provider/SKILL.md` and follow its i
 
 After provider detection completes, you MUST read the provider SKILL.md (from detecting-provider's `provider_skill_path`) if you have not already done so. This file defines the Query Path Detection logic — do NOT query tasks using MCP tools directly without first determining the correct query path from the provider SKILL.md.
 
-After provider detection, also check the config for sprint fields (if present):
-- `sprintsDatabaseId` (optional — present only if scrum is enabled)
+After provider detection, also check the config for:
 - `maxConcurrentAgents` (optional — default 3 if absent)
 
 ## Schema: Property Name → Notion Type
@@ -62,14 +61,11 @@ After provider detection, also check the config for sprint fields (if present):
 | Parent Task | relation | Self-relation (hierarchy) |
 | Assignees | people | Human executor assignment |
 | Branch | rich_text | Git branch name (e.g. feature/task-slug). Leave blank to work on the current branch |
-| Sprint | relation | → Sprints DB (batch assignment; available after setting-up-scrum) |
-| Complexity Score | number | Auto-calculated by orchestrator; written when promoting Backlog → Ready |
-| Backlog Order | number | Backlog position (lower = higher priority). Agent-suggested, human-overridable |
 
 ## State Transition Rules
 
 Valid transitions:
-- Backlog → Ready (when description + acceptance criteria + Assignees are filled; also calculate Complexity Score if absent)
+- Backlog → Ready (when description + acceptance criteria + Assignees are filled)
   - If Execution Plan is empty when promoting to Ready, warn the user and ask them to provide one
     before proceeding. Do not promote to Ready with an empty Execution Plan.
 - Ready → In Progress (when dispatched to executor)
@@ -83,33 +79,10 @@ Valid transitions:
 **When `Requires Review` is Off**, skip In Review and transition directly to Done.
 **When writing errors**, set Status to Blocked and write the error message in `Error Message` (not in Agent Output).
 
-### Backlog → Ready: Complexity Score Calculation
-
-When promoting a task from Backlog to Ready, if `Complexity Score` field exists and is empty, calculate and write it:
-
-| Factor | Points |
-|---|---|
-| Acceptance Criteria lines | × 2 |
-| Every 200 tokens in Description | +1 |
-| Each level of Blocked By dependency depth | +2 |
-| Reference similar past task cycle time (from Agent Output) | adjust ±1-3 |
-
-Round to nearest integer. Typical range: 1–13 (Fibonacci-like: 1, 2, 3, 5, 8, 13).
-Write the result to the `Complexity Score` field via the provider's update tool.
-
 ## "Next Task" Logic
 
 When the user asks "what should I do next?" or "next task":
 
-**If `sprintsDatabaseId` is in config and an Active sprint exists:**
-1. Fetch tasks: Sprint = ActiveSprint AND Status = "Ready" AND (Blocked By is empty or all Blocked By tasks are Done)
-2. Sort by: Backlog Order (asc) → Priority (Urgent > High > Medium > Low) → Complexity Score (desc)
-3. Count tasks with Status = "In Progress" in the sprint (running agents)
-4. If running count >= `maxConcurrentAgents`: report "Currently <N> agents are running (limit: <M>). Wait for completion or increase the limit."
-5. If Ready = 0: "No Ready tasks in the sprint. Move tasks from Backlog?"
-6. Present the top Ready task
-
-**If no Active sprint (or scrum not set up):**
 1. Query tasks where Status = "Ready" using the active provider's query tools
 2. Filter out tasks where `Blocked By` contains any non-Done task (unresolved dependencies)
 3. Sort by Priority: Urgent > High > Medium > Low
@@ -155,7 +128,6 @@ Do NOT infer and commit to values from the task description.
 | Executor | Execution method varies entirely by executor type (cli / claude-desktop / cowork / human) |
 | Priority | Urgency depends on the user's current context |
 | Working Directory | Wrong path directly causes agent execution errors |
-| Sprint (if Active sprint exists) | "Should this task go into the sprint or the backlog?" |
 
 ### How to Choose Executor
 
@@ -241,17 +213,6 @@ For requests like "show me all blocked tasks" or "mark all Done tasks as archive
 
 After creating, updating, or deleting tasks, push fresh data to the view server as described in the active provider's SKILL.md (Pushing Data to View Server section).
 
-If `sprintsDatabaseId` is available, also push sprint data to the view server:
-
-```bash
-# Silently skip if server is not running
-curl -s http://localhost:3456/api/health -o /dev/null 2>/dev/null && \
-  curl -s -X POST http://localhost:3456/api/sprint-data \
-    -H "Content-Type: application/json" -d '<sprints_json>' -o /dev/null 2>/dev/null || true
-```
-
-Sprints JSON format: `{ "sprints": [...], "currentSprintId": "<active_sprint_id_or_null>", "updatedAt": "<ISO>" }`
-
 ## My Tasks View
 
 When the user asks "my tasks", "assigned to me", "show my tasks", or similar:
@@ -290,11 +251,6 @@ List tasks awaiting review.
 
 #### Backlog
 List titles only (collapsed to keep output concise).
-
-#### Sprint Context
-If `sprintsDatabaseId` is in config and an Active Sprint exists:
-- Mark sprint tasks with `[Sprint]` prefix.
-- Show sprint tasks first within each status group.
 
 ### Step 4: Next Actions
 

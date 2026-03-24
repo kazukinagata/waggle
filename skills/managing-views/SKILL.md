@@ -209,9 +209,6 @@ interface Task {
   team: string | null;
   assignees: { id: string; name: string }[];
   url: string;
-  complexityScore?: number | null;
-  sprintId?: string | null;
-  backlogOrder?: number | null;
 }
 ```
 

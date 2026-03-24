@@ -1,23 +1,21 @@
 #!/usr/bin/env bash
 # Generate a standalone HTML file with embedded task data.
-# Usage: generate-static-html.sh <view> <tasks-json> [sprint-json]
-#   view:         kanban | list | sprint-backlog | product-backlog
+# Usage: generate-static-html.sh <view> <tasks-json>
+#   view:         kanban | list
 #   tasks-json:   Path to JSON file with { "tasks": [...], "updatedAt": "..." }
-#   sprint-json:  (optional, for sprint-backlog) Path to JSON file with { "sprints": [...] }
 #
 # Output: writes the standalone HTML to stdout.
 
 set -euo pipefail
 
-VIEW="${1:?Usage: generate-static-html.sh <view> <tasks-json> [sprint-json]}"
-TASKS_JSON="${2:?Usage: generate-static-html.sh <view> <tasks-json> [sprint-json]}"
-SPRINT_JSON="${3:-}"
+VIEW="${1:?Usage: generate-static-html.sh <view> <tasks-json>}"
+TASKS_JSON="${2:?Usage: generate-static-html.sh <view> <tasks-json>}"
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 STATIC_DIR="$SCRIPT_DIR/../server/static"
 
 case "$VIEW" in
-  kanban|list|sprint-backlog|product-backlog)
+  kanban|list)
     TEMPLATE="$STATIC_DIR/${VIEW}.html"
     ;;
   custom:*)
@@ -25,7 +23,7 @@ case "$VIEW" in
     TEMPLATE="$HOME/.waggle/views/${SLUG}.html"
     ;;
   *)
-    echo "Error: Unknown view '$VIEW'. Supported: kanban, list, sprint-backlog, product-backlog, custom:<slug>" >&2
+    echo "Error: Unknown view '$VIEW'. Supported: kanban, list, custom:<slug>" >&2
     exit 1
     ;;
 esac
@@ -43,12 +41,7 @@ fi
 TASKS_DATA=$(cat "$TASKS_JSON")
 
 # Build the injection script
-INJECT="<script>window.__STATIC_DATA__ = ${TASKS_DATA};"
-if [ -n "$SPRINT_JSON" ] && [ -f "$SPRINT_JSON" ]; then
-  SPRINT_DATA=$(cat "$SPRINT_JSON")
-  INJECT="${INJECT} window.__STATIC_SPRINT_DATA__ = ${SPRINT_DATA};"
-fi
-INJECT="${INJECT}</script>"
+INJECT="<script>window.__STATIC_DATA__ = ${TASKS_DATA};</script>"
 
 # Inject before the closing </head> tag and neutralize back links to selector
 sed \

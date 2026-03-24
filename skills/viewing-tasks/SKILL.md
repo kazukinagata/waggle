@@ -137,32 +137,20 @@ cat > /tmp/tasks.json << 'TASKEOF'
 TASKEOF
 ```
 
-3. For sprint-backlog view, also save sprint data:
+3. Generate the standalone HTML:
 
 ```bash
-cat > /tmp/sprints.json << 'SPRINTEOF'
-{ "sprints": [...], "currentSprintId": "..." }
-SPRINTEOF
-```
-
-4. Generate the standalone HTML:
-
-```bash
-# For kanban, list, or product-backlog:
 ${CLAUDE_PLUGIN_ROOT}/skills/viewing-tasks/scripts/generate-static-html.sh <view> /tmp/tasks.json > /tmp/<view>.html
-
-# For sprint-backlog (with sprint data):
-${CLAUDE_PLUGIN_ROOT}/skills/viewing-tasks/scripts/generate-static-html.sh sprint-backlog /tmp/tasks.json /tmp/sprints.json > /tmp/sprint-backlog.html
 ```
 
-Supported views: `kanban`, `list`, `sprint-backlog`, `product-backlog`
+Supported views: `kanban`, `list`
 
-5. Present the generated HTML file to the user. In environments that support artifacts (e.g. Claude Desktop), output the HTML content directly so it can be rendered in the browser. Otherwise, inform the user of the file path.
+4. Present the generated HTML file to the user. In environments that support artifacts (e.g. Claude Desktop), output the HTML content directly so it can be rendered in the browser. Otherwise, inform the user of the file path.
 
-6. Clean up temporary files:
+5. Clean up temporary files:
 
 ```bash
-rm -f /tmp/tasks.json /tmp/sprints.json /tmp/<view>.html
+rm -f /tmp/tasks.json /tmp/<view>.html
 ```
 
 ### Static Mode Behavior

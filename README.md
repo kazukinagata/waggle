@@ -16,7 +16,7 @@ Unlike orchestration frameworks that run agents in the same process, Waggle agen
 | | Waggle | CrewAI / Swarms | A2A (Google) |
 |---|---|---|---|
 | **Coupling** | Loosely coupled, async | Same process, tight | Transport layer |
-| **Task semantics** | Full lifecycle — 14 fields, state machine, stall detection | Framework-specific | None |
+| **Task semantics** | Full lifecycle — 14 fields, state machine | Framework-specific | None |
 | **Backend** | Any (Notion, SQLite, Turso...) | In-memory | N/A |
 | **Agents** | Independent processes | Managed by orchestrator | Peer-to-peer |
 
@@ -85,8 +85,6 @@ The provider abstraction means you can add your own backend. Implement the [Prov
 - **Natural Language CRUD** — create, update, query, and delete tasks by talking to Claude
 - **Real-time Views** — Kanban, List, Calendar, and Gantt views at `http://localhost:3456`
 - **Autonomous Execution** — dispatch tasks to parallel tmux sessions or Scheduled Tasks
-- **Sprint Management** — objective-based sprints with backlog ordering and velocity tracking
-- **Stall Detection** — automatic detection of stuck agents via complexity-aware thresholds
 - **Task Delegation** — hand off tasks to other team members
 - **Message Intake** — auto-convert Slack/Teams DMs into categorized tasks
 - **Daily Routine** — unified message intake + task refinement + dispatch
@@ -103,7 +101,6 @@ skills/
 ├── executing-tasks/          # Task dispatch (tmux / Scheduled Tasks)
 ├── delegating-tasks/         # Task reassignment
 ├── viewing-tasks/            # Local view server (Hono + SSE)
-├── managing-sprints/         # Sprint lifecycle
 ├── managing-views/           # Custom view management
 └── providers/
     ├── notion/               # Notion provider

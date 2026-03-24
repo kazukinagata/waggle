@@ -100,5 +100,4 @@ Constants shared across skills. All skills that go through detecting-provider re
 
 | Constant | Value | Purpose |
 |--------|-----|------|
-| `stallThresholdMultiplier` | 4 | Stall detection: elapsed hours > Complexity Score × this value |
-| `stallDefaultHours` | 24 | Default stall threshold (hours) when Complexity Score is not set |
+| `maxConcurrentAgents` | 3 | Default maximum parallel agents (configurable in headless_config) |

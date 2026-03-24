@@ -25,30 +25,9 @@ export interface Task {
   team: string | null;
   assignees: { id: string; name: string }[];
   url: string;
-  // Sprint fields (optional — present only when scrum is enabled)
-  sprintId: string | null;
-  sprintName: string | null;
-  complexityScore: number | null;
-  backlogOrder: number | null;
 }
 
 export interface TasksResponse {
   tasks: Task[];
-  updatedAt: string;
-}
-
-export interface Sprint {
-  id: string;
-  name: string;
-  goal: string;
-  status: "Planning" | "Active" | "Completed" | "Closed";
-  maxConcurrentAgents: number | null;
-  velocity: number | null;
-  url: string;
-}
-
-export interface SprintsResponse {
-  sprints: Sprint[];
-  currentSprintId: string | null;
   updatedAt: string;
 }

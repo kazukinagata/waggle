@@ -23,7 +23,7 @@ Every waggle-compatible task board MUST support these fields. Providers MUST aut
 | Agent Output | rich_text | `agentOutput` | Execution result written by the agent on completion |
 | Error Message | rich_text | `errorMessage` | Written on failure only |
 
-## Extended Fields (11 fields — optional)
+## Extended Fields (9 fields — optional)
 
 Providers MAY support these additional fields. Skills degrade gracefully if absent. Providers MUST NOT fail if these fields do not exist.
 
@@ -38,8 +38,6 @@ Providers MAY support these additional fields. Skills degrade gracefully if abse
 | Project | text | `project` | Project grouping |
 | Team | text | `team` | Team assignment |
 | Assignees | person[] | `assignees` | Array of `{ id, name }` objects |
-| Complexity Score | number | `complexityScore` | Fibonacci-like score (1-13) for stall detection and velocity |
-| Backlog Order | number | `backlogOrder` | Ordering within the backlog |
 
 ## Query-Only Fields
 
@@ -75,9 +73,7 @@ The following fields are used in query results but are NOT pushed to the view se
   "parentTask": null,
   "project": "Auth System",
   "team": "Platform",
-  "assignees": [{ "id": "user-123", "name": "Alice" }],
-  "complexityScore": 5,
-  "backlogOrder": 1
+  "assignees": [{ "id": "user-123", "name": "Alice" }]
 }
 ```
 

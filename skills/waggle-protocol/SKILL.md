@@ -1,13 +1,12 @@
 ---
 name: waggle-protocol
 description: >
-  Waggle Protocol v1 specification. Defines the 14 core fields, 11 extended
-  fields, task state machine, dispatch readiness checks, stall detection
-  formula, and execution environments. Use this skill when you need to
-  understand the waggle protocol, check field definitions, verify state
-  transitions, or reference the stall detection constants. Trigger on:
+  Waggle Protocol v1 specification. Defines the 14 core fields, 9 extended
+  fields, task state machine, dispatch readiness checks, and execution
+  environments. Use this skill when you need to understand the waggle
+  protocol, check field definitions, or verify state transitions. Trigger on:
   "protocol spec", "waggle spec", "field definitions", "state machine",
-  "stall detection", "task schema", "core fields".
+  "task schema", "core fields".
 user-invocable: true
 ---
 
@@ -36,7 +35,7 @@ Every Waggle-compatible task board MUST support these 14 fields:
 | Execution Plan | rich_text | Step-by-step plan written before dispatch. Write-once |
 | Working Directory | text | Absolute path for agent execution |
 | Session Reference | text | Runtime session identifier (tmux session name, Scheduled Task ID, etc.) |
-| Dispatched At | datetime | Timestamp when the task was dispatched. Used for stall detection |
+| Dispatched At | datetime | Timestamp when the task was dispatched |
 | Agent Output | rich_text | Execution result written by the agent on completion |
 | Error Message | rich_text | Written on failure only |
 
@@ -55,8 +54,6 @@ Providers MAY support these additional fields. Skills degrade gracefully if abse
 | Project | text | Project grouping |
 | Team | text | Team assignment |
 | Assignees | person[] | Assigned users |
-| Complexity Score | number | Fibonacci-like score (1-13) for stall detection and velocity |
-| Backlog Order | number | Ordering within the backlog |
 
 ## State Machine
 
@@ -70,7 +67,7 @@ Backlog → Ready → In Progress → In Review → Done
 
 | From | To | Condition |
 |---|---|---|
-| Backlog | Ready | Description, Acceptance Criteria, Assignees, and Execution Plan are all non-empty. Complexity Score is calculated if scrum is enabled |
+| Backlog | Ready | Description, Acceptance Criteria, Assignees, and Execution Plan are all non-empty |
 | Ready | In Progress | Executor is assigned. Dispatched At is recorded |
 | In Progress | In Review | Requires Review = true. Agent Output is recorded |
 | In Progress | Done | Requires Review = false. Agent Output is recorded |
@@ -95,25 +92,6 @@ Before transitioning a task from Ready → In Progress, the orchestrator MUST ve
 | Working Directory | Non-empty AND the directory exists on the filesystem |
 
 If any check fails, the orchestrator MUST NOT dispatch. Instead, it should prompt the user to fill the missing information.
-
-## Stall Detection
-
-Agents may get stuck. Waggle defines a stall detection formula:
-
-```
-stall_threshold = complexity_score * stallThresholdMultiplier hours
-default_threshold = stallDefaultHours
-
-Constants:
-  stallThresholdMultiplier = 4
-  stallDefaultHours = 24
-
-A task is stalled if:
-  (now - dispatched_at) > stall_threshold   (when complexity_score is set)
-  (now - dispatched_at) > default_threshold  (when complexity_score is not set)
-```
-
-Stalled tasks SHOULD be flagged in status reports but are NOT automatically transitioned.
 
 ## Provider Interface
 
