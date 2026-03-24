@@ -48,7 +48,7 @@ Then run the appropriate DDL (one `ADD COLUMN` per call):
 |---|---|
 | Status | `ADD COLUMN "Status" SELECT('Backlog':gray, 'Ready':blue, 'In Progress':yellow, 'In Review':orange, 'Done':green, 'Blocked':red)` |
 | Priority | `ADD COLUMN "Priority" SELECT('Urgent':red, 'High':orange, 'Medium':yellow, 'Low':blue)` |
-| Executor | `ADD COLUMN "Executor" SELECT('cli':purple, 'claude-desktop':green, 'human':gray)` |
+| Executor | `ADD COLUMN "Executor" SELECT('cli':purple, 'claude-desktop':green, 'cowork':blue, 'human':gray)` |
 | Dispatched At / Due Date | `ADD COLUMN "<field>" DATE` |
 | (other text fields) | `ADD COLUMN "<field>" RICH_TEXT` |
 
@@ -84,7 +84,7 @@ This removes the page from views but retains it in Notion's trash (recoverable f
 | Status | select | `task_status` | Backlog / Ready / In Progress / In Review / Done / Blocked |
 | Blocked By | relation | `task_blocked_by` | Self-relation (dependency). Empty or all blockers Done = actionable |
 | Priority | select | `task_priority` | Urgent / High / Medium / Low |
-| Executor | select | `task_executor` | cli / claude-desktop / human |
+| Executor | select | `task_executor` | cli / claude-desktop / cowork / human |
 | Requires Review | checkbox | `task_requires_review` | On -> must pass In Review. Off -> can go directly to Done |
 | Execution Plan | rich_text | `task_execution_plan` | Orchestrator's plan written before dispatch. write-once |
 | Working Directory | rich_text | `task_working_directory` | Absolute path to the working directory |
