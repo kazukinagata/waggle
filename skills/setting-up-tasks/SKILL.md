@@ -87,15 +87,16 @@ The provider plugin's `{provider}-setup` skill is user-invocable and handles eve
 - Config page creation (Notion) or config file generation
 - Validation and testing
 
-## Step 4: Daily Routine Scheduled Task Registration (Claude Desktop only)
+## Step 4: Daily Routine Scheduled Task Registration (Claude Desktop / Cowork)
 
 After provider-specific setup completes, check the execution environment.
 
 ### Environment Check
 
 Determine the environment:
-1. If environment variable `CLAUDE_CODE_ENTRYPOINT` is `claude-desktop` → Claude Desktop
-2. Otherwise → Terminal CLI (skip this step entirely)
+1. If environment variable `CLAUDE_CODE_IS_COWORK` is `"1"` → Cowork (proceed)
+2. If environment variable `CLAUDE_CODE_ENTRYPOINT` is `claude-desktop` → Claude Desktop (proceed)
+3. Otherwise → Terminal CLI (skip this step entirely)
 
 ### Prompt User
 

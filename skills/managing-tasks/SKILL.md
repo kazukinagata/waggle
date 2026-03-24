@@ -41,7 +41,7 @@ After provider detection, also check the config for sprint fields (if present):
 | Status | select | Backlog / Ready / In Progress / In Review / Done / Blocked |
 | Blocked By | relation | Self-relation (dependency). Empty or all blockers Done = actionable |
 | Priority | select | Urgent / High / Medium / Low |
-| Executor | select | claude-desktop / cli / human |
+| Executor | select | cli / claude-desktop / cowork / human |
 | Requires Review | checkbox | On → must pass In Review. Off → can go directly to Done |
 | Execution Plan | rich_text | Orchestrator's plan written before dispatch. write-once |
 | Working Directory | rich_text | Absolute path to the working directory |
@@ -152,7 +152,7 @@ Do NOT infer and commit to values from the task description.
 
 | Field | Reason |
 |---|---|
-| Executor | Execution method varies entirely by executor type (cli / claude-desktop / human) |
+| Executor | Execution method varies entirely by executor type (cli / claude-desktop / cowork / human) |
 | Priority | Urgency depends on the user's current context |
 | Working Directory | Wrong path directly causes agent execution errors |
 | Sprint (if Active sprint exists) | "Should this task go into the sprint or the backlog?" |
@@ -166,18 +166,23 @@ Present options and recommended reasons to the user and let them decide.
 |---|---|
 | `cli` | Code implementation, research, documentation, script execution via Terminal CLI |
 | `claude-desktop` | Tasks dispatched as Scheduled Tasks in Claude Desktop |
+| `cowork` | Tasks dispatched as Scheduled Tasks in Cowork (cloud agent environment) |
 | `human` | Tasks requiring human judgment, relationships, or direct interaction |
 
 In AskUserQuestion, include a description with each option explaining why it is recommended.
 
 ### Environment-Specific Recommendations
 
+- When `execution_environment = "cli"`: Recommend `cli` for AI-executed tasks.
+  `claude-desktop` and `cowork` are also selectable, but inform the user that a separate environment is required.
 - When `execution_environment = "claude-desktop"`: Recommend `claude-desktop` for AI-executed tasks.
   `cli` is also selectable, but inform the user that a separate Terminal CLI environment is required.
-- When `execution_environment = "cli"`: Recommend `cli` for AI-executed tasks.
-  `claude-desktop` is also selectable, but inform the user that a Claude Desktop environment is required.
+- When `execution_environment = "cowork"`: Recommend `cowork` for AI-executed tasks.
+  `cli` is NOT available (no local terminal). `claude-desktop` is also selectable if the user has a Desktop environment.
 
 ### Branch (git worktree support)
+
+Not applicable in cowork (no persistent local filesystem).
 
 For tasks with Executor=cli where the target is a git repository:
 - Suggest setting the Branch field (not mandatory)
@@ -218,8 +223,8 @@ Do not skip fields — ask for each one unless the user has already explicitly p
 ## Human → Agent Re-assignment
 
 When the user wants to change an Executor=human task to an agent:
-- AskUserQuestion: "Execute '{task title}' with an agent? [cli / claude-desktop / keep human]"
-- When cli or claude-desktop is selected:
+- AskUserQuestion: "Execute '{task title}' with an agent? [cli / claude-desktop / cowork / keep human]"
+- When cli, claude-desktop, or cowork is selected:
   1. Confirm Working Directory (required)
   2. Confirm Branch (optional)
   3. Update Executor, Working Directory, Branch
@@ -274,6 +279,7 @@ For each task, show:
 Group by `Executor`:
 - **cli**: ready for autonomous execution in Terminal CLI
 - **claude-desktop**: ready for Claude Desktop Scheduled Task
+- **cowork**: ready for Cowork Scheduled Task
 - **human**: waiting for manual action
 
 #### Blocked
