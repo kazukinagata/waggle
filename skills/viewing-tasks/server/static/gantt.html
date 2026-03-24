@@ -591,7 +591,7 @@
   function getTaskDates(t) {
     if (!t.dueDate) return null;
     const endDate = t.dueDate;
-    const duration = Math.max((t.complexityScore || 1), 1);
+    const duration = 1;
     let startDate;
     if (t.dispatchedAt) {
       startDate = t.dispatchedAt.split('T')[0];
