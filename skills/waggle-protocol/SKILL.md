@@ -30,7 +30,7 @@ Every Waggle-compatible task board MUST support these 14 fields:
 | Acceptance Criteria | rich_text | Verifiable completion conditions |
 | Status | enum | See State Machine below |
 | Priority | enum | Urgent / High / Medium / Low |
-| Executor | enum | claude-desktop / cli / human (extensible) |
+| Executor | enum | cli / claude-desktop / cowork / human (extensible) |
 | Blocked By | relation[] | Dependencies — other task IDs that must be Done before this task is actionable |
 | Requires Review | boolean | If true, task must pass In Review before Done |
 | Execution Plan | rich_text | Step-by-step plan written before dispatch. Write-once |

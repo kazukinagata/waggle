@@ -95,7 +95,7 @@ Recommend actions for stalled tasks:
 - Check tmux session: `tmux has-session -t <session-ref> 2>/dev/null`
 - If the session is dead, mark as stalled
 
-**Claude Desktop:**
+**Claude Desktop / Cowork:**
 - Check the task status via `mcp__scheduled-tasks__list_scheduled_tasks`
 - Extract taskId from Session Reference `scheduled:<taskId>` and search
 

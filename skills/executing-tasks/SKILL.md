@@ -12,7 +12,7 @@ user-invocable: true
 
 # Waggle — Task Execution
 
-You orchestrate the execution of tasks. Tasks can be executed one at a time in the current session, or in parallel (tmux panes in Terminal CLI / Scheduled Tasks in Claude Desktop).
+You orchestrate the execution of tasks. Tasks can be executed one at a time in the current session, or in parallel (tmux panes in Terminal CLI / Scheduled Tasks in Claude Desktop and Cowork).
 
 ## Provider Detection + Identity Resolve (once per session)
 
@@ -33,6 +33,7 @@ If any Core field is missing, follow the active provider SKILL.md's instructions
    - Filter: Status = "Ready" AND Executor = current executor type AND Assignees = `current_user.id`
      - `execution_environment = "cli"` → Executor = "cli"
      - `execution_environment = "claude-desktop"` → Executor = "claude-desktop"
+     - `execution_environment = "cowork"` → Executor = "cowork"
    - Post-process: Blocked By is empty or all Blocked By tasks are Done (cannot be filtered server-side)
 2. Count In Progress tasks using the same query path:
    - Filter: Status = "In Progress" AND Executor = current executor type AND Assignees = `current_user.id`
@@ -44,8 +45,8 @@ If any Core field is missing, follow the active provider SKILL.md's instructions
 ### Phase 2: Validate & Choose Execution Mode
 
 For each fetched task:
-- Verify Working Directory exists: `test -d "$WORKING_DIR"`
-- If not found: exclude that task, set Status = "Blocked", Error Message = "Working directory not found"
+- **CLI / Claude Desktop**: Verify Working Directory exists: `test -d "$WORKING_DIR"`. If not found: exclude that task, set Status = "Blocked", Error Message = "Working directory not found"
+- **Cowork**: Skip filesystem validation (workspace-relative paths cannot be checked with `test -d`). Only verify the field is non-empty.
 
 ### Dispatch Readiness Check (hard gate)
 
@@ -90,6 +91,13 @@ Use AskUserQuestion to choose execution method:
 | One at a time (Recommended) | Select one task and execute in the current session |
 | Scheduled Task parallel creation | Register each task as a Scheduled Task for parallel execution |
 
+**Cowork (`execution_environment = "cowork"`):**
+
+| Option | Description |
+|--------|-------------|
+| One at a time (Recommended) | Select one task and execute in the current session |
+| Scheduled Task parallel creation | Register each task as a Scheduled Task for parallel execution |
+
 ### When "One at a time" is selected
 
 1. Use AskUserQuestion to let the user choose which task to execute
@@ -110,7 +118,7 @@ Use AskUserQuestion to choose execution method:
    - bypassPermissions
 2. Load `tmux-parallel.md` (this directory) and follow Phases 3–6.
 
-### When "Scheduled Task parallel creation" is selected (Claude Desktop only)
+### When "Scheduled Task parallel creation" is selected (Claude Desktop / Cowork)
 
 Load `desktop-parallel.md` (this directory) and follow Steps 1–5.
 
@@ -141,17 +149,17 @@ For each task:
 4. On success: write result to `Agent Output`, transition Status per `Requires Review`
 5. On failure: write error to `Error Message`, set Status → "Blocked"
 
-**Claude Desktop:** If Scheduled Task creation fails, fall back to executing one at a time within the current session (same flow as "One at a time").
+**Claude Desktop / Cowork:** If Scheduled Task creation fails, fall back to executing one at a time within the current session (same flow as "One at a time").
 
 ## Safety
 
 - Default: single task in current session
-- Parallel execution is opt-in via AskUserQuestion (tmux in Terminal CLI, Scheduled Tasks in Claude Desktop)
+- Parallel execution is opt-in via AskUserQuestion (tmux in Terminal CLI, Scheduled Tasks in Claude Desktop / Cowork)
 - Default permission mode for tmux agents: plan
 - Never use `--dangerously-skip-permissions`
 - Respect `maxConcurrentAgents` limit by subtracting current In Progress count
 - Terminal CLI: Order strictly: generate files → claim in data source → launch tmux
-- Claude Desktop: Order strictly: generate prompts → claim in data source → create Scheduled Tasks
+- Claude Desktop / Cowork: Order strictly: generate prompts → claim in data source → create Scheduled Tasks
 - Write Session Reference only after pane/task creation succeeds (no speculative writes)
 - On tmux unavailable (Terminal CLI): error message + fallback to sequential Agent tool execution
-- On Scheduled Task creation failure (Claude Desktop): fallback to sequential in-session execution
+- On Scheduled Task creation failure (Claude Desktop / Cowork): fallback to sequential in-session execution

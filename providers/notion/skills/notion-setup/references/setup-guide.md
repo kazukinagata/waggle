@@ -110,7 +110,7 @@ Create with all non-relation fields:
 | Acceptance Criteria | rich_text | — |
 | Status | select | Options: Backlog, Ready, In Progress, In Review, Done, Blocked |
 | Priority | select | Options: Urgent, High, Medium, Low |
-| Executor | select | Options: cli, claude-desktop, human |
+| Executor | select | Options: cli, claude-desktop, cowork, human |
 | Requires Review | checkbox | — |
 | Execution Plan | rich_text | — |
 | Working Directory | rich_text | — |

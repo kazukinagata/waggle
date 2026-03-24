@@ -6,7 +6,7 @@ export interface Task {
   status: "Backlog" | "Ready" | "In Progress" | "In Review" | "Done" | "Blocked";
   blockedBy: string[];
   priority: "Urgent" | "High" | "Medium" | "Low" | null;
-  executor: "claude-desktop" | "cli" | "human" | null;
+  executor: "claude-desktop" | "cli" | "cowork" | "human" | null;
   requiresReview: boolean;
   executionPlan: string;
   workingDirectory: string;

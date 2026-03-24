@@ -198,6 +198,7 @@ Before creating each task:
 **Category B (Self-Action):**
 - Status: `Ready`
 - Executor: Determine from environment and context:
+  - `execution_environment = "cowork"`: Default for AI-executed tasks is `cowork`
   - `execution_environment = "claude-desktop"`: Default for AI-executed tasks is `claude-desktop`
   - `execution_environment = "cli"`: Code work → `cli`, external integrations → `claude-desktop`
 - Assignees: `[current_user]`

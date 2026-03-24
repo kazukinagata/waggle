@@ -13,11 +13,11 @@ Every waggle-compatible task board MUST support these fields. Providers MUST aut
 | Acceptance Criteria | rich_text | `acceptanceCriteria` | Verifiable completion conditions |
 | Status | enum | `status` | One of: `Backlog`, `Ready`, `In Progress`, `In Review`, `Done`, `Blocked` |
 | Priority | enum | `priority` | One of: `Urgent`, `High`, `Medium`, `Low` |
-| Executor | enum | `executor` | One of: `cli`, `claude-desktop`, `human` (extensible) |
+| Executor | enum | `executor` | One of: `cli`, `claude-desktop`, `cowork`, `human` (extensible) |
 | Blocked By | relation[] | `blockedBy` | Array of task IDs that must be Done before this task is actionable |
 | Requires Review | boolean | `requiresReview` | If true, task must pass In Review before Done |
 | Execution Plan | rich_text | `executionPlan` | Step-by-step plan written before dispatch. Write-once |
-| Working Directory | text | `workingDirectory` | Absolute path for agent execution |
+| Working Directory | text | `workingDirectory` | Absolute path for agent execution (workspace-relative in cowork) |
 | Session Reference | text | `sessionReference` | Runtime session identifier (tmux session name, Scheduled Task ID) |
 | Dispatched At | datetime | `dispatchedAt` | ISO 8601 timestamp when the task was dispatched |
 | Agent Output | rich_text | `agentOutput` | Execution result written by the agent on completion |

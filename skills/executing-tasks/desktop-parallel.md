@@ -1,6 +1,6 @@
-# Scheduled Task Parallel Flow (Claude Desktop only)
+# Scheduled Task Parallel Flow (Claude Desktop / Cowork)
 
-Loaded when the user chooses "Scheduled Task parallel creation" in executing-tasks.
+Loaded when the user chooses "Scheduled Task parallel creation" in executing-tasks. Used by both Claude Desktop and Cowork environments.
 
 ## Step 1: Dispatch Prompt Generation
 

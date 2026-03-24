@@ -48,7 +48,7 @@ Then run the appropriate DDL (one `ADD COLUMN` per call):
 |---|---|
 | Status | `ADD COLUMN "Status" SELECT('Backlog':gray, 'Ready':blue, 'In Progress':yellow, 'In Review':orange, 'Done':green, 'Blocked':red)` |
 | Priority | `ADD COLUMN "Priority" SELECT('Urgent':red, 'High':orange, 'Medium':yellow, 'Low':blue)` |
-| Executor | `ADD COLUMN "Executor" SELECT('cli':purple, 'claude-desktop':green, 'human':gray)` |
+| Executor | `ADD COLUMN "Executor" SELECT('cli':purple, 'claude-desktop':green, 'cowork':blue, 'human':gray)` |
 | Dispatched At / Due Date | `ADD COLUMN "<field>" DATE` |
 | (other text fields) | `ADD COLUMN "<field>" RICH_TEXT` |
 
@@ -84,7 +84,7 @@ This removes the page from views but retains it in Notion's trash (recoverable f
 | Status | select | `task_status` | Backlog / Ready / In Progress / In Review / Done / Blocked |
 | Blocked By | relation | `task_blocked_by` | Self-relation (dependency). Empty or all blockers Done = actionable |
 | Priority | select | `task_priority` | Urgent / High / Medium / Low |
-| Executor | select | `task_executor` | cli / claude-desktop / human |
+| Executor | select | `task_executor` | cli / claude-desktop / cowork / human |
 | Requires Review | checkbox | `task_requires_review` | On -> must pass In Review. Off -> can go directly to Done |
 | Execution Plan | rich_text | `task_execution_plan` | Orchestrator's plan written before dispatch. write-once |
 | Working Directory | rich_text | `task_working_directory` | Absolute path to the working directory |
@@ -128,12 +128,22 @@ The database ID is stored in the config page as `intakeLogDatabaseId`.
 
 ## Querying Tasks
 
-Use the first available query path (checked in order):
+Use the first available query path. The detection order depends on `execution_environment`:
 
 ### Query Path Detection
 
-1. **`NOTION_TOKEN` env var set** (check: run `[ -n "$NOTION_TOKEN" ] && echo "SET" || echo "NOT SET"` via Bash) -> Path 1 (API script)
-2. **Otherwise** -> Path 2 (MCP fallback)
+**CLI (`execution_environment = "cli"`):**
+1. `NOTION_TOKEN` env var set (check: `[ -n "$NOTION_TOKEN" ] && echo "SET" || echo "NOT SET"`) → Path 1 (API script)
+2. Otherwise → Path 2 (MCP fallback)
+
+**Claude Desktop (`execution_environment = "claude-desktop"`):**
+1. `NOTION_TOKEN` env var set → Path 1 (API script)
+2. `mcp__notion-query__notion-query` tool available → Path 1b (Desktop Extension)
+3. Otherwise → Path 2 (MCP fallback)
+
+**Cowork (`execution_environment = "cowork"`):**
+1. `mcp__notion-query__notion-query` tool available → Path 1b (Desktop Extension, preferred)
+2. Otherwise → Path 2 (MCP fallback)
 
 ### Path 1: Notion API Script (requires NOTION_TOKEN)
 
@@ -172,6 +182,17 @@ The script returns `{"results": [...]}` with full page objects including all pro
 ```json
 [{"property":"Priority","direction":"ascending"},{"property":"Due Date","direction":"ascending"}]
 ```
+
+### Path 1b: Desktop Extension (notion-query MCP tool)
+
+Available when the `mcp__notion-query__notion-query` tool is present. Primary query path in cowork environments.
+
+Call `mcp__notion-query__notion-query` with:
+- `database_id`: the `tasksDatabaseId`
+- `filter`: filter JSON (same format as Path 1 filter recipes above)
+- `sorts`: sort JSON
+
+Returns `{"results": [...]}` in the same Notion API format as Path 1.
 
 ### Path 2: MCP Fallback (no token)
 
