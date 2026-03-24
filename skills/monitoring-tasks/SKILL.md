@@ -85,9 +85,10 @@ If the analysis script is not available (no bash, no jq), compute the metrics ma
 1. **Age**: For each task, compute `(today - created_time)` in days. Group by status, calculate count/avg/min/max. Find the top 10 non-Done tasks by age.
 
 2. **Quality**: For each status, check field completeness:
-   - **Ready / In Progress**: Description, Acceptance Criteria, Execution Plan, Assignees should be filled. In Progress also needs Executor.
+   - **Ready / In Progress**: Description, Acceptance Criteria, Execution Plan, Assignees, Issuer should be filled. In Progress also needs Executor.
    - **Backlog**: Description should be filled.
-   - Report fill rates as percentages. List tasks missing required fields.
+   - **All statuses**: Issuer should be filled (identifies task origin/owner). Flag tasks with empty Issuer.
+   - Report fill rates as percentages (including `issuer_pct`). List tasks missing required fields.
 
 3. **Blocked**: List all Blocked tasks (from Query B) with assignee names, priority, and age. Sort by age descending.
 
