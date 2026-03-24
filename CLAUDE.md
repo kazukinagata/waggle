@@ -25,7 +25,9 @@ skills/
 ├── delegating-tasks/      # Reassign tasks to other org members
 ├── ingesting-messages/    # Auto-convert Slack/Teams DMs into tasks
 ├── running-daily-tasks/   # Unified daily routine
-└── managing-views/        # Custom view management
+├── managing-views/        # Custom view management
+├── monitoring-tasks/      # Task health check and quality metrics
+└── validating-fields/     # (shared) Deterministic field validation for status transitions
 ```
 
 ### Skill Dependency Flow
@@ -56,7 +58,7 @@ Tasks can be executed in three modes based on execution environment:
 
 ### Task Schema
 
-Tasks have 14 Core fields (auto-repaired if missing) and 9 Extended fields (graceful degradation). See `spec/protocol.md` for the full specification.
+Tasks have 15 Core fields (auto-repaired if missing) and 9 Extended fields (graceful degradation). Key fields: Status (Backlog/Ready/In Progress/In Review/Done/Blocked), Executor (cli/claude-desktop/cowork/human), Priority, Blocked By (dependency relation), Issuer (task creator/owner).
 
 ## Development Commands
 

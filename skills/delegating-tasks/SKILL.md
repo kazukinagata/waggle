@@ -45,7 +45,8 @@ These are non-blocking suggestions. Proceed with delegation if the user confirms
 
 ## Step 4: Update the Task
 
-Apply the following field updates (other fields remain unchanged):
+Apply the following field updates (other fields remain unchanged).
+**`Issuer` is preserved** (not modified) — it tracks the original task creator, not the current assignee.
 
 | Field | Value | Reason |
 |---|---|---|

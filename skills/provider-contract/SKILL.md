@@ -79,7 +79,7 @@ Optional fields:
 
 ### 2. Schema Validation & Auto-Repair
 
-Verify that all 14 Core fields exist in the backing store. See `references/task-schema.md` for the complete field list.
+Verify that all 15 Core fields exist in the backing store. See `references/task-schema.md` for the complete field list.
 
 Requirements:
 - On startup, check every Core field exists with the correct type.
@@ -209,7 +209,7 @@ Use this checklist to verify a provider plugin meets all requirements before rel
 
 ### Provider SKILL.md Sections
 - [ ] Config Retrieval — self-sufficient, not solely dependent on local config file
-- [ ] Schema Validation & Auto-Repair — all 14 Core fields verified and auto-repaired
+- [ ] Schema Validation & Auto-Repair — all 15 Core fields verified and auto-repaired
 - [ ] CRUD Operations — Create, Read, Update, Delete documented
 - [ ] Query Tasks — filter/sort with `{ "results": [...] }` output format
 - [ ] Identity Resolution — current user, teams, org members, self-task detection
@@ -223,7 +223,7 @@ Use this checklist to verify a provider plugin meets all requirements before rel
 - [ ] SKILL.md uses `${PROVIDER_PLUGIN_ROOT}` for script references
 
 ### Schema Support
-- [ ] All 14 Core fields supported with correct types
+- [ ] All 15 Core fields supported with correct types
 - [ ] Extended fields supported with graceful degradation if absent
 - [ ] Auto-repair creates missing fields without user intervention
 

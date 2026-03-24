@@ -179,6 +179,7 @@ Before creating each task:
 | Description | Full original message + append `Source: {tool_name} DM from @{sender} at {datetime}` |
 | Tags | `["ingesting-messages"]` |
 | Context | `Received via {tool_name} on {date}` |
+| Issuer | `[current_user]` |
 
 ### Category-Specific Fields
 
@@ -186,14 +187,17 @@ Before creating each task:
 1. Create the blocker task first:
    - Title: `[Hearing] Confirm with {requester_name}: {question summary}`
    - Status: `Ready`
-   - Executor: `human`
-   - Assignees: `[requester]` (Load `${CLAUDE_PLUGIN_ROOT}/skills/looking-up-members/SKILL.md` to resolve)
-   - If requester cannot be identified: Assignees empty, record "Sender: {sender}" in Context
+   - Executor: If messaging MCP available (e.g. Slack tools) → `cowork` (agent can send follow-up messages). If no messaging MCP → `human` (requires manual contact).
+   - Assignees: `[requester]` (Load `${CLAUDE_PLUGIN_ROOT}/skills/looking-up-members/SKILL.md` to resolve).
+     If requester cannot be identified: `[current_user]` (fallback, not empty). Record "Original sender: {sender}" in Context.
+   - Acceptance Criteria: `"Confirm with {requester_name} about {topic_summary}. Record response in Agent Output. Update Status to Done when confirmed."`
+   - Execution Plan: `"1. Contact {requester_name} via {tool_name}\n2. Ask about: {question_summary}\n3. Record response in Agent Output\n4. Update Status to Done"`
 2. Create the main task:
    - Status: `Blocked`
    - Blocked By: `[blocker_task_id]`
-   - Executor: `human` (undetermined)
+   - Executor: Determine from message content — if the required action (after hearing) is clearly code/research/docs, infer executor (cli or cowork based on execution_environment). If unclear or requires human judgment → `human` (default, re-evaluated when unblocked).
    - Assignees: `[current_user]`
+   - Acceptance Criteria: Derive from message content. Fallback: `"[DRAFT — update after hearing] Determine required action from {requester_name}'s response and complete it."`
 
 **Category B (Self-Action):**
 - Status: `Ready`
@@ -208,7 +212,7 @@ Before creating each task:
 - Status: `Backlog`
 - Executor: `human` (always fixed to human when assigned to others)
 - Assignees: Load `${CLAUDE_PLUGIN_ROOT}/skills/looking-up-members/SKILL.md` to resolve assignee
-  - If assignee cannot be identified: Assignees empty, record "Expected assignee: {name or hint}" in Context
+  - If assignee cannot be identified: `[current_user]` (fallback, not empty). Record "Expected assignee: {name or hint}" in Context
 - Working Directory: Empty (other person's filesystem unknown)
 - Branch: Empty (other person's git environment unknown)
 

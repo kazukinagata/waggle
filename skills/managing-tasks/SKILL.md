@@ -30,7 +30,7 @@ After provider detection, also check the config for:
 
 ## Schema: Property Name → Notion Type
 
-### Core Fields (required — verify existence at session start)
+### Core Fields (15 required — verify existence at session start)
 
 | Property | Type | Notes |
 |---|---|---|
@@ -48,6 +48,7 @@ After provider detection, also check the config for:
 | Dispatched At | date | Dispatch timestamp. Used for timeout detection |
 | Agent Output | rich_text | Execution result |
 | Error Message | rich_text | Written on failure only. Query with "Error Message is not empty" |
+| Issuer | people | Who created/initiated this task. Auto-populated with current_user. Write-once. |
 
 ### Extended Fields (optional — graceful degradation if absent)
 
@@ -65,9 +66,7 @@ After provider detection, also check the config for:
 ## State Transition Rules
 
 Valid transitions:
-- Backlog → Ready (when description + acceptance criteria + Assignees are filled)
-  - If Execution Plan is empty when promoting to Ready, warn the user and ask them to provide one
-    before proceeding. Do not promote to Ready with an empty Execution Plan.
+- Backlog → Ready
 - Ready → In Progress (when dispatched to executor)
 - In Progress → In Review (when `Requires Review` is checked and work is done)
 - In Progress → Done (when `Requires Review` is unchecked and work is done)
@@ -78,6 +77,26 @@ Valid transitions:
 
 **When `Requires Review` is Off**, skip In Review and transition directly to Done.
 **When writing errors**, set Status to Blocked and write the error message in `Error Message` (not in Agent Output).
+
+### Deterministic Validation (hard gate)
+
+Before executing any status transition, run the validation script:
+
+```bash
+# Write the canonical task JSON to a temp file (see validating-fields SKILL.md for format)
+echo '<canonical_json>' > /tmp/task_validate.json
+bash ${CLAUDE_PLUGIN_ROOT}/skills/validating-fields/scripts/validate-task-fields.sh \
+  "<target_status>" /tmp/task_validate.json
+```
+
+1. Fetch the full task object and construct the canonical validation JSON (see `${CLAUDE_PLUGIN_ROOT}/skills/validating-fields/SKILL.md` for the Construction Guide)
+2. Run the script with the target status
+3. Parse the JSON output:
+   - If `valid: false`: present each error to the user and **block the transition**
+   - If warnings exist: present them but allow the user to proceed
+4. Only execute the status update after validation passes
+
+**Never skip validation.** This is a deterministic check, not an LLM judgment call.
 
 ## "Next Task" Logic
 
@@ -118,6 +137,11 @@ When the user asks "what should I do next?" or "next task":
 | `Dispatched At` | blank | The assignee's agent will record this |
 | `Requires Review` | unchecked | The assignee decides |
 
+### Issuer (auto-populated, write-once)
+
+Always set `Issuer = [current_user]` when creating a task. No confirmation needed.
+Do not modify Issuer when delegating or reassigning — it tracks "who originated this task."
+
 ### Required Confirmations (no guessing or omitting)
 
 Always confirm the following fields with AskUserQuestion unless the user has explicitly stated them.
@@ -142,6 +166,8 @@ Present options and recommended reasons to the user and let them decide.
 | `human` | Tasks requiring human judgment, relationships, or direct interaction |
 
 In AskUserQuestion, include a description with each option explaining why it is recommended.
+
+**AI suitability info note**: When user switches Executor from human to AI (cli/claude-desktop/cowork), analyze the task Title + Description for task type indicators. If a non-code task is detected (design, marketing, meeting, phone call, etc.), add an informational note (not discouraging): "Note: this is a {category} task. AI can assist with research, drafting, and structured planning. Hands-on execution may still need human action." Proceed with the user's choice — do not block or ask "are you sure?"
 
 ### Environment-Specific Recommendations
 
@@ -191,6 +217,10 @@ Do not skip fields — ask for each one unless the user has already explicitly p
 
 4. **Context**: Ask "Is there any background information, constraints, or related context the
    executor should know?" (e.g., existing PRs, design docs, prior decisions)
+
+**Multi-round questioning**: For AC and Execution Plan, if the user's response lacks verifiable conditions (no commands, file paths, metrics, or observable outcomes), propose 3 concrete options and brainstorm together. If the user disengages, accept with `[LOW CONFIDENCE]` tag.
+
+**Auto-planning shortcut**: If the user says "auto", "自動で", or "generate" for AC or Execution Plan, propose AC and Execution Plan based on the Description. If Description is too vague (no nouns, no context), ask the user to elaborate first.
 
 ## Human → Agent Re-assignment
 

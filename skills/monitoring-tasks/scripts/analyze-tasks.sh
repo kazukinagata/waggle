@@ -56,7 +56,8 @@ def extract_task:
     has_plan: ((.properties["Execution Plan"].rich_text | length) > 0),
     has_agent_output: ((.properties["Agent Output"].rich_text | length) > 0),
     has_assignees: ((.properties.Assignees.people | length) > 0),
-    has_executor: ((.properties.Executor.select.name // null) != null)
+    has_executor: ((.properties.Executor.select.name // null) != null),
+    has_issuer: ((.properties.Issuer.people // [] | length) > 0)
   };
 
 # Helper: compute age in days from ISO timestamp (handles .000Z milliseconds)
@@ -116,7 +117,8 @@ def pct($field; $total):
         ac_pct: pct(map(select(.has_ac)) | length; $n),
         plan_pct: pct(map(select(.has_plan)) | length; $n),
         assignees_pct: pct(map(select(.has_assignees)) | length; $n),
-        executor_pct: pct(map(select(.has_executor)) | length; $n)
+        executor_pct: pct(map(select(.has_executor)) | length; $n),
+        issuer_pct: pct(map(select(.has_issuer)) | length; $n)
       }
     )
   | sort_by(.status)
@@ -134,7 +136,8 @@ def pct($field; $total):
             (if $t.has_ac | not then ["Acceptance Criteria"] else [] end) +
             (if $t.has_plan | not then ["Execution Plan"] else [] end) +
             (if $t.has_assignees | not then ["Assignees"] else [] end) +
-            (if ($t.status == "In Progress") and ($t.has_executor | not) then ["Executor"] else [] end)
+            (if ($t.status == "In Progress") and ($t.has_executor | not) then ["Executor"] else [] end) +
+            (if $t.has_issuer | not then ["Issuer"] else [] end)
           )
         elif $t.status == "Backlog" then
           (if $t.has_description | not then ["Description"] else [] end)

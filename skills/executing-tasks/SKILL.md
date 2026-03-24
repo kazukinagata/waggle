@@ -21,7 +21,7 @@ You orchestrate the execution of tasks. Tasks can be executed one at a time in t
 
 ## Schema Validation
 
-After loading the provider SKILL.md and config, verify Core fields exist in the Tasks data source (same check as managing-tasks). Required Core fields: `Title`, `Description`, `Acceptance Criteria`, `Status`, `Blocked By`, `Priority`, `Executor`, `Requires Review`, `Execution Plan`, `Working Directory`, `Session Reference`, `Dispatched At`, `Agent Output`, `Error Message`.
+After loading the provider SKILL.md and config, verify Core fields exist in the Tasks data source (same check as managing-tasks). Required Core fields (15): `Title`, `Description`, `Acceptance Criteria`, `Status`, `Blocked By`, `Priority`, `Executor`, `Requires Review`, `Execution Plan`, `Working Directory`, `Session Reference`, `Dispatched At`, `Agent Output`, `Error Message`, `Issuer`.
 
 If any Core field is missing, follow the active provider SKILL.md's instructions for handling missing fields (auto-repair or stop, as defined per provider).
 
@@ -45,24 +45,28 @@ If any Core field is missing, follow the active provider SKILL.md's instructions
 ### Phase 2: Validate & Choose Execution Mode
 
 For each fetched task:
-- **CLI / Claude Desktop**: Verify Working Directory exists: `test -d "$WORKING_DIR"`. If not found: exclude that task, set Status = "Blocked", Error Message = "Working directory not found"
+- **CLI / Claude Desktop**: Verify Working Directory exists: `test -d "$WORKING_DIR"`
+  - If not found: ask "Directory not found at '{path}'. [Enter correct path / Skip this task]"
+    - If user provides a new path: update the task and re-validate
+    - If user skips: exclude the task from dispatch (do NOT auto-block)
 - **Cowork**: Skip filesystem validation (workspace-relative paths cannot be checked with `test -d`). Only verify the field is non-empty.
 
 ### Dispatch Readiness Check (hard gate)
 
-For each task that passed Working Directory validation, verify ALL of the following
-fields are filled. If any field is empty or insufficient, do NOT dispatch.
-Instead, present the gaps to the user and ask them to fill each one via AskUserQuestion.
+For each task that passed Working Directory validation, run the deterministic validation script:
 
-| Field | Check | If missing |
-|---|---|---|
-| Description | Non-empty, at least ~50 tokens | Ask: "What should this task accomplish?" |
-| Acceptance Criteria | Non-empty, contains testable conditions | Ask: "What are the verifiable completion conditions?" |
-| Execution Plan | Non-empty | Ask: "What is the step-by-step plan for this task?" and propose one based on Description |
-| Working Directory | Non-empty AND directory exists | Ask: "What is the absolute path to the working directory?" |
+```bash
+# Construct canonical JSON from task data (see validating-fields SKILL.md for format)
+echo '<canonical_json>' > /tmp/dispatch_validate.json
+bash ${CLAUDE_PLUGIN_ROOT}/skills/validating-fields/scripts/validate-task-fields.sh \
+  "In Progress" /tmp/dispatch_validate.json
+```
 
-After the user provides the missing information, update the task via the provider's
-update tool, then re-validate. Only proceed to dispatch when all checks pass.
+Parse the output JSON:
+- If `valid: false`: present each error to the user and ask them to fill the gaps via AskUserQuestion. After filling, update the task and re-run validation.
+- If `valid: true` with warnings: present warnings but proceed with dispatch.
+
+Only dispatch when validation passes (`valid: true`).
 
 Display the validated task(s) with a "Ready for dispatch" confirmation:
 
