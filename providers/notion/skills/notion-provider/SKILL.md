@@ -178,9 +178,14 @@ The script returns `{"results": [...]}` with full page objects including all pro
 {"and":[{"property":"Status","select":{"equals":"In Progress"}},{"property":"Assignees","people":{"contains":"<user_id>"}}]}
 ```
 
-**Ready tasks by executor and assignee:**
+**Ready tasks by executor and assignee (single executor):**
 ```json
-{"and":[{"property":"Status","select":{"equals":"Ready"}},{"property":"Executor","select":{"equals":"cli"}},{"property":"Assignees","people":{"contains":"<user_id>"}}]}
+{"and":[{"property":"Status","select":{"equals":"Ready"}},{"property":"Executor","select":{"equals":"cowork"}},{"property":"Assignees","people":{"contains":"<user_id>"}}]}
+```
+
+**Ready tasks by executor and assignee (multiple executors — for cli/claude-desktop environments):**
+```json
+{"and":[{"property":"Status","select":{"equals":"Ready"}},{"or":[{"property":"Executor","select":{"equals":"cli"}},{"property":"Executor","select":{"equals":"claude-desktop"}},{"property":"Executor","select":{"equals":"cowork"}}]},{"property":"Assignees","people":{"contains":"<user_id>"}}]}
 ```
 
 **Sort by Priority then Due Date:**

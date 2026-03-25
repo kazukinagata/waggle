@@ -59,7 +59,7 @@ Tasks can be executed in three modes based on execution environment:
 
 ### Task Schema
 
-Tasks have 15 Core fields (auto-repaired if missing) and 9 Extended fields (graceful degradation). Key fields: Status (Backlog/Ready/In Progress/In Review/Done/Blocked), Executor (cli/claude-desktop/cowork/human), Priority, Blocked By (dependency relation), Issuer (task creator/owner).
+Tasks have 15 Core fields (auto-repaired if missing) and 9 Extended fields (graceful degradation). Key fields: Status (Backlog/Ready/In Progress/In Review/Done/Blocked), Executor (cli/claude-desktop/cowork/human), Priority, Blocked By (dependency relation), Issuer (task creator/owner). CLI and Claude Desktop environments can execute tasks for any AI executor type (cli/claude-desktop/cowork), while Cowork can only execute cowork tasks due to VM constraints.
 
 ## Development Commands
 
