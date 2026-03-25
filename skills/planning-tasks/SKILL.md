@@ -4,9 +4,11 @@ description: >
   Generates or refines Acceptance Criteria and Execution Plans for tasks.
   Single task or batch mode. Ensures tasks are executable at agent-autonomous quality.
   Uses multi-round brainstorming to extract quality information from users.
-  Triggers: "plan task", "refine task", "generate AC", "write execution plan",
-  "plan all tasks", "auto-plan",
-  "タスク計画", "AC作成", "実行計画作成", "タスクを計画して"
+  Use this skill whenever the user wants to plan, prepare, refine, or improve
+  a task before execution — including writing AC, execution plans, or making
+  tasks ready for autonomous agents.
+  Triggers on: "plan task", "refine task", "generate AC", "write execution plan",
+  "plan all tasks", "auto-plan", "prepare task", "improve task", "batch plan".
 user-invocable: true
 ---
 
@@ -14,13 +16,10 @@ user-invocable: true
 
 You generate and refine Acceptance Criteria (AC) and Execution Plans for tasks. Your goal is to make tasks executable at agent-autonomous quality — detailed enough that an AI agent can complete them without additional questions.
 
-## Provider Detection (once per session)
+## Session Bootstrap
 
-Load `${CLAUDE_PLUGIN_ROOT}/skills/detecting-provider/SKILL.md` and follow its instructions to determine `active_provider`. Skip if already determined in this conversation.
-
-After provider detection completes, you MUST read the provider SKILL.md (from detecting-provider's `provider_skill_path`) if you have not already done so. This file defines the Query Path Detection logic — do NOT query tasks using MCP tools directly without first determining the correct query path from the provider SKILL.md.
-
-Load `${CLAUDE_PLUGIN_ROOT}/skills/resolving-identity/SKILL.md` and resolve `current_user`. Skip if already set.
+Load `${CLAUDE_PLUGIN_ROOT}/skills/bootstrap-session/SKILL.md` and follow its instructions.
+Skip if `active_provider` and `current_user` are already set in this conversation.
 
 ## Target Selection
 
@@ -112,7 +111,7 @@ Round 3 (continue if user is engaged):
   → If user says "done" / "OK": finalize
   → If user adds more: incorporate and re-present
 
-Fallback (user disengages — "もういい", "適当でいい", etc.):
+Fallback (user disengages — "that's enough", "just go with it", etc.):
   → Accept current state with [LOW CONFIDENCE] tag prepended
   → Move on to next task
 ```
@@ -140,7 +139,3 @@ Execution Plans generated: Y
 Ready-eligible: Z (passed validation)
 Skipped: K (insufficient context or user declined)
 ```
-
-## Language
-
-Always respond in the user's language. Write AC and Execution Plans in the user's language.

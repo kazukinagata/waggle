@@ -3,18 +3,21 @@ name: viewing-tasks
 description: >
   Manages the local view server that renders task data as interactive HTML pages
   (Kanban, List, Calendar, Gantt). Starts the server, pushes data, and opens views.
+  Use this skill whenever the user wants to see tasks visually — board views,
+  timelines, calendars, or any kind of task visualization or dashboard display.
   Triggers on: "kanban", "list view", "show tasks", "view", "visualize",
-  "gantt", "calendar",
-  "カンバン", "リスト表示", "タスク表示", "ガント", "カレンダー".
+  "gantt", "calendar", "board", "timeline", "display tasks", "open dashboard".
+user-invocable: true
 ---
 
 # Waggle — View Server
 
 You manage the local view server that renders task data as interactive HTML pages.
 
-## Provider Detection (once per session)
+## Session Bootstrap
 
-Load `${CLAUDE_PLUGIN_ROOT}/skills/detecting-provider/SKILL.md` and follow its instructions to determine `active_provider`. Skip if already determined in this conversation.
+Load `${CLAUDE_PLUGIN_ROOT}/skills/bootstrap-session/SKILL.md` and follow its instructions.
+Skip if `active_provider` and `current_user` are already set in this conversation.
 
 ## Environment Detection
 

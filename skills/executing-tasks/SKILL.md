@@ -3,10 +3,12 @@ name: executing-tasks
 description: >
   Orchestrates autonomous task execution via current session, tmux parallel,
   or Scheduled Tasks. Fetches ready tasks, validates working directories,
-  and dispatches to the chosen execution mode.
-  Triggers on: "do the next task", "process tasks",
-  "execute tasks", "ready tasks",
-  "タスク実行", "次のタスクを実行", "タスク処理".
+  and dispatches to the chosen execution mode. Use this skill whenever the
+  user wants to do, run, process, start, dispatch, or launch tasks — including
+  parallel execution, batch processing, or working on the next ready task.
+  Triggers on: "do the next task", "process tasks", "execute tasks",
+  "ready tasks", "run tasks", "start tasks", "dispatch", "launch tasks",
+  "work on next task", "parallel execution", "batch process".
 user-invocable: true
 ---
 
@@ -14,10 +16,10 @@ user-invocable: true
 
 You orchestrate the execution of tasks. Tasks can be executed one at a time in the current session, or in parallel (tmux panes in Terminal CLI / Scheduled Tasks in Claude Desktop and Cowork).
 
-## Provider Detection + Identity Resolve (once per session)
+## Session Bootstrap
 
-1. Load `${CLAUDE_PLUGIN_ROOT}/skills/detecting-provider/SKILL.md` and determine `active_provider` + `headless_config`. Skip if already set.
-2. Load `${CLAUDE_PLUGIN_ROOT}/skills/resolving-identity/SKILL.md` and resolve `current_user`. Skip if already set.
+Load `${CLAUDE_PLUGIN_ROOT}/skills/bootstrap-session/SKILL.md` and follow its instructions.
+Skip if `active_provider` and `current_user` are already set in this conversation.
 
 ## Schema Validation
 

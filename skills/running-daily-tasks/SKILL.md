@@ -3,8 +3,11 @@ name: running-daily-tasks
 description: >
   Unified daily routine: ingests messages into tasks, then guides user through
   task refinement and dispatch. Works in both Terminal CLI and Claude Desktop.
+  Use this skill whenever the user wants to start their day, run a morning
+  routine, or process their daily task workflow — even if they just ask
+  "what should I do today?".
   Triggers on: "daily tasks", "daily routine", "run daily tasks",
-  "デイリータスク", "日次ルーティン"
+  "morning routine", "start my day", "what should I do today", "daily run".
 user-invocable: true
 ---
 
@@ -14,10 +17,10 @@ Unified daily routine that ingests messages into tasks, then guides the user thr
 
 ---
 
-## Step 0: Preparation
+## Step 0: Session Bootstrap
 
-1. Load `${CLAUDE_PLUGIN_ROOT}/skills/detecting-provider/SKILL.md` → `active_provider`, `headless_config`. Skip if set.
-2. Load `${CLAUDE_PLUGIN_ROOT}/skills/resolving-identity/SKILL.md` → `current_user`, `org_members`. Skip if set.
+Load `${CLAUDE_PLUGIN_ROOT}/skills/bootstrap-session/SKILL.md` and follow its instructions.
+Skip if `active_provider` and `current_user` are already set in this conversation.
 
 ---
 
@@ -145,8 +148,5 @@ Task Dispatch:       {dispatch_result}
 Ready Human Tasks:   {human_ready_result}
 ```
 
----
-
-## Language
 
 Always respond in the user's language.
