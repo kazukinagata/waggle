@@ -135,6 +135,20 @@ Classify each message into one of 3 categories:
 
 **Decision rule**: If torn between B and A → choose A. If torn between C and A → choose A. A is always the safe default.
 
+### Classification Confirmation
+
+After classifying all messages, display the results and ask the user to confirm:
+
+| # | Category | Sender | Summary |
+|---|----------|--------|---------|
+| 1 | B: Self-Action | @alice | Update README with new endpoints |
+| 2 | A: Hearing Needed | @bob | Design doc review request |
+| 3 | C: Delegate | @alice → @charlie | Deployment script update |
+
+Use `AskUserQuestion`: "Review the classification. Change any categories?"
+- **"Looks good"** — proceed to Step 2.5 with current categories
+- **"Change categories"** — for each message, ask which category (A / B / C) to assign. Update the classification before proceeding.
+
 ---
 
 ## Step 2.5: Enrich Task Details (Category B/C)
@@ -156,6 +170,23 @@ Before creating tasks, enrich Category B and C messages with additional details 
 - If there are multiple B/C messages, batch them into a single `AskUserQuestion` call (do not ask per-message)
 - If the user replies "as-is" or equivalent, proceed with only the information from the original message
 - Incorporate answers into the task fields when creating tasks in Step 3
+
+---
+
+## Step 2.7: Creation Confirmation
+
+Display the final task list to be created:
+
+| # | Category | Sender | Summary | Status | Executor |
+|---|----------|--------|---------|--------|----------|
+| 1 | B: Self | @alice | Update README with new endpoints | Ready | claude-desktop |
+| 2 | A: Hearing | @bob | Design doc review request | Blocked | human |
+| 3 | C: Delegate | @alice | @charlie deployment script | Backlog | human |
+
+Use `AskUserQuestion`: "Create these N tasks?"
+- **"Create all"** — proceed to Step 3
+- **"Select individually"** — for each task, ask create / skip
+- **"Cancel"** — abort task creation, output summary of what would have been created
 
 ---
 

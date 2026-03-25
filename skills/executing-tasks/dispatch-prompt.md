@@ -37,4 +37,7 @@ Note: Working Directory is an absolute path.
 - Write tests for new features
 - Do not modify files outside the task's scope
 - If blocked, do not guess — record the issue in Error Message
+- Default permitted actions: edit files, run tests/builds, git commit (local)
+- Actions like git push, PR creation, external API calls, database migrations are ONLY permitted if explicitly described in the Execution Plan above
+- If the Execution Plan does not mention an external action, do not perform it
 ````
