@@ -233,8 +233,7 @@ cat > ~/.waggle/config.json << EOF
 {
   "provider": "notion",
   "tasksDatabaseId": "<TASKS_DB_ID from Step 4>",
-  "teamsDatabaseId": "<TEAMS_DB_ID from Step 4>",
-  "maxConcurrentAgents": 3
+  "teamsDatabaseId": "<TEAMS_DB_ID from Step 4>"
 }
 EOF
 ```

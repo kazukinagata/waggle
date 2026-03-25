@@ -74,7 +74,6 @@ The `headless_config` object MUST include at minimum:
 
 Optional fields:
 - `teamsDatabaseId`
-- `maxConcurrentAgents` (default: 3)
 - `intakeLogDatabaseId`
 
 ### 2. Schema Validation & Auto-Repair

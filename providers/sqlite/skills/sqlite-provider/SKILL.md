@@ -18,7 +18,6 @@ When `detecting-provider` requests config retrieval for the SQLite provider:
    - `dbPath` (required) — path to the SQLite database file
    - `teamsDatabaseExists` (optional — true if teams table has rows)
    - `sprintsDatabaseExists` (optional — true if sprints table has rows)
-   - `maxConcurrentAgents` (optional — default: 3)
 
 If `~/.waggle/config.json` is not found, instruct the user to run the **setting-up-tasks** skill, then stop.
 

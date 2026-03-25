@@ -25,9 +25,6 @@ Load `${CLAUDE_PLUGIN_ROOT}/skills/detecting-provider/SKILL.md` and follow its i
 
 After provider detection completes, you MUST read the provider SKILL.md (from detecting-provider's `provider_skill_path`) if you have not already done so. This file defines the Query Path Detection logic — do NOT query tasks using MCP tools directly without first determining the correct query path from the provider SKILL.md.
 
-After provider detection, also check the config for:
-- `maxConcurrentAgents` (optional — default 3 if absent)
-
 ## Schema: Property Name → Notion Type
 
 ### Core Fields (15 required — verify existence at session start)

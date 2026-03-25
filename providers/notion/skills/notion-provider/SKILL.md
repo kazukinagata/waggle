@@ -31,6 +31,8 @@ When `detecting-provider` requests config retrieval for the Notion provider, fol
 3. **Legacy fallback**: If no "Waggle Config" page is found, search for "Agentic Tasks Config" using `notion-search`:
    - If found, use it as the Config page (do not rename it). Follow the same parsing logic as step 2.
 
+> **Note:** `maxConcurrentAgents` may exist in legacy config files but is no longer used. Ignore it if present.
+
 If no source provides the config, instruct the user to run the setting-up-tasks skill, then stop.
 
 ## Schema Validation
