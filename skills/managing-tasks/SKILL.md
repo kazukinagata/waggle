@@ -219,6 +219,28 @@ Do not skip fields — ask for each one unless the user has already explicitly p
 
 **Auto-planning shortcut**: If the user says "auto", "自動で", or "generate" for AC or Execution Plan, propose AC and Execution Plan based on the Description. If Description is too vague (no nouns, no context), ask the user to elaborate first.
 
+### Pre-Creation Checklist (hard gate)
+
+Before calling the provider's create API, verify ALL of the following have been addressed:
+
+| # | Field | Confirmed? |
+|---|---|---|
+| 1 | Description (≥50 tokens, specific enough for agent execution) | |
+| 2 | Acceptance Criteria (verifiable conditions) | |
+| 3 | Execution Plan (numbered steps with actions and expected outcomes) | |
+| 4 | Context (asked — may be empty if user says "none") | |
+
+**Do NOT create the task until all 4 rows are confirmed.** If any field was skipped or not yet asked, go back and ask before proceeding.
+
+### Status Auto-Determination at Creation
+
+Do NOT hardcode Status to Backlog. Determine it dynamically:
+
+1. After gathering all fields, construct the canonical validation JSON from the gathered values
+2. Run `validate-task-fields.sh "Ready"` against the gathered fields
+3. If `valid: true` → create with **Status = Ready**
+4. If `valid: false` → create with **Status = Backlog**, inform the user which fields need refinement before the task can be promoted to Ready
+
 ## Human → Agent Re-assignment
 
 When the user wants to change an Executor=human task to an agent:
