@@ -19,7 +19,6 @@ When `detecting-provider` requests config retrieval for the Turso provider:
    - `tursoAuthToken` (required) — Turso auth token
    - `teamsDatabaseExists` (optional)
    - `sprintsDatabaseExists` (optional)
-   - `maxConcurrentAgents` (optional — default: 3)
 3. Set environment variables for scripts:
    ```bash
    export TURSO_URL="<tursoUrl>"

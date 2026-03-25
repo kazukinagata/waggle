@@ -28,8 +28,7 @@ Write `~/.waggle/config.json`:
 ```json
 {
   "provider": "sqlite",
-  "dbPath": "~/.waggle/tasks.db",
-  "maxConcurrentAgents": 3
+  "dbPath": "~/.waggle/tasks.db"
 }
 ```
 
@@ -39,8 +38,7 @@ mkdir -p ~/.waggle
 cat > ~/.waggle/config.json << 'EOF'
 {
   "provider": "sqlite",
-  "dbPath": "~/.waggle/tasks.db",
-  "maxConcurrentAgents": 3
+  "dbPath": "~/.waggle/tasks.db"
 }
 EOF
 ```

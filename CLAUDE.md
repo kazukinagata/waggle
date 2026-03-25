@@ -99,7 +99,6 @@ user-invocable: true|false
 - No cross-references between skills — shared logic is extracted into shared skills
 - Provider-specific logic belongs in `skills/providers/{name}/`
 - The `CLAUDE_PLUGIN_ROOT` variable points to this repository root at runtime
-- `maxConcurrentAgents` defaults to 3 (configurable in plugin config)
 
 ## Semantic Versioning
 

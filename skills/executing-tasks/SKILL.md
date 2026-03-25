@@ -37,10 +37,8 @@ If any Core field is missing, follow the active provider SKILL.md's instructions
    - Post-process: Blocked By is empty or all Blocked By tasks are Done (cannot be filtered server-side)
 2. Count In Progress tasks using the same query path:
    - Filter: Status = "In Progress" AND Executor = current executor type AND Assignees = `current_user.id`
-3. Calculate `available_slots = headless_config.maxConcurrentAgents - in_progress_count` (default: 3)
-4. If `available_slots <= 0`: report "N tasks are in progress (limit: M). Wait for completion or increase maxConcurrentAgents" and stop
-5. Sort by Priority (Urgent > High > Medium > Low), then Due Date ascending
-6. Take the first `min(ready_count, available_slots)` tasks
+   - If any In Progress tasks exist, display count to the user as context (not a hard block)
+3. Sort by Priority (Urgent > High > Medium > Low), then Due Date ascending
 
 ### Phase 2: Validate & Choose Execution Mode
 
@@ -161,7 +159,7 @@ For each task:
 - Parallel execution is opt-in via AskUserQuestion (tmux in Terminal CLI, Scheduled Tasks in Claude Desktop / Cowork)
 - Default permission mode for tmux agents: plan
 - Never use `--dangerously-skip-permissions`
-- Respect `maxConcurrentAgents` limit by subtracting current In Progress count
+- Display In Progress count to the user; parallel execution count is chosen interactively
 - Terminal CLI: Order strictly: generate files → claim in data source → launch tmux
 - Claude Desktop / Cowork: Order strictly: generate prompts → claim in data source → create Scheduled Tasks
 - Write Session Reference only after pane/task creation succeeds (no speculative writes)

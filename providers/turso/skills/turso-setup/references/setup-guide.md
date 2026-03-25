@@ -37,8 +37,7 @@ cat > ~/.waggle/config.json << EOF
 {
   "provider": "turso",
   "tursoUrl": "<user_provided_url>",
-  "tursoAuthToken": "<user_provided_token>",
-  "maxConcurrentAgents": 3
+  "tursoAuthToken": "<user_provided_token>"
 }
 EOF
 ```

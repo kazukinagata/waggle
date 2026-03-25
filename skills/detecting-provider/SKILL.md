@@ -94,10 +94,3 @@ Retrieve database IDs and constants. **Skip if `headless_config` is already set 
 
 Follow the active provider SKILL.md's Config Retrieval section to populate `headless_config`.
 
-## Constants
-
-Constants shared across skills. All skills that go through detecting-provider reference these values.
-
-| Constant | Value | Purpose |
-|--------|-----|------|
-| `maxConcurrentAgents` | 3 | Default maximum parallel agents (configurable in headless_config) |
