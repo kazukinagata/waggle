@@ -110,9 +110,14 @@ bash ${PROVIDER_PLUGIN_ROOT}/skills/sqlite-provider/scripts/query-tasks.sh "<dbP
 bash ${PROVIDER_PLUGIN_ROOT}/skills/sqlite-provider/scripts/query-tasks.sh "<dbPath>" "t.status = 'Ready'"
 ```
 
-**Tasks by executor and status:**
+**Tasks by executor and status (single executor):**
 ```bash
-bash ${PROVIDER_PLUGIN_ROOT}/skills/sqlite-provider/scripts/query-tasks.sh "<dbPath>" "t.status = 'Ready' AND t.executor = 'cli'"
+bash ${PROVIDER_PLUGIN_ROOT}/skills/sqlite-provider/scripts/query-tasks.sh "<dbPath>" "t.status = 'Ready' AND t.executor = 'cowork'"
+```
+
+**Tasks by executor and status (multiple executors — for cli/claude-desktop environments):**
+```bash
+bash ${PROVIDER_PLUGIN_ROOT}/skills/sqlite-provider/scripts/query-tasks.sh "<dbPath>" "t.status = 'Ready' AND t.executor IN ('cli','claude-desktop','cowork')"
 ```
 
 **Tasks assigned to current user:**
