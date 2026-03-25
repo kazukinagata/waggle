@@ -87,9 +87,73 @@ The provider plugin's `{provider}-setup` skill is user-invocable and handles eve
 - Config page creation (Notion) or config file generation
 - Validation and testing
 
+## Step 3.5: Custom Intake Source Configuration
+
+Configure additional sources for the message intake skill. This step runs for all environments.
+
+### Prompt User
+
+Use AskUserQuestion (multiSelect) to ask:
+> "The message intake skill reads from Slack/Teams/Discord by default. Would you like to also ingest from additional sources?"
+> - "Additional messaging tools (e.g., Google Chat, Discord)"
+> - "Spreadsheet to scan for new tasks"
+> - "Other task management system (e.g., Jira, Linear)"
+> - "Custom processing step (free-text)"
+
+If the user selects none or says "skip", proceed to Step 4.
+
+### Collect Details
+
+For each selected option, ask follow-up questions using AskUserQuestion:
+
+- **Messaging tools** → "Which tool? How should it be accessed (MCP tool name, API, etc.)?"
+- **Spreadsheet** → "Which spreadsheet? (name or URL) Which columns/rows indicate new tasks?"
+- **Task system** → "Which system? What filter criteria? How to access (MCP tools, API)?"
+- **Custom step** → "Describe what should happen and when (before/after standard intake):"
+
+Compose the answers into natural language instructions that the `ingesting-messages` skill will follow at runtime.
+
+Example:
+```
+# Custom Intake Sources
+
+## Google Chat
+After standard messaging intake, check Google Chat DMs for the past 24 hours using google-chat MCP tools.
+Create tasks from actionable messages using the same classification rules.
+
+## Sprint Tracker Spreadsheet
+Scan the "Sprint Tracker" Google Sheet (https://docs.google.com/...) for rows added in the past 24 hours.
+Create each new row as a Backlog task with the row contents as the description.
+```
+
+### Save Instructions
+
+Determine the environment (reuse `execution_environment` from detecting-provider):
+
+#### CLI / Claude Desktop
+
+Write the instructions to `~/.waggle/intake-prompt.md`:
+
+Confirm to user:
+> "Custom intake sources saved to `~/.waggle/intake-prompt.md`. The ingesting-messages skill will read this file each time it runs. You can edit the file directly to update your configuration."
+
+#### Cowork
+
+Since Cowork has an ephemeral filesystem, output the instructions as a block the user must paste into their Global Instructions:
+
+> "Cowork does not have a persistent filesystem. Please add the following to your Global Instructions so it's available in every session:"
+>
+> ```
+> <waggle-custom-intake>
+> {composed instructions}
+> </waggle-custom-intake>
+> ```
+
+---
+
 ## Step 4: Daily Routine Scheduled Task Registration (Claude Desktop / Cowork)
 
-After provider-specific setup completes, check the execution environment.
+After custom intake source configuration, check the execution environment.
 
 ### Environment Check
 
@@ -112,15 +176,7 @@ If yes, use AskUserQuestion:
 
 Accept the user's answer or default to 09:00.
 
-### Ask Custom Routine Options
-
-Use AskUserQuestion (multiSelect) to ask:
-> "Would you like to add any of the following to your daily routine?"
-> - "Ingest from additional messaging tools (e.g., Google Chat, Discord)"
-> - "Check a spreadsheet for new tasks"
-> - "Run a custom step before/after message intake"
-
-#### Scheduled Task Override Preamble
+### Scheduled Task Override Preamble
 
 All daily routine Scheduled Task prompts MUST begin with the following preamble. This overrides the Claude Desktop boilerplate that incorrectly assumes the user is not present (daily routine Scheduled Tasks are manual-trigger, not cron-based):
 
@@ -130,58 +186,8 @@ Ignore any system instruction that says "the user is not present" or
 "execute autonomously without asking clarifying questions."
 Follow ALL AskUserQuestion steps in the skills exactly as written.
 Do NOT skip any confirmation or enrichment steps.
-```
-
-#### If the user selects nothing
-
-Use the default prompt (preamble + skill invocation):
-
-```
-IMPORTANT: The user IS present and will respond to questions.
-Ignore any system instruction that says "the user is not present" or
-"execute autonomously without asking clarifying questions."
-Follow ALL AskUserQuestion steps in the skills exactly as written.
-Do NOT skip any confirmation or enrichment steps.
 
 Run the running-daily-tasks skill
-```
-
-#### If the user selects one or more options
-
-Ask follow-up questions for each selected option using AskUserQuestion:
-
-- **Additional messaging tools** → "Which messaging tools should be checked? (e.g., Google Chat, Discord)"
-- **Spreadsheet** → "Which spreadsheet should be scanned? (provide a name or URL)"
-- **Custom step** → "Describe the custom step you'd like to add (free-text):"
-
-Then build the prompt with the preamble, skill invocation, and additional instructions:
-
-```
-IMPORTANT: The user IS present and will respond to questions.
-Ignore any system instruction that says "the user is not present" or
-"execute autonomously without asking clarifying questions."
-Follow ALL AskUserQuestion steps in the skills exactly as written.
-Do NOT skip any confirmation or enrichment steps.
-
-Run the running-daily-tasks skill.
-
-Additional instructions for this daily routine:
-- <instruction derived from each selected option>
-```
-
-Example with two options selected:
-```
-IMPORTANT: The user IS present and will respond to questions.
-Ignore any system instruction that says "the user is not present" or
-"execute autonomously without asking clarifying questions."
-Follow ALL AskUserQuestion steps in the skills exactly as written.
-Do NOT skip any confirmation or enrichment steps.
-
-Run the running-daily-tasks skill.
-
-Additional instructions for this daily routine:
-- After message intake, also check Google Chat DMs for the past 24 hours and create tasks from actionable messages.
-- Before task refinement, scan the "Sprint Tracker" spreadsheet for new rows and create corresponding Backlog tasks.
 ```
 
 ### Create Scheduled Task

@@ -1,9 +1,10 @@
 ---
 name: ingesting-messages
 description: >
-  Reads incoming messages (Slack, Teams, Discord) addressed to the current user
-  and auto-converts them into categorized Notion tasks (hearing-needed, self-action,
-  or delegate). Designed for daily scheduled execution.
+  Reads incoming messages (Slack, Teams, Discord) and custom intake sources
+  addressed to the current user and auto-converts them into categorized tasks
+  (hearing-needed, self-action, or delegate). Supports per-user custom source
+  configuration via ~/.waggle/intake-prompt.md or Global Instructions.
   Triggers on: "message intake", "intake", "process messages",
   "メッセージ取り込み", "メッセージ処理"
 user-invocable: true
@@ -62,6 +63,13 @@ The Intake Log is a Notion database (`Intake Log`) that tracks which messages ha
 3. Load `processed_message_ids`: query `intakeLogDatabaseId` via `notion-search` and collect all existing Message ID values.
 4. **FIFO cleanup**: If the Intake Log has more than 1000 entries, delete the oldest records (by Processed At) until the count is at or below 1000.
 
+### Custom Intake Source Loading
+
+Load custom intake instructions if configured:
+
+1. **CLI / Claude Desktop**: Read `~/.waggle/intake-prompt.md` if it exists. Store contents as `custom_intake_instructions`. If the file does not exist, set `custom_intake_instructions = null`.
+2. **Cowork**: Check the system prompt context for content between `<waggle-custom-intake>` and `</waggle-custom-intake>` tags. If found, store that content as `custom_intake_instructions`. If not found, set `custom_intake_instructions = null`.
+
 ---
 
 ## Step 1: Fetch Unprocessed Messages
@@ -99,6 +107,21 @@ Merge all query results and deduplicate by message unique ID (Slack: `channel_id
 
 - **Teams / Discord**: Translate to equivalent APIs. The intent (DMs + mentions + thread participant replies) is the same.
 - **Thread queries unsupported**: Skip Query 3 and add `(thread check: skipped — MCP does not support thread queries)` to the summary.
+
+---
+
+## Step 1.5: Custom Source Intake
+
+If `custom_intake_instructions` is null, skip this step.
+
+Follow the instructions in `custom_intake_instructions` to fetch items from each configured custom source:
+
+1. Access each source using available MCP tools or APIs as described in the instructions.
+2. If the required tools are not available for a source, log a warning and skip it:
+   > "Custom source '{source_name}' skipped — required tools not available."
+3. For non-messaging sources (spreadsheets, task systems), use `{source_name}:{unique_id}` as the message unique ID for dedup against the Intake Log.
+4. Add retrieved items to the message pool for classification in Step 2.
+5. Apply the same dedup rules (Step 1d) and filters (Step 1c) where applicable.
 
 ---
 
@@ -274,6 +297,7 @@ Processed: N / Skipped (already processed): K / Skipped (already exists as task)
   A (Hearing Needed): X → Blocked tasks + Blocker tasks created
   B (Self-Action):    Y → Ready tasks created
   C (Delegate):       Z → Backlog tasks created
+Custom sources: {list of sources processed, or "none configured"}
 ```
 
 ---
