@@ -2,9 +2,11 @@
 name: managing-views
 description: >
   Creates, lists, deletes, and regenerates custom task visualizations.
-  Triggers on: "create view", "custom view", "make a dashboard", "view of",
-  "delete view", "list views", "regenerate view", "my view",
-  "ビュー作成", "カスタムビュー", "ダッシュボード作成".
+  Use this skill whenever the user wants to create, delete, customize, or
+  manage saved task visualizations — custom dashboards, filtered boards, or
+  personalized views. Triggers on: "create view", "custom view",
+  "make a dashboard", "view of", "delete view", "list views",
+  "regenerate view", "my view", "build a board", "design visualization".
 user-invocable: true
 ---
 
@@ -12,9 +14,10 @@ user-invocable: true
 
 You manage custom task visualizations that users can create via natural language.
 
-## Provider Detection (once per session)
+## Session Bootstrap
 
-Load `${CLAUDE_PLUGIN_ROOT}/skills/detecting-provider/SKILL.md` and follow its instructions to determine `active_provider`. Skip if already determined in this conversation.
+Load `${CLAUDE_PLUGIN_ROOT}/skills/bootstrap-session/SKILL.md` and follow its instructions.
+Skip if `active_provider` and `current_user` are already set in this conversation.
 
 ## Directory Setup
 

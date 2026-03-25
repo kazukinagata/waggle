@@ -17,24 +17,19 @@ user-invocable: true
 
 You are performing a health check on tasks in the configured data source. This skill analyzes 4 dimensions: task age, field quality, blocked tasks, and executor ratio.
 
-## Step 0: Provider Detection (once per session)
+## Step 0: Session Bootstrap
 
-Load `${CLAUDE_PLUGIN_ROOT}/skills/detecting-provider/SKILL.md` and follow its instructions to determine `active_provider`. Skip if already determined in this conversation.
+Load `${CLAUDE_PLUGIN_ROOT}/skills/bootstrap-session/SKILL.md` and follow its instructions.
+Skip if `active_provider` and `current_user` are already set in this conversation.
 
-After provider detection completes, you MUST read the provider SKILL.md (from detecting-provider's `provider_skill_path`) if you have not already done so. This file defines the Query Path Detection logic — do NOT query tasks using MCP tools directly without first determining the correct query path from the provider SKILL.md.
-
-## Step 1: Identity Resolution
-
-Load `${CLAUDE_PLUGIN_ROOT}/skills/resolving-identity/SKILL.md` and resolve `current_user`. Skip if already resolved.
-
-## Step 2: Determine Monitoring Scope
+## Step 1: Determine Monitoring Scope
 
 Determine the target based on the user's request:
 
 | User Request | Mode | Target |
 |---|---|---|
 | Mentions a person's name (e.g., "yagishitaryoma's tasks") | `user` | Resolve via `looking-up-members` |
-| Says "all tasks", "team", "overall", "全体" | `all` | No assignee filter |
+| Says "all tasks", "team", "overall" | `all` | No assignee filter |
 | No target specified | `user` | `current_user` |
 
 For **mode=user** with a name, load `${CLAUDE_PLUGIN_ROOT}/skills/looking-up-members/SKILL.md` to resolve the name to a user ID. If ambiguous, ask the user to clarify.
@@ -44,9 +39,9 @@ Store the result as:
 - `target_id`: user UUID (only for mode=user)
 - `target_name`: display name (or "All" for mode=all)
 
-## Step 3: Fetch Task Data
+## Step 2: Fetch Task Data
 
-Two queries are needed. Use the Query Path Detection from the provider SKILL.md (loaded in Step 0) to execute each query. The provider determines the optimal query mechanism.
+Two queries are needed. Use the Query Path Detection from the provider SKILL.md (loaded in Session Bootstrap) to execute each query. The provider determines the optimal query mechanism.
 
 ### Query A: Target Tasks
 
@@ -66,7 +61,7 @@ Use the provider's query mechanism (determined by Query Path Detection) to execu
 
 Both files should be in the provider's native format (e.g., `{"results": [...]}` for Notion).
 
-## Step 4: Run Analysis
+## Step 3: Run Analysis
 
 ### Script-based analysis (preferred)
 
@@ -94,7 +89,7 @@ If the analysis script is not available (no bash, no jq), compute the metrics ma
 
 4. **Executor Ratio**: Count tasks by executor value (human, cli, claude-desktop, cowork, unset) across three slices: all tasks, Done only, non-Done only.
 
-## Step 5: Render Report
+## Step 4: Render Report
 
 Format the analysis results as a markdown report. Respond in the user's language.
 

@@ -5,8 +5,10 @@ description: >
   addressed to the current user and auto-converts them into categorized tasks
   (hearing-needed, self-action, or delegate). Supports per-user custom source
   configuration via ~/.waggle/intake-prompt.md or Global Instructions.
+  Use this skill whenever the user wants to process incoming messages, check
+  their inbox, or convert messages into tasks — even if they don't say "intake".
   Triggers on: "message intake", "intake", "process messages",
-  "メッセージ取り込み", "メッセージ処理"
+  "convert messages to tasks", "check slack", "check teams", "inbox processing".
 user-invocable: true
 ---
 
@@ -26,12 +28,10 @@ To run automatically every morning via Claude Desktop:
 
 ## Step 0: Preparation
 
-### Provider Detection + Identity Resolve
+### Session Bootstrap
 
-1. Load `${CLAUDE_PLUGIN_ROOT}/skills/detecting-provider/SKILL.md` → `active_provider`. Skip if set.
-2. Load `${CLAUDE_PLUGIN_ROOT}/skills/resolving-identity/SKILL.md`:
-   - Obtain `current_user` (for message filtering).
-   - Obtain `org_members` (for Category C: identifying assignees).
+Load `${CLAUDE_PLUGIN_ROOT}/skills/bootstrap-session/SKILL.md` and follow its instructions.
+Skip if `active_provider` and `current_user` are already set in this conversation.
 
 ### Messaging MCP Auto-Detection
 
@@ -127,50 +127,9 @@ Follow the instructions in `custom_intake_instructions` to fetch items from each
 
 ## Step 2: Classify Messages (3 Categories)
 
-Classify each message into one of 3 categories:
+Classify each message into A (Hearing Needed), B (Self-Action), or C (Delegate). For the full classification heuristics, examples, and confirmation flow, follow `references/classification-guide.md` in this directory.
 
-| Category | Criteria | Action |
-|---|---|---|
-| **A: Hearing Needed** | Insufficient info, question format, ambiguous request, seeking approval | Main task (Status=Blocked) + Blocker task (Status=Ready, executor=human, Assignees=requester) |
-| **B: Self-Action** | AI-processable implementation, research, documentation, clear work request | Task (Status=Ready, executor=claude-desktop or cli, Assignees=self) |
-| **C: Delegate** | Clearly intended for another team member (name explicitly mentioned, etc.) | Task (Status=Backlog, executor=human, Assignees=assignee) |
-
-**When classification is unclear**: Treat as Category A (safe default).
-
-### Classification Heuristics and Examples
-
-**Category A (Hearing Needed)** — default when uncertain:
-- Question format: "Can you …?", "What's the status of …?"
-- Approval requests: "Review and approve this"
-- References context the AI does not have: "about that thing we discussed yesterday"
-- Example: `"Hey, can you look at the design doc and let me know if the approach works?"` → A (which document? what feedback criteria?)
-
-**Category B (Self-Action)** — clear and actionable:
-- Specific work request: "Write unit tests for the auth module"
-- Research / summary: "Compile the Q3 metrics report"
-- Implementation request with sufficient context to start
-- Example: `"Please update the README to include the new API endpoints"` → B
-
-**Category C (Delegate)** — explicitly addressed to another member:
-- Names another member: "Ask @alice to …"
-- Current user is CC; the action owner is someone else
-- Example: `"@you FYI — @bob needs to update his deployment script"` → C (action owner is Bob)
-
-**Decision rule**: If torn between B and A → choose A. If torn between C and A → choose A. A is always the safe default.
-
-### Classification Confirmation
-
-After classifying all messages, display the results and ask the user to confirm:
-
-| # | Category | Sender | Summary |
-|---|----------|--------|---------|
-| 1 | B: Self-Action | @alice | Update README with new endpoints |
-| 2 | A: Hearing Needed | @bob | Design doc review request |
-| 3 | C: Delegate | @alice → @charlie | Deployment script update |
-
-Use `AskUserQuestion`: "Review the classification. Change any categories?"
-- **"Looks good"** — proceed to Step 2.5 with current categories
-- **"Change categories"** — for each message, ask which category (A / B / C) to assign. Update the classification before proceeding.
+When classification is unclear, treat as Category A (safe default).
 
 ---
 
@@ -215,60 +174,7 @@ Use `AskUserQuestion`: "Create these N tasks?"
 
 ## Step 3: Bulk Task Creation
 
-Create tasks directly via `notion-create-pages` for each message (do not go through the managing-tasks skill).
-
-### Pre-Creation Dedup Check
-
-Before creating each task:
-1. Generate `source_message_id` from the message unique ID (Slack: `channel_id:ts`)
-2. Query the Tasks DB via `notion-search` for existing tasks with the same `Source Message ID`
-3. If a matching task exists: skip the message and count it as `Skipped (already exists as task)`
-4. If no match: include `Source Message ID` in the created task's fields
-
-### Common Fields
-
-| Field | Value |
-|---|---|
-| Title | `From @{sender}: {message summary (50 chars max)}` |
-| Description | Full original message + append `Source: {tool_name} DM from @{sender} at {datetime}` |
-| Tags | `["ingesting-messages"]` |
-| Context | `Received via {tool_name} on {date}` |
-| Issuer | `[current_user]` |
-
-### Category-Specific Fields
-
-**Category A (Hearing Needed):**
-1. Create the blocker task first:
-   - Title: `[Hearing] Confirm with {requester_name}: {question summary}`
-   - Status: `Ready`
-   - Executor: If messaging MCP available (e.g. Slack tools) → `cowork` (agent can send follow-up messages). If no messaging MCP → `human` (requires manual contact).
-   - Assignees: `[requester]` (Load `${CLAUDE_PLUGIN_ROOT}/skills/looking-up-members/SKILL.md` to resolve).
-     If requester cannot be identified: `[current_user]` (fallback, not empty). Record "Original sender: {sender}" in Context.
-   - Acceptance Criteria: `"Confirm with {requester_name} about {topic_summary}. Record response in Agent Output. Update Status to Done when confirmed."`
-   - Execution Plan: `"1. Contact {requester_name} via {tool_name}\n2. Ask about: {question_summary}\n3. Record response in Agent Output\n4. Update Status to Done"`
-2. Create the main task:
-   - Status: `Blocked`
-   - Blocked By: `[blocker_task_id]`
-   - Executor: Determine from message content — if the required action (after hearing) is clearly code/research/docs, infer executor (cli or cowork based on execution_environment). If unclear or requires human judgment → `human` (default, re-evaluated when unblocked).
-   - Assignees: `[current_user]`
-   - Acceptance Criteria: Derive from message content. Fallback: `"[DRAFT — update after hearing] Determine required action from {requester_name}'s response and complete it."`
-
-**Category B (Self-Action):**
-- Status: `Ready`
-- Executor: Determine from environment and context:
-  - `execution_environment = "cowork"`: Default for AI-executed tasks is `cowork`
-  - `execution_environment = "claude-desktop"`: Default for AI-executed tasks is `claude-desktop`
-  - `execution_environment = "cli"`: Code work → `cli`, external integrations → `claude-desktop`
-- Assignees: `[current_user]`
-- Working Directory: Empty (user sets later)
-
-**Category C (Delegate):**
-- Status: `Backlog`
-- Executor: `human` (always fixed to human when assigned to others)
-- Assignees: Load `${CLAUDE_PLUGIN_ROOT}/skills/looking-up-members/SKILL.md` to resolve assignee
-  - If assignee cannot be identified: `[current_user]` (fallback, not empty). Record "Expected assignee: {name or hint}" in Context
-- Working Directory: Empty (other person's filesystem unknown)
-- Branch: Empty (other person's git environment unknown)
+Create tasks directly via `notion-create-pages` for each message (do not go through the managing-tasks skill). For the dedup check, common fields, and category-specific field templates, follow `references/task-creation-templates.md` in this directory.
 
 ---
 
@@ -301,7 +207,3 @@ Custom sources: {list of sources processed, or "none configured"}
 ```
 
 ---
-
-## Language
-
-Always respond in the user's language.

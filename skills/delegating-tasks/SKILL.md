@@ -3,8 +3,10 @@ name: delegating-tasks
 description: >
   Delegates a task to another organization member by updating Assignees,
   resetting executor fields, and recording delegation history in Context.
+  Use this skill whenever the user wants to hand off, transfer, reassign,
+  or give a task to someone else — even if they don't say "delegate" explicitly.
   Triggers on: "delegate task", "assign to", "transfer task", "reassign",
-  "タスク委任", "タスク移管", "割り当て変更"
+  "hand off", "give to", "pass to another person".
 user-invocable: true
 ---
 
@@ -12,12 +14,11 @@ user-invocable: true
 
 Delegates a task to another organization member. Changes Assignees to the recipient and appends delegation history to Context.
 
-## Step 1: Provider Detection + Identity Resolve
+## Step 1: Session Bootstrap
 
-1. Load `${CLAUDE_PLUGIN_ROOT}/skills/detecting-provider/SKILL.md` and determine `active_provider`. Skip if already set.
-2. Load `${CLAUDE_PLUGIN_ROOT}/skills/resolving-identity/SKILL.md`:
-   - Resolve `current_user` (delegator identity).
-   - Also resolve `org_members` (needed for recipient lookup).
+Load `${CLAUDE_PLUGIN_ROOT}/skills/bootstrap-session/SKILL.md` and follow its instructions.
+Skip if `active_provider` and `current_user` are already set in this conversation.
+Also resolve `org_members` via `${CLAUDE_PLUGIN_ROOT}/skills/looking-up-members/SKILL.md` (needed for recipient lookup).
 
 ## Step 2: Identify the Task
 
@@ -48,16 +49,9 @@ These are non-blocking suggestions. Proceed with delegation if the user confirms
 Apply the following field updates (other fields remain unchanged).
 **`Issuer` is preserved** (not modified) — it tracks the original task creator, not the current assignee.
 
-| Field | Value | Reason |
-|---|---|---|
-| `Assignees` | `[recipient]` | Set the recipient as the responsible person |
-| `Executor` | `human` | Recipient decides on their own (forced fixed) |
-| `Working Directory` | Reset to empty | Recipient's filesystem is unknown |
-| `Branch` | Reset to empty | Recipient's git environment is unknown |
-| `Session Reference` | Reset to empty | Recipient's agent will record this |
-| `Dispatched At` | Reset to empty | Recipient's agent will record this |
-| `Requires Review` | Reset to unchecked | Recipient decides |
-| `Context` | Append to existing text | Preserve delegation history |
+1. Set `Assignees` to `[recipient]`.
+2. Apply the field resets defined in `${CLAUDE_PLUGIN_ROOT}/skills/assigning-to-others/SKILL.md`.
+3. Append delegation history to `Context` (see format below).
 
 Append format for the `Context` field:
 ```
@@ -81,17 +75,4 @@ The recipient will see this task when they run managing-tasks (my tasks).
 
 ## Field Constraints for Delegated Tasks
 
-**Do not set the following fields when assigning to another person** (the recipient decides):
-
-| Field | Reason |
-|---|---|
-| `Executor` | Fixed to human (recipient will change if needed) |
-| `Working Directory` | Recipient's filesystem info is unknown |
-| `Branch` | Recipient's git environment is unknown |
-| `Session Reference` | Recipient's agent will record this |
-| `Dispatched At` | Recipient's agent will record this |
-| `Requires Review` | Recipient decides |
-
-## Language
-
-Always respond in the user's language.
+See `${CLAUDE_PLUGIN_ROOT}/skills/assigning-to-others/SKILL.md` for the canonical field reset rules applied when assigning to another person.

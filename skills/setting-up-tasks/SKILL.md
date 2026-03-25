@@ -3,9 +3,12 @@ name: setting-up-tasks
 description: >
   Guides initial setup of the waggle plugin — detects or configures
   MCP connections and runs provider-specific database initialization.
+  Use this skill whenever the user wants to set up, initialize, or configure
+  waggle for the first time, or connect a new data source provider.
   Triggers on: "setup waggle", "initialize task management",
-  "configure notion tasks", "configure data source",
-  "タスク管理セットアップ", "タスク管理初期化".
+  "configure notion tasks", "configure data source", "get started with waggle",
+  "first-time setup", "connect provider".
+user-invocable: true
 ---
 
 # Waggle — Setup Guide
@@ -217,7 +220,3 @@ Daily routine registered: runs every day at <HH:MM>.
 Scheduled Task ID: daily-tasks-<user_name_slug>
 To modify: Claude Desktop → Scheduled Tasks
 ```
-
-## Language
-
-Always communicate with the user in the language they are using.
