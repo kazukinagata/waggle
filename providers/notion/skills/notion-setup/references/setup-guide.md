@@ -26,33 +26,28 @@ Authenticate with your Notion account when prompted.
 ## Step 1b: Detect Existing Setup
 
 1. Call `notion-search` with query "Waggle Config" to check for an existing configuration.
-2. If a Config page is found -> enter **Migration Mode**:
+2. If no "Waggle Config" page is found, call `notion-search` with query "Agentic Tasks Config" (legacy fallback). If found, use it as the Config page (do not rename it).
+3. If a Config page is found (from either search) -> enter **Migration Mode**:
 
 ### Migration Mode
 
 a. Fetch the Config page body via `notion-fetch` and parse the JSON code block. Display the current configuration to the user.
 
-b. **Remove `selfUserId`**: If `selfUserId` exists in the config, inform the user: "The `selfUserId` field is no longer needed. User identity is now resolved via API each session. Removing it from config."
-
-c. **Remove `projectsDatabaseId`**: If `projectsDatabaseId` exists in the config, inform the user: "The Projects database is no longer used by the plugin. The database will remain in Notion, but the reference will be removed from config."
-
-d. **Check Teams DB entries**:
+b. **Check Teams DB entries**:
    - Fetch teams from `teamsDatabaseId`. Count entries.
    - 0 entries -> Guide the user to Step 4c (Register Initial Teams) of the normal setup flow.
    - 1+ entries -> Display team list and ask if any updates are needed.
 
-e. **Check Sprints DB Team relation**: If `sprintsDatabaseId` exists in config:
+c. **Check Sprints DB Team relation**: If `sprintsDatabaseId` exists in config:
    - Fetch the Sprints DB schema via `notion-fetch`.
    - If no `Team` field exists -> add it: `ADD COLUMN "Team" RELATION('<TEAMS_DS_ID>')`
 
-f. **Tasks DB Team relation**: If a `Team` relation field exists on the Tasks DB:
+d. **Tasks DB Team relation**: If a `Team` relation field exists on the Tasks DB:
    - Inform: "The Team field on Tasks is no longer used by the plugin. It will remain in Notion but the plugin will not read or write it."
 
-g. **Update Config JSON**: Remove `selfUserId` and `projectsDatabaseId` from the JSON code block via `notion-update-page`.
+e. Report: "Migration complete. Your setup has been updated to the latest plugin version."
 
-h. Report: "Migration complete. Your setup has been updated to the latest plugin version."
-
-3. If no Config page is found -> proceed with normal new setup flow below.
+4. If no Config page is found -> proceed with normal new setup flow below.
 
 ## Step 2: Choose Parent Page Location
 

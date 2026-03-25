@@ -13,7 +13,10 @@ Load this file when the active provider is **notion**.
 
 When `detecting-provider` requests config retrieval for the Notion provider, follow these steps to populate `headless_config`:
 
-1. First, search for the "Waggle Config" page using `notion-search`:
+1. **Local config file** (fastest path): Read `~/.waggle/config.json` via Bash: `cat ~/.waggle/config.json 2>/dev/null`
+   - If the file exists and contains `tasksDatabaseId`, use those values to populate `headless_config` and skip to Schema Validation.
+
+2. **Waggle Config page**: Search for the "Waggle Config" page using `notion-search`:
    - If multiple pages match:
      - Filter out trashed/archived pages
      - Prefer the page that is a child of the same parent as the Tasks database
@@ -23,14 +26,12 @@ When `detecting-provider` requests config retrieval for the Notion provider, fol
      - `tasksDatabaseId` (required)
      - `teamsDatabaseId` (optional)
      - `sprintsDatabaseId` (optional — exists after setting-up-scrum)
-     - `maxConcurrentAgents` (optional — default: 3)
      - `intakeLogDatabaseId` (optional — exists after first ingesting-messages run)
 
-2. If `notion-search` fails or returns no results, fall back to `~/.waggle/config.json` (optional fast cache):
-   - Read via Bash: `cat ~/.waggle/config.json 2>/dev/null`
-   - If the file exists and contains `tasksDatabaseId`, use those values to populate `headless_config`.
+3. **Legacy fallback**: If no "Waggle Config" page is found, search for "Agentic Tasks Config" using `notion-search`:
+   - If found, use it as the Config page (do not rename it). Follow the same parsing logic as step 2.
 
-If neither source provides the config, instruct the user to run the setting-up-tasks skill, then stop.
+If no source provides the config, instruct the user to run the setting-up-tasks skill, then stop.
 
 ## Schema Validation
 
