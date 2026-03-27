@@ -59,6 +59,49 @@ For requests like "show me all blocked tasks" or "mark all Done tasks as archive
 2. Present results to user for confirmation
 3. Execute updates in sequence using the provider's update tools
 
+## Subtask Status Cascading
+
+After any task status change or subtask creation, check and apply automatic status cascading.
+
+### Trigger Conditions
+
+Cascading runs when:
+1. A task's Status is updated AND the task has a non-null `parentTask`
+2. A new subtask is created (has `parentTask` set)
+3. A task's `parentTask` field is set or cleared
+
+### Cascading Rules
+
+**Rule A — All subtasks Done → Parent auto-transitions to Done:**
+1. After updating a subtask to `Done`, fetch all sibling tasks (tasks sharing the same `parentTask`)
+2. If every sibling's Status is `Done`, update the parent's Status to `Done`
+3. Append to parent's Context: `[Auto] Status set to Done — all subtasks completed`
+
+**Rule B — Subtask added to Done parent → Parent reverts to In Progress:**
+1. When creating a subtask whose parent's current Status is `Done`, update parent Status to `In Progress`
+2. Append to parent's Context: `[Auto] Status reverted to In Progress — new subtask added`
+
+**Rule C — Subtask re-opened → Parent reverts if it was Done:**
+1. After updating a subtask from `Done` to any other status, check the parent's Status
+2. If parent is `Done`, update parent to `In Progress`
+3. Append to parent's Context: `[Auto] Status reverted to In Progress — subtask re-opened`
+
+### Cascading Pseudocode
+
+```
+After updating task T's status:
+  1. If T.parentTask is null → no cascading, return
+  2. Fetch parent P = get_task(T.parentTask)
+  3. If T.status == "Done":
+     a. Fetch all subtasks S = query_tasks(parentTask == P.id)
+     b. If ALL tasks in S have status "Done" → update P.status = "Done", log in P.context
+  4. Else if T.status != "Done" AND P.status == "Done":
+     → update P.status = "In Progress", log in P.context
+  5. Push updated data to view server
+```
+
+These auto-transitions are system-initiated and bypass normal validation (no user confirmation needed).
+
 ## After Any Task Operation
 
 After creating, updating, or deleting tasks, push fresh data to the view server as described in the active provider's SKILL.md (Pushing Data to View Server section).

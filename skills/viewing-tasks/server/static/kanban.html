@@ -361,6 +361,47 @@
       color: var(--label-tertiary);
       font-weight: 400;
     }
+
+    .parent-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 2px 8px;
+      border-radius: 999px;
+      background: var(--surface-tertiary);
+      font-size: 10px;
+      font-weight: 500;
+      color: var(--label-tertiary);
+      margin-bottom: 6px;
+      max-width: 100%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .parent-badge::before {
+      content: '↑';
+      font-size: 9px;
+    }
+    .subtask-progress {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-top: 8px;
+      font-size: 11px;
+      color: var(--label-tertiary);
+    }
+    .subtask-progress-bar {
+      flex: 1;
+      height: 3px;
+      border-radius: 2px;
+      background: var(--surface-tertiary);
+      overflow: hidden;
+    }
+    .subtask-progress-bar-fill {
+      height: 100%;
+      border-radius: 2px;
+      background: var(--green);
+    }
   </style>
 </head>
 <body>
@@ -412,6 +453,26 @@
   const colMap = { 'Backlog':'backlog', 'Ready':'ready', 'In Progress':'progress', 'In Review':'review', 'Done':'done' };
   const prioClass = { Urgent:'p-urgent', High:'p-high', Medium:'p-medium', Low:'p-low' };
 
+  function buildHierarchy(tasks) {
+    const byId = {};
+    tasks.forEach(t => byId[t.id] = t);
+    const childrenOf = {};
+    const parentOf = {};
+    tasks.forEach(t => {
+      if (t.parentTaskId && byId[t.parentTaskId]) {
+        if (!childrenOf[t.parentTaskId]) childrenOf[t.parentTaskId] = [];
+        childrenOf[t.parentTaskId].push(t);
+        parentOf[t.id] = byId[t.parentTaskId];
+      }
+    });
+    const statsOf = {};
+    Object.keys(childrenOf).forEach(pid => {
+      const children = childrenOf[pid];
+      statsOf[pid] = { total: children.length, done: children.filter(c => c.status === 'Done').length };
+    });
+    return { childrenOf, parentOf, statsOf };
+  }
+
   function esc(s) {
     return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   }
@@ -426,6 +487,8 @@
       (!search || t.title.toLowerCase().includes(search)) &&
       (!priority || t.priority === priority)
     );
+
+    const { parentOf, statsOf } = buildHierarchy(allTasks);
 
     const grouped = { backlog:[], ready:[], progress:[], review:[], done:[] };
     filtered.forEach(t => {
@@ -444,7 +507,10 @@
       el.innerHTML = tasks.map(t => {
         const pc = t.priority ? prioClass[t.priority] : '';
         const overdue = t.dueDate && t.dueDate < today;
+        const parent = parentOf[t.id];
+        const stats = statsOf[t.id];
         return `<div class="card" onclick="copyId('${t.id}')" title="Click to copy ID">
+          ${parent ? `<div class="parent-badge" title="${esc(parent.title)}">${esc(parent.title)}</div>` : ''}
           <div class="card-title">${esc(t.title)}</div>
           <div class="card-meta">
             ${t.priority ? `<span class="prio-dot ${pc}"></span><span class="badge ${pc}">${esc(t.priority)}</span>` : ''}
@@ -452,6 +518,7 @@
             ${t.dueDate ? `<span class="due${overdue?' overdue':''}">${t.dueDate}${overdue?' ⚠':''}</span>` : ''}
           </div>
           ${t.tags&&t.tags.length ? `<div class="tags">${t.tags.map(g=>`<span class="tag">${esc(g)}</span>`).join('')}</div>` : ''}
+          ${stats ? `<div class="subtask-progress">${stats.done}/${stats.total}<span class="subtask-progress-bar"><span class="subtask-progress-bar-fill" style="width:${Math.round(stats.done/stats.total*100)}%"></span></span></div>` : ''}
         </div>`;
       }).join('');
     });

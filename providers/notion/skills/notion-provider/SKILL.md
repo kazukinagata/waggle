@@ -203,6 +203,17 @@ The script returns `{"results": [...]}` with full page objects including all pro
 {"and":[{"property":"Status","select":{"equals":"Ready"}},{"property":"Executor","select":{"equals":"human"}},{"or":[{"property":"Assignees","people":{"contains":"<user_id>"}},{"and":[{"property":"Issuer","people":{"contains":"<user_id>"}},{"property":"Assignees","people":{"is_empty":true}}]}]}]}
 ```
 
+#### Hierarchy Queries
+
+**Subtasks of a parent task:**
+```json
+{"property":"Parent Task","relation":{"contains":"<parent_task_id>"}}
+```
+
+**Check if a task is a parent (has children):** Query with the subtasks filter above. If results are non-empty, the task has children.
+
+**Check if a candidate parent is itself a subtask:** Fetch the candidate parent with `notion-fetch` and check if its `Parent Task` relation is empty. If non-empty, it is already a subtask and cannot be used as a parent (2-level limit).
+
 ### Path 1b: Desktop Extension (notion-query MCP tool)
 
 Available when the `mcp__notion-query__notion-query` tool is present. Primary query path in cowork environments.

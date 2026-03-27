@@ -120,6 +120,16 @@ Table: Executor | All | Done | Active (non-Done)
 ## Recommendations
 ```
 
+### 5. Hierarchy Health
+
+Detect parent/subtask status inconsistencies:
+
+- **Stale parents**: Parent tasks where all subtasks are Done but the parent is not Done (cascading may have failed)
+- **Orphaned Done parents**: Parent tasks marked Done that have non-Done subtasks (inconsistent state)
+- **Deep nesting violations**: Any task whose parent also has a parent (3+ level — should not exist if validation is working)
+
+Report as a table: Title | Issue | Parent/Subtask | Suggested Fix
+
 ### Recommendations Guidelines
 
 Generate 3-5 actionable recommendations based on findings. Focus on:

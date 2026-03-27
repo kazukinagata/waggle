@@ -592,6 +592,7 @@
   });
 
   let allTasks = [];
+  let hierarchy = {};
   const todayStr = new Date().toISOString().split('T')[0];
   let currentYear = new Date().getFullYear();
   let currentMonth = new Date().getMonth();
@@ -610,6 +611,26 @@
     return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   }
 
+  function buildHierarchy(tasks) {
+    const byId = {};
+    tasks.forEach(t => byId[t.id] = t);
+    const childrenOf = {};
+    const parentOf = {};
+    tasks.forEach(t => {
+      if (t.parentTaskId && byId[t.parentTaskId]) {
+        if (!childrenOf[t.parentTaskId]) childrenOf[t.parentTaskId] = [];
+        childrenOf[t.parentTaskId].push(t);
+        parentOf[t.id] = byId[t.parentTaskId];
+      }
+    });
+    const statsOf = {};
+    Object.keys(childrenOf).forEach(pid => {
+      const children = childrenOf[pid];
+      statsOf[pid] = { total: children.length, done: children.filter(c => c.status === 'Done').length };
+    });
+    return { childrenOf, parentOf, statsOf };
+  }
+
   function getFiltered() {
     const search = document.getElementById('search').value.toLowerCase();
     const priority = document.getElementById('filter-priority').value;
@@ -620,6 +641,7 @@
   }
 
   function render() {
+    hierarchy = buildHierarchy(allTasks);
     const filtered = getFiltered();
     const scheduled = {};
     const unscheduled = [];
@@ -686,7 +708,9 @@
 
       shown.forEach(t => {
         const pDot = t.priority ? `<span class="priority-dot ${priorityDotClass(t.priority)}"></span>` : '';
-        html += `<div class="task-pill ${statusClass(t.status)}" onclick="showPopover(event,'${t.id}')" title="${esc(t.title)}">${pDot}<span>${esc(t.title)}</span></div>`;
+        const parent = hierarchy.parentOf[t.id];
+        const pillLabel = parent ? `${esc(parent.title)} > ${esc(t.title)}` : esc(t.title);
+        html += `<div class="task-pill ${statusClass(t.status)}" onclick="showPopover(event,'${t.id}')" title="${esc(t.title)}">${pDot}<span>${pillLabel}</span></div>`;
       });
 
       if (remaining > 0) {
@@ -729,6 +753,10 @@
     if (t.priority) html += `<div class="popover-row"><span class="popover-label">Priority</span><span class="badge ${priorityClass(t.priority)}">${esc(t.priority)}</span></div>`;
     if (t.dueDate) html += `<div class="popover-row"><span class="popover-label">Due</span><span>${esc(t.dueDate)}</span></div>`;
     if (t.assignees && t.assignees.length) html += `<div class="popover-row"><span class="popover-label">Assigned</span><span>${t.assignees.map(a=>esc(a.name)).join(', ')}</span></div>`;
+    const popParent = hierarchy.parentOf[t.id];
+    if (popParent) html += `<div class="popover-row"><span class="popover-label">Parent</span><span>${esc(popParent.title)}</span></div>`;
+    const stats = hierarchy.statsOf[t.id];
+    if (stats) html += `<div class="popover-row"><span class="popover-label">Subtasks</span><span>${stats.done}/${stats.total} done</span></div>`;
     if (t.tags && t.tags.length) html += `<div class="tags">${t.tags.map(g=>`<span class="tag">${esc(g)}</span>`).join('')}</div>`;
     if (t.description) html += `<div class="popover-desc">${esc(t.description)}</div>`;
 

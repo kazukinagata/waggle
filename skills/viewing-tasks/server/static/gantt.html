@@ -428,6 +428,13 @@
       color: var(--label-tertiary);
     }
 
+    .parent-label {
+      font-size: 10px;
+      color: var(--label-tertiary);
+      font-weight: 400;
+      margin-right: 4px;
+    }
+
     /* Today line */
     .today-line {
       position: absolute;
@@ -564,6 +571,7 @@
   });
 
   let allTasks = [];
+  let hierarchy = {};
   const todayStr = new Date().toISOString().split('T')[0];
   const DAY_WIDTH = 40;
   const ROW_HEIGHT = 40;
@@ -576,6 +584,26 @@
   }
   function esc(s) {
     return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  function buildHierarchy(tasks) {
+    const byId = {};
+    tasks.forEach(t => byId[t.id] = t);
+    const childrenOf = {};
+    const parentOf = {};
+    tasks.forEach(t => {
+      if (t.parentTaskId && byId[t.parentTaskId]) {
+        if (!childrenOf[t.parentTaskId]) childrenOf[t.parentTaskId] = [];
+        childrenOf[t.parentTaskId].push(t);
+        parentOf[t.id] = byId[t.parentTaskId];
+      }
+    });
+    const statsOf = {};
+    Object.keys(childrenOf).forEach(pid => {
+      const children = childrenOf[pid];
+      statsOf[pid] = { total: children.length, done: children.filter(c => c.status === 'Done').length };
+    });
+    return { childrenOf, parentOf, statsOf };
   }
 
   function daysBetween(a, b) {
@@ -603,6 +631,7 @@
   }
 
   function render() {
+    hierarchy = buildHierarchy(allTasks);
     const search = document.getElementById('search').value.toLowerCase();
     const status = document.getElementById('filter-status').value;
     const filtered = allTasks.filter(t =>
@@ -653,10 +682,14 @@
     filtered.forEach(t => {
       const pDot = t.priority ? `<span class="priority-dot ${priorityDotClass(t.priority)}"></span>` : '';
       const noDt = !taskDatesMap.has(t.id) ? ' no-date' : '';
+      const rowParent = hierarchy.parentOf[t.id];
+      const parentLabel = rowParent ? `<span class="parent-label">${esc(rowParent.title)} &rsaquo;</span>` : '';
+      const rowStats = hierarchy.statsOf[t.id];
+      const nameText = rowStats ? `${esc(t.title)} (${rowStats.done}/${rowStats.total})` : esc(t.title);
       leftHtml += `<div class="gantt-task-row" onclick="copyId('${t.id}')">
         ${pDot}
         <span class="badge ${statusClass(t.status)}" style="padding:2px 6px;font-size:10px;">${esc(t.status)}</span>
-        <span class="gantt-task-name${noDt}" title="${esc(t.title)}">${esc(t.title)}</span>
+        <span class="gantt-task-name${noDt}" title="${esc(t.title)}">${parentLabel}${nameText}</span>
       </div>`;
     });
 

@@ -401,6 +401,37 @@
     .toast.show {
       opacity: 1;
     }
+
+    tr.subtask-row .title-cell {
+      padding-left: 40px;
+    }
+    tr.subtask-row .title-text::before {
+      content: '└ ';
+      color: var(--label-tertiary);
+      font-family: monospace;
+    }
+    .subtask-progress {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      margin-left: 8px;
+      font-size: 11px;
+      color: var(--label-tertiary);
+      font-weight: 500;
+    }
+    .subtask-progress-bar {
+      width: 48px;
+      height: 4px;
+      border-radius: 2px;
+      background: var(--surface-tertiary);
+      overflow: hidden;
+    }
+    .subtask-progress-bar-fill {
+      height: 100%;
+      border-radius: 2px;
+      background: var(--green);
+      transition: width 0.3s;
+    }
   </style>
 </head>
 <body>
@@ -501,6 +532,40 @@
     return `<span class="due-date${overdue?' overdue':''}">${d}${overdue?' ⚠':''}`;
   }
 
+  function buildHierarchy(tasks) {
+    const byId = {};
+    tasks.forEach(t => byId[t.id] = t);
+    const childrenOf = {};
+    const parentOf = {};
+    tasks.forEach(t => {
+      if (t.parentTaskId && byId[t.parentTaskId]) {
+        if (!childrenOf[t.parentTaskId]) childrenOf[t.parentTaskId] = [];
+        childrenOf[t.parentTaskId].push(t);
+        parentOf[t.id] = byId[t.parentTaskId];
+      }
+    });
+    const statsOf = {};
+    Object.keys(childrenOf).forEach(pid => {
+      const children = childrenOf[pid];
+      statsOf[pid] = { total: children.length, done: children.filter(c => c.status === 'Done').length };
+    });
+    return { childrenOf, parentOf, statsOf };
+  }
+
+  function getOrderedTasks(tasks, childrenOf) {
+    const childIds = new Set();
+    Object.values(childrenOf).forEach(arr => arr.forEach(c => childIds.add(c.id)));
+    const ordered = [];
+    tasks.forEach(t => {
+      if (childIds.has(t.id)) return; // skip children, they'll be added after their parent
+      ordered.push(t);
+      if (childrenOf[t.id]) {
+        childrenOf[t.id].forEach(c => ordered.push(c));
+      }
+    });
+    return ordered;
+  }
+
   function render() {
     const search = document.getElementById('search').value.toLowerCase();
     const status = document.getElementById('filter-status').value;
@@ -518,10 +583,18 @@
       return;
     }
     empty.style.display = 'none';
-    tbody.innerHTML = filtered.map(t => `
-      <tr onclick="copyId('${t.id}',this)" title="Click to copy ID">
+    const hierarchy = buildHierarchy(filtered);
+    const ordered = getOrderedTasks(filtered, hierarchy.childrenOf);
+    tbody.innerHTML = ordered.map(t => {
+      const isSubtask = !!hierarchy.parentOf[t.id];
+      const stats = hierarchy.statsOf[t.id];
+      const progressBadge = stats
+        ? `<span class="subtask-progress">${stats.done}/${stats.total}<span class="subtask-progress-bar"><span class="subtask-progress-bar-fill" style="width:${Math.round(stats.done/stats.total*100)}%"></span></span></span>`
+        : '';
+      return `
+      <tr class="${isSubtask ? 'subtask-row' : ''}" onclick="copyId('${t.id}',this)" title="Click to copy ID">
         <td class="title-cell">
-          <div class="title-text">${esc(t.title)}</div>
+          <div class="title-text">${esc(t.title)}${progressBadge}</div>
           ${t.description ? `<div class="title-desc">${esc(t.description)}</div>` : ''}
         </td>
         <td><span class="badge ${statusClass(t.status)}">${esc(t.status)}</span></td>
@@ -529,7 +602,8 @@
         <td><div class="assignees">${(t.assignees||[]).map(a=>`<div class="avatar" title="${esc(a.name)}">${initials(a.name)}</div>`).join('')}</div></td>
         <td>${formatDate(t.dueDate)}</td>
         <td><div class="tags">${(t.tags||[]).map(g=>`<span class="tag">${esc(g)}</span>`).join('')}</div></td>
-      </tr>`).join('');
+      </tr>`;
+    }).join('');
   }
 
   function esc(s) {

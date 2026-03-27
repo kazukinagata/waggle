@@ -29,6 +29,10 @@ If any Core field is missing, follow the active provider SKILL.md's instructions
 
 ## Execution Flow
 
+### Subtask Independence
+
+Subtasks are eligible for execution regardless of their parent task's status. The `parentTask` field does not affect dispatch readiness. After a subtask completes and its Status is updated, the status cascading logic (defined in managing-tasks) must be triggered to check whether the parent should auto-transition.
+
 ### Phase 1: Fetch & Concurrency Check
 
 1. Query Ready tasks using the active provider's "Querying Tasks" section:

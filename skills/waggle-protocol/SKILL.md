@@ -56,6 +56,23 @@ Providers MAY support these additional fields. Skills degrade gracefully if abse
 | Team | text | Team assignment |
 | Assignees | person[] | Assigned users |
 
+## Subtask Hierarchy
+
+Waggle supports a strict 2-level task hierarchy via the `Parent Task` field.
+
+### Constraints
+
+- **2-level limit**: A subtask (task with non-null `parentTask`) MUST NOT have children of its own. Implementations MUST reject attempts to create a 3rd level.
+- **No circular references**: A task cannot reference itself as its parent.
+
+### Auto-Cascading Transitions
+
+When all subtasks of a parent reach `Done`, the parent auto-transitions to `Done`. When a subtask is added to or re-opened on a `Done` parent, the parent reverts to `In Progress`. These are system-initiated transitions that bypass normal validation.
+
+### Execution Independence
+
+Subtasks are eligible for execution regardless of their parent task's status. The hierarchy is for progress tracking, not execution gating.
+
 ## State Machine
 
 ```

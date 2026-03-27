@@ -50,9 +50,16 @@ RESULT=$(jq --arg target "$TARGET_STATUS" '
   (.branch // "") as $branch |
   (.agentOutput // "") as $agent_output |
   (.errorMessage // "") as $error_msg |
+  (.parentTaskId // null) as $parent_task_id |
+  (.hasChildren // false) as $has_children |
 
   # Collect errors and warnings
   [] as $errors | [] as $warnings |
+
+  # --- Hierarchy check (defense-in-depth) ---
+  (if $parent_task_id != null and $has_children == true
+   then $errors + [{"field":"Parent Task","rule":"hierarchy_2level","message":"This task has subtasks and cannot itself be a subtask (2-level limit)."}]
+   else $errors end) as $errors |
 
   # --- Common checks ---
   (if ($desc | length) == 0
