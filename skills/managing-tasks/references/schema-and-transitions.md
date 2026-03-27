@@ -50,6 +50,18 @@ Valid transitions:
 **When `Requires Review` is Off**, skip In Review and transition directly to Done.
 **When writing errors**, set Status to Blocked and write the error message in `Error Message` (not in Agent Output).
 
+### Auto-Cascading Transitions (Subtask Hierarchy)
+
+These transitions are system-initiated and bypass normal validation:
+
+| Trigger | Parent Transition | Condition |
+|---|---|---|
+| Subtask marked Done | Parent → **Done** (auto) | All subtasks of the parent have Status = Done |
+| Subtask added to Done parent | Parent → **In Progress** (auto) | New subtask created with parentTask pointing to a Done parent |
+| Subtask re-opened (Done → other) | Parent → **In Progress** (auto) | Parent's current Status is Done |
+
+Auto-cascading appends a log entry to the parent's Context field (e.g., `[Auto] Status set to Done — all subtasks completed`).
+
 ### Deterministic Validation (hard gate)
 
 Before executing any status transition, run the validation script:

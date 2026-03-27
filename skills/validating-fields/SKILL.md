@@ -115,3 +115,31 @@ AC text is scanned for at least one verifiable condition indicator:
 If none found -> error: "AC lacks verifiable conditions. Include commands, file paths, metrics, or observable outcomes."
 
 This is a heuristic backstop, not a perfect quality gate. It catches worst-case garbage but not subtle gaps.
+
+## Hierarchy Validation
+
+These checks apply when `parentTask` is being set or a subtask is being created. They are **separate from status-transition validation** and must be checked by the caller (managing-tasks) before writing to the data source.
+
+### Rule 1: No 3+ Level Nesting
+
+Before setting `parentTask` on task X to task Y, the caller MUST fetch task Y and verify that Y's own `parentTask` is null. If Y is already a subtask, reject with:
+
+> "Cannot create a 3rd-level subtask. Task '{Y.title}' is already a subtask of another task."
+
+### Rule 2: No Children on Subtasks
+
+Before setting `parentTask` on task X to task Y, the caller MUST query whether any tasks have `parentTask = X` (i.e., X already has children). If X has children, reject with:
+
+> "Task '{X.title}' already has subtasks. A task with subtasks cannot itself become a subtask (2-level limit)."
+
+This check is also enforced as a defense-in-depth in the validation script via the `hasChildren` field.
+
+### Rule 3: No Self-Reference
+
+A task cannot reference itself as its own parent. If `parentTask = X.id` on task X, reject with:
+
+> "A task cannot be its own parent."
+
+### Script-Level Defense (hasChildren)
+
+The validation script accepts an optional `hasChildren` boolean in the canonical input JSON. If `parentTaskId` is non-null and `hasChildren` is true, the script emits an error. This catches the case where a caller bypasses the managing-tasks pre-check.

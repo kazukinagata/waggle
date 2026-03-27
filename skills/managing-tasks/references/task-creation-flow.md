@@ -66,6 +66,38 @@ For tasks with Executor=cli where the target is a git repository:
 - If set, executing-tasks can create an isolated environment via `git worktree add`
 - If left blank, work proceeds on the current branch (not suitable for parallel execution)
 
+## Parent Task Selection
+
+When creating a task, optionally set a Parent Task to create a subtask:
+
+**Explicit subtask creation:** If the user says "create subtask of X", "add subtask to X", or "decompose X":
+1. Search for task X by title or ID using the active provider's query tools
+2. Before setting parentTask, run hierarchy validation (see `validating-fields` SKILL.md):
+   - Fetch the candidate parent and verify its `parentTask` is null (not itself a subtask)
+   - Verify the new task has no children (not applicable for new tasks, but required for existing tasks being re-parented)
+3. Set `parentTask` to the resolved parent's ID
+
+**During normal creation flow:** After gathering Context (step 4 below), if the user has not already specified a parent, ask:
+"Is this a subtask of an existing task? [No / Search for parent task]"
+- If "No" or skipped: proceed as normal
+- If searching: use provider query to find and set the parent, with hierarchy validation
+
+## Batch Subtask Creation (Decompose)
+
+When the user says "decompose task X", "break down X into subtasks", or similar:
+
+1. Fetch parent task X and verify it is not itself a subtask (hierarchy check)
+2. Use the multi-round questioning flow to gather subtask definitions
+3. For each subtask, inherit from parent where sensible:
+   - `Working Directory`: inherit from parent
+   - `Repository`: inherit from parent
+   - `Assignees`: inherit from parent
+   - `Priority`: inherit from parent (user can override per-subtask)
+   - `Tags`: inherit from parent
+   - `Executor`: ask per-subtask (different subtasks may need different executors)
+4. Create each subtask with `parentTask = X.id`
+5. After all subtasks are created, run status cascading check (if parent was Done, revert to In Progress)
+
 ## Task Creation Questioning Flow
 
 When creating a task, proactively gather the following through AskUserQuestion.

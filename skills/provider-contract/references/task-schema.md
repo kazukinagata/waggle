@@ -24,7 +24,19 @@ Every waggle-compatible task board MUST support these fields. Providers MUST aut
 | Error Message | rich_text | `errorMessage` | Written on failure only |
 | Issuer | person[] | `issuer` | Who created/initiated this task. Auto-populated. Write-once |
 
-## Extended Fields (9 fields — optional)
+## Hierarchy Fields (1 field — required for subtask support)
+
+| Field | Type | JSON Key | Description |
+|---|---|---|---|
+| Parent Task | relation | `parentTask` | Parent task ID. Creates a 2-level hierarchy (parent → subtask). |
+
+### Hierarchy Constraints
+
+- **2-level limit**: A task with a non-null `parentTask` (i.e., a subtask) MUST NOT have children of its own. Enforced at write time by validation.
+- **No circular references**: A task cannot be its own parent.
+- **Status cascading**: When all subtasks reach Done, the parent auto-transitions to Done. Adding or re-opening a subtask on a Done parent reverts it to In Progress. See managing-tasks for details.
+
+## Extended Fields (8 fields — optional)
 
 Providers MAY support these additional fields. Skills degrade gracefully if absent. Providers MUST NOT fail if these fields do not exist.
 
@@ -35,7 +47,6 @@ Providers MAY support these additional fields. Skills degrade gracefully if abse
 | Repository | url | `repository` | GitHub repository URL |
 | Due Date | date | `dueDate` | ISO 8601 format |
 | Tags | multi_select | `tags` | Free-form tags (array of strings) |
-| Parent Task | relation | `parentTask` | Parent task ID (subtask relationship) |
 | Project | text | `project` | Project grouping |
 | Team | text | `team` | Team assignment |
 | Assignees | person[] | `assignees` | Array of `{ id, name }` objects |

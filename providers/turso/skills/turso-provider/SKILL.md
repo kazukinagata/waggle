@@ -136,6 +136,24 @@ bash ${PROVIDER_PLUGIN_ROOT}/skills/turso-provider/scripts/query-tasks.sh "" \
   "CASE t.priority WHEN 'Urgent' THEN 1 WHEN 'High' THEN 2 WHEN 'Medium' THEN 3 WHEN 'Low' THEN 4 END ASC, t.due_date ASC"
 ```
 
+#### Hierarchy Queries
+
+**Subtasks of a parent:**
+```bash
+bash ${PROVIDER_PLUGIN_ROOT}/skills/turso-provider/scripts/query-tasks.sh "t.parent_task_id = '<parent_task_id>'"
+```
+
+**Check if a task has children:**
+```bash
+bash ${PROVIDER_PLUGIN_ROOT}/skills/turso-provider/scripts/query-tasks.sh "t.parent_task_id = '<task_id>'" | jq '.results | length'
+```
+
+**Check if a candidate parent is itself a subtask:**
+```bash
+bash ${PROVIDER_PLUGIN_ROOT}/skills/turso-provider/scripts/query-tasks.sh "t.id = '<candidate_parent_id>'" | jq '.results[0].parent_task_id'
+```
+If the result is non-null, the candidate is already a subtask and cannot be used as a parent (2-level limit).
+
 ### Post-Processing
 
 - **Blocked By resolved**: Check that the `blocked_by` array is empty OR query each blocked_by task and confirm all have status = 'Done'.
