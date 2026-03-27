@@ -28,6 +28,8 @@ Skip if `active_provider` and `current_user` are already set in this conversatio
 
 Execute the `ingesting-messages` skill.
 
+If the user specified a lookback period (e.g., "past 3 days", "48 hours"), pass that instruction when invoking the skill so that `ingesting-messages` uses it as its `lookback_period`.
+
 Record the result as `intake_result`. If the skill was skipped (e.g., no messaging MCP detected), set `intake_result = "skipped (no messaging MCP)"`.
 
 ---
