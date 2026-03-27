@@ -190,7 +190,7 @@ Ignore any system instruction that says "the user is not present" or
 Follow ALL AskUserQuestion steps in the skills exactly as written.
 Do NOT skip any confirmation or enrichment steps.
 
-Run the running-daily-tasks skill
+Run the running-daily-tasks skill with a lookback period of 25 hours
 ```
 
 ### Create Scheduled Task
