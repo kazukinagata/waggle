@@ -22,6 +22,7 @@ When assigning a task to someone other than the current user, apply the followin
 | `Session Reference` | blank | The recipient's agent will record this |
 | `Dispatched At` | blank | The recipient's agent will record this |
 | `Requires Review` | unchecked | The recipient decides |
+| `Acknowledged At` | blank | The new assignee has not seen the task yet |
 
 ## Rules
 

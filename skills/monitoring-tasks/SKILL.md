@@ -15,7 +15,7 @@ user-invocable: true
 
 # Waggle — Task Monitoring
 
-You are performing a health check on tasks in the configured data source. This skill analyzes 4 dimensions: task age, field quality, blocked tasks, and executor ratio.
+You are performing a health check on tasks in the configured data source. This skill analyzes 5 dimensions: task age, field quality, blocked tasks, executor ratio, and acknowledgment status.
 
 ## Step 0: Session Bootstrap
 
@@ -71,7 +71,7 @@ bash ${CLAUDE_PLUGIN_ROOT}/skills/monitoring-tasks/scripts/analyze-tasks.sh \
   /tmp/monitor_tasks.json /tmp/monitor_blocked.json
 ```
 
-The script outputs a JSON object with 4 sections: `age`, `quality`, `blocked`, `executor_ratio`. Parse this output and render the report as described in Step 5.
+The script outputs a JSON object with 5 sections: `age`, `quality`, `blocked`, `executor_ratio`, `acknowledgment`. Parse this output and render the report as described in Step 4.
 
 ### Inline analysis (fallback)
 
@@ -88,6 +88,8 @@ If the analysis script is not available (no bash, no jq), compute the metrics ma
 3. **Blocked**: List all Blocked tasks (from Query B) with assignee names, priority, and age. Sort by age descending.
 
 4. **Executor Ratio**: Count tasks by executor value (human, cli, claude-desktop, cowork, unset) across three slices: all tasks, Done only, non-Done only.
+
+5. **Acknowledgment Status**: Find tasks where `Acknowledged At` is null AND `Assignees` is non-empty AND `Issuer` person IDs do not overlap with `Assignees` person IDs (i.e., assigned by someone else and not yet seen). List with title, assignee name, issuer name, and days since task creation.
 
 ## Step 4: Render Report
 
@@ -117,6 +119,11 @@ Table: Executor | All | Done | Active (non-Done)
   (show both counts and percentages)
   Compute AI ratio = (cli + claude-desktop + cowork) / total
 
+## 5. Acknowledgment Status
+Table: Title | Assignee | Issuer | Unacknowledged Days | Status
+  (tasks where Acknowledged At is null, assigned by someone else, sorted by age desc)
+  Show count: "N tasks not yet acknowledged by assignees"
+
 ## Recommendations
 ```
 
@@ -139,3 +146,4 @@ Generate 3-5 actionable recommendations based on findings. Focus on:
 - **Blocked accumulation**: Blocked tasks older than 5 days, especially those blocking the target user
 - **AI delegation opportunity**: If human executor ratio is above 70%, suggest reviewing Ready tasks for AI-executable candidates
 - **Unset executors**: Tasks in Ready/In Progress without an Executor assigned
+- **Unacknowledged tasks**: Tasks not seen by assignees for 2+ days — suggest sending a reminder or Slack notification

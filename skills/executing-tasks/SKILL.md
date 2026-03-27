@@ -36,6 +36,7 @@ Subtasks are eligible for execution regardless of their parent task's status. Th
 ### Phase 1: Fetch & Concurrency Check
 
 1. Query Ready tasks using the active provider's "Querying Tasks" section:
+   - **Auto-Acknowledge**: After fetching, for each task where `Acknowledged At` exists in the schema and is null, update it to the current ISO 8601 timestamp (silent, no user prompt).
    - Filter: Status = "Ready" AND Executor in (eligible executor types) AND Assignees = `current_user.id`
      - `execution_environment = "cli"` → Executor in ("cli", "claude-desktop", "cowork")
      - `execution_environment = "claude-desktop"` → Executor in ("cli", "claude-desktop", "cowork")

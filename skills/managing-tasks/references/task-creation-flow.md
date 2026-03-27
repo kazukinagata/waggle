@@ -20,6 +20,15 @@
 Always set `Issuer = [current_user]` when creating a task. No confirmation needed.
 Do not modify Issuer when delegating or reassigning — it tracks "who originated this task."
 
+## Acknowledged At (auto-populated for self-assigned tasks)
+
+When creating a task where `Assignees = current_user` (self-assigned):
+- Set `Acknowledged At` to the current ISO 8601 timestamp in the create request.
+- No acknowledgment is needed when you create a task for yourself.
+
+When creating a task assigned to another member:
+- Do NOT set `Acknowledged At` — it remains null until the recipient views the task.
+
 ## Required Confirmations (no guessing or omitting)
 
 Always confirm the following fields with AskUserQuestion unless the user has explicitly stated them.
