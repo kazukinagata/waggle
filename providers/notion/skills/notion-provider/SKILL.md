@@ -111,12 +111,18 @@ This removes the page from views but retains it in Notion's trash (recoverable f
 | Assignees | people | `task_assignees` | Human executor assignment |
 | Branch | rich_text | `task_branch` | Git branch name (e.g. feature/task-slug). Leave blank to work on the current branch |
 | Source Message ID | rich_text | `task_source_message_id` | Messaging tool message unique ID (e.g. Slack `channel_id:ts`). Used for cross-member dedup |
+| Acknowledged At | date | `task_acknowledged_at` | Auto-set when assignee sees the task. Reset on delegation. |
 
 ### Auto-Repair DDL for Extended Fields
 
 If `Source Message ID` is missing and needed, repair with:
 ```
 ADD COLUMN "Source Message ID" RICH_TEXT
+```
+
+If `Acknowledged At` is missing and needed, repair with:
+```
+ADD COLUMN "Acknowledged At" DATE
 ```
 
 ## Intake Log Database
@@ -336,6 +342,7 @@ curl -s http://localhost:3456/api/health -o /dev/null 2>/dev/null && \
 | Parent Task | `parentTaskId` |
 | Assignees | `assignees` |
 | Issuer | `issuer` |
+| Acknowledged At | `acknowledgedAt` |
 | `url` (page URL) | `url` |
 | Sprint (relation) | `sprintId` / `sprintName` |
 | (not in Notion) | `complexityScore`, `backlogOrder` |

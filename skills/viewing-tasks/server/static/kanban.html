@@ -288,6 +288,8 @@
     .p-medium { color: var(--blue); background: rgba(10, 132, 255, 0.15); }
     .p-low    { color: var(--gray); background: rgba(152, 152, 157, 0.15); }
 
+    .badge.unack { background: rgba(255, 69, 58, 0.15); color: var(--red); font-size: 10px; }
+
     .avatars { display: flex; gap: 2px; }
 
     .avatar {
@@ -514,6 +516,7 @@
           <div class="card-title">${esc(t.title)}</div>
           <div class="card-meta">
             ${t.priority ? `<span class="prio-dot ${pc}"></span><span class="badge ${pc}">${esc(t.priority)}</span>` : ''}
+            ${!t.acknowledgedAt && t.assignees?.length ? '<span class="badge unack" title="Not yet seen by assignee">unseen</span>' : ''}
             <div class="avatars">${(t.assignees||[]).map(a=>`<div class="avatar" title="${esc(a.name)}">${initials(a.name)}</div>`).join('')}</div>
             ${t.dueDate ? `<span class="due${overdue?' overdue':''}">${t.dueDate}${overdue?' ⚠':''}</span>` : ''}
           </div>

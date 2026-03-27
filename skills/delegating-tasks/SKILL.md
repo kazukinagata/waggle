@@ -50,8 +50,9 @@ Apply the following field updates (other fields remain unchanged).
 **`Issuer` is preserved** (not modified) — it tracks the original task creator, not the current assignee.
 
 1. Set `Assignees` to `[recipient]`.
-2. Apply the field resets defined in `${CLAUDE_PLUGIN_ROOT}/skills/assigning-to-others/SKILL.md`.
-3. Append delegation history to `Context` (see format below).
+2. Apply the field resets defined in `${CLAUDE_PLUGIN_ROOT}/skills/assigning-to-others/SKILL.md` (this clears `Acknowledged At` among other fields).
+3. **Self-delegation exception**: If `recipient.id == current_user.id`, set `Acknowledged At` to the current ISO 8601 timestamp (no acknowledgment needed for self-assigned tasks).
+4. Append delegation history to `Context` (see format below).
 
 Append format for the `Context` field:
 ```
@@ -63,6 +64,27 @@ Delegated from @{current_user.name} to @{recipient.name} on {YYYY-MM-DD}
 ## Step 5: Push to View Server
 
 After updating the task, push fresh data to the view server as described in the active provider's SKILL.md (Pushing Data to View Server section).
+
+## Step 5b: Opt-in Slack Notification
+
+After pushing to the view server, offer to notify the recipient via Slack DM.
+
+**Skip this step if**: the recipient is the current user (self-delegation).
+
+1. Use AskUserQuestion: "Send a Slack DM to @{recipient.name} about this delegation? [Yes / No]"
+2. If **No** (or equivalent): skip to Step 6.
+3. If **Yes**:
+   a. Check that Slack MCP tools are available (`slack_send_message`, `slack_search_users`).
+      - If not available: inform "Slack MCP is not configured. Skipping notification." and proceed to Step 6.
+   b. Resolve the recipient's Slack user ID using `slack_search_users` with the recipient's name or email.
+      - If no match found: inform "Could not find {recipient.name} on Slack. Skipping notification." and proceed to Step 6.
+   c. Send a DM via `slack_send_message`:
+      ```
+      You've been assigned a task: "{task title}"
+      Priority: {priority}
+      From: @{current_user.name}
+      ```
+   d. Report: "Slack notification sent to @{recipient.name}."
 
 ## Step 6: Completion Message
 

@@ -102,6 +102,10 @@ After updating task T's status:
 
 These auto-transitions are system-initiated and bypass normal validation (no user confirmation needed).
 
+## Auto-Acknowledge on Task Interaction
+
+When the user updates a specific task (status change, field edit, etc.) and the task's `Assignees` includes `current_user.id`: if `Acknowledged At` exists in the schema and is null, set it to the current ISO 8601 timestamp as part of the update. Silent operation — no user prompt.
+
 ## After Any Task Operation
 
 After creating, updating, or deleting tasks, push fresh data to the view server as described in the active provider's SKILL.md (Pushing Data to View Server section).
@@ -113,6 +117,10 @@ When the user asks "my tasks", "assigned to me", "show my tasks", or similar:
 ### Step 1: Fetch My Tasks
 
 Use the active provider SKILL.md's "Querying Tasks" section to fetch tasks filtered by Assignee = `current_user.id`. The provider determines the optimal query path.
+
+### Step 1b: Auto-Acknowledge
+
+After fetching, check each returned task: if the `Acknowledged At` field exists in the schema and is null/empty, update the task to set `Acknowledged At` to the current ISO 8601 timestamp. This is a silent background operation — do not prompt the user. Batch multiple updates if possible.
 
 ### Step 2: Display by Status Group
 

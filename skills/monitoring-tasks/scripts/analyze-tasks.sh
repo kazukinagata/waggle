@@ -11,7 +11,7 @@
 #   blocked_json     — Path to JSON file with all Blocked tasks {"results": [...]}
 #
 # Output:
-#   JSON object with sections: target, generated_at, age, quality, blocked, executor_ratio
+#   JSON object with sections: target, generated_at, age, quality, blocked, executor_ratio, acknowledgment
 
 set -euo pipefail
 
@@ -57,7 +57,10 @@ def extract_task:
     has_agent_output: ((.properties["Agent Output"].rich_text | length) > 0),
     has_assignees: ((.properties.Assignees.people | length) > 0),
     has_executor: ((.properties.Executor.select.name // null) != null),
-    has_issuer: ((.properties.Issuer.people // [] | length) > 0)
+    has_issuer: ((.properties.Issuer.people // [] | length) > 0),
+    has_acknowledged_at: ((.properties["Acknowledged At"].date.start // null) != null),
+    issuer_ids: [.properties.Issuer.people[]? | .id],
+    assignee_ids: [.properties.Assignees.people[]? | .id]
   };
 
 # Helper: compute age in days from ISO timestamp (handles .000Z milliseconds)
@@ -170,6 +173,25 @@ def executor_counts:
     unset: map(select(.executor == "N/A")) | length
   };
 
+# === Dimension 5: Acknowledgment Status ===
+# Tasks assigned by someone else that have not been acknowledged
+($tasks_aged
+  | map(select(
+      (.has_acknowledged_at | not) and
+      (.has_assignees) and
+      (.status != "Done") and
+      ((.issuer_ids | length) > 0) and
+      ((.assignee_ids - .issuer_ids) | length) > 0
+    ))
+  | sort_by(-.age_days)
+  | map({
+      title: .title,
+      assignees: (.assignees | join(", ")),
+      status: .status,
+      age_days: .age_days
+    })
+) as $unacknowledged |
+
 {
   target: { mode: $mode, id: $target_id, name: $target_name },
   generated_at: (now | strftime("%Y-%m-%dT%H:%M:%SZ")),
@@ -187,6 +209,10 @@ def executor_counts:
     all: ($tasks_aged | executor_counts),
     done: ($tasks_aged | map(select(.status == "Done")) | executor_counts),
     non_done: ($tasks_aged | map(select(.status != "Done")) | executor_counts)
+  },
+  acknowledgment: {
+    unacknowledged_count: ($unacknowledged | length),
+    unacknowledged_tasks: $unacknowledged
   }
 }
 '
