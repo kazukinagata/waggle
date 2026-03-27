@@ -33,6 +33,13 @@ To run automatically every morning via Claude Desktop:
 Load `${CLAUDE_PLUGIN_ROOT}/skills/bootstrap-session/SKILL.md` and follow its instructions.
 Skip if `active_provider` and `current_user` are already set in this conversation.
 
+### Lookback Period
+
+Determine how far back to fetch messages:
+
+- If the user specified a lookback period (e.g., "past 3 days", "48 hours", "since Monday"), set `lookback_period` to that value.
+- Default: `lookback_period = "24 hours"`
+
 ### Messaging MCP Auto-Detection
 
 Inspect available MCP tools and determine which messaging tool to use:
@@ -74,11 +81,11 @@ Load custom intake instructions if configured:
 
 ## Step 1: Fetch Unprocessed Messages
 
-Use the detected Messaging MCP to retrieve all messages from the past 24 hours addressed to `current_user` via a multi-query strategy:
+Use the detected Messaging MCP to retrieve all messages from the past `{lookback_period}` addressed to `current_user` via a multi-query strategy:
 
 ### 1a. Search Intent (platform-agnostic)
 
-Retrieve every message from the past 24 hours that is directed at or contextually relevant to `current_user`:
+Retrieve every message from the past `{lookback_period}` that is directed at or contextually relevant to `current_user`:
 1. **DMs**: Direct messages sent to self
 2. **Channel mentions**: Messages in channels/groups that @-mention `current_user`
 3. **Thread participant replies**: New replies in threads where `current_user` has participated (started or replied), even if no @-mention is present
@@ -88,7 +95,7 @@ Retrieve every message from the past 24 hours that is directed at or contextuall
 - **Query 1 (DMs)**: Search with `to:me`
 - **Query 2 (Channel mentions)**: Search for messages containing `<@USER_ID>` (the `current_user`'s Slack user ID). Exclude own messages. Search scope must include both public and private channels the user is a member of. If the MCP tool has a channel-type filter, ensure `private` / `mpim` / `im` types are included alongside `public_channel`.
 - **Query 3 (Thread participant replies)**:
-  1. From Query 1, Query 2, and a `from:me` search (past 24h), collect all `thread_ts` values of threads `current_user` participates in
+  1. From Query 1, Query 2, and a `from:me` search (past `{lookback_period}`), collect all `thread_ts` values of threads `current_user` participates in
   2. Fetch replies for each thread
   3. Exclude own messages and already-processed messages
   4. If the MCP does not support thread-level queries, skip Query 3 and note it in the summary
