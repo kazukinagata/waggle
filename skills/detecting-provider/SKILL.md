@@ -22,22 +22,18 @@ Check `<available_skills>` in the system prompt for skill names matching:
 - `sqlite-provider` → `active_provider = "sqlite"`
 - `turso-provider` → `active_provider = "turso"`
 
-Extract the `<location>` field for the matched skill:
-- `provider_skill_path = {location}/SKILL.md`
-- `provider_plugin_root` = derive from `{location}` by going up 2 directory levels (from `skills/{provider}-provider/` to plugin root)
-
 If 0 matches → Step 3 (no provider).
 If 2+ matches → Step 4 (conflict resolution).
 Otherwise → skip to Step 5.
 
 ## Step 2B: Plugin Discovery — CLI / Desktop
 
-Read `~/.claude/plugins/installed_plugins.json` (via Bash: `cat ~/.claude/plugins/installed_plugins.json 2>/dev/null`):
-- Find keys matching the pattern `waggle-notion@*`, `waggle-sqlite@*`, or `waggle-turso@*`
-- Extract `active_provider` from the key name (e.g., `waggle-notion@xxx` → `notion`)
-- Extract `installPath` from the matching entry
-- Set `provider_plugin_root = installPath`
-- Set `provider_skill_path = {installPath}/skills/{active_provider}-provider/SKILL.md`
+Read `~/.claude/plugins/installed_plugins.json` (via Bash: `cat ~/.claude/plugins/installed_plugins.json 2>/dev/null`) and find keys matching `waggle-notion@*`, `waggle-sqlite@*`, or `waggle-turso@*`:
+- `waggle-notion` → `active_provider = "notion"`
+- `waggle-sqlite` → `active_provider = "sqlite"`
+- `waggle-turso` → `active_provider = "turso"`
+
+Do NOT extract `installPath` or derive path variables — path resolution is handled by the Skill tool in Step 6.
 
 If the file does not exist or no matches found → Step 3 (no provider).
 If 2+ matches → Step 4 (conflict resolution).
@@ -65,13 +61,15 @@ Before loading the provider:
 
 ## Step 6: Load Provider SKILL.md
 
-Set `PROVIDER_PLUGIN_ROOT`:
-- Run: `export PROVIDER_PLUGIN_ROOT="{provider_plugin_root}"`
+Load the provider skill using the Skill tool:
+- Notion: `waggle-notion:notion-provider`
+- SQLite: `waggle-sqlite:sqlite-provider`
+- Turso: `waggle-turso:turso-provider`
 
-Read the provider SKILL.md:
-- `{provider_skill_path}`
+**REQUIRED — Load this skill now via the Skill tool.**
 
-**REQUIRED — Read this file now.**
+**Version skew detection:** After loading, if the provider SKILL.md content contains `PROVIDER_PLUGIN_ROOT`, warn the user:
+> "Your provider plugin uses the deprecated PROVIDER_PLUGIN_ROOT variable. Please update to the latest version."
 
 ## Step 7: Environment Detection
 

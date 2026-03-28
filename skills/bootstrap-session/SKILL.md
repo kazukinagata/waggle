@@ -17,16 +17,10 @@ Load `${CLAUDE_PLUGIN_ROOT}/skills/detecting-provider/SKILL.md` and follow its i
 
 This produces:
 - `active_provider` — the detected provider name (notion, sqlite, turso)
-- `provider_skill_path` — absolute path to the provider's SKILL.md
-- `provider_plugin_root` — root directory of the provider plugin
 - `execution_environment` — cli, claude-desktop, or cowork
 - `headless_config` — database IDs and constants from the provider
 
-## Step 2: Read Provider SKILL.md
-
-Read the provider SKILL.md at `provider_skill_path` if you have not already done so in this conversation. This file defines Query Path Detection, CRUD operations, and data formatting — all provider-specific operations depend on it.
-
-## Step 3: Identity Resolution
+## Step 2: Identity Resolution
 
 Load `${CLAUDE_PLUGIN_ROOT}/skills/resolving-identity/SKILL.md` and follow its instructions.
 
