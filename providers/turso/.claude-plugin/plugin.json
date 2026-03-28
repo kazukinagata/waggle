@@ -1,6 +1,6 @@
 {
   "name": "waggle-turso",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "description": "Turso provider for waggle. Remote SQLite for multi-agent coordination.",
   "author": { "name": "Kazuki Nagata" },
   "license": "MIT"
