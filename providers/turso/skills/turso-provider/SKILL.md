@@ -32,7 +32,7 @@ If `~/.waggle/config.json` is not found or missing Turso fields, instruct the us
 After loading config, verify tables exist:
 
 ```bash
-bash ${PROVIDER_PLUGIN_ROOT}/skills/turso-provider/scripts/turso-exec.sh \
+bash ${CLAUDE_PLUGIN_ROOT}/skills/turso-provider/scripts/turso-exec.sh \
   "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name;"
 ```
 
@@ -40,7 +40,7 @@ Expected tables: `intake_log`, `sprints`, `task_dependencies`, `tasks`, `teams`.
 
 If any table is missing, run init:
 ```bash
-bash ${PROVIDER_PLUGIN_ROOT}/skills/turso-provider/scripts/init-db.sh
+bash ${CLAUDE_PLUGIN_ROOT}/skills/turso-provider/scripts/init-db.sh
 ```
 
 ## CRUD Operations
@@ -48,7 +48,7 @@ bash ${PROVIDER_PLUGIN_ROOT}/skills/turso-provider/scripts/init-db.sh
 ### Create Task
 
 ```bash
-bash ${PROVIDER_PLUGIN_ROOT}/skills/turso-provider/scripts/turso-exec.sh \
+bash ${CLAUDE_PLUGIN_ROOT}/skills/turso-provider/scripts/turso-exec.sh \
   "INSERT INTO tasks (title, description, acceptance_criteria, status, priority, executor, requires_review, execution_plan, working_directory, assignees) VALUES ('<title>', '<description>', '<criteria>', '<status>', '<priority>', '<executor>', <0|1>, '<plan>', '<dir>', '<assignees_json>') RETURNING id;"
 ```
 
@@ -57,21 +57,21 @@ bash ${PROVIDER_PLUGIN_ROOT}/skills/turso-provider/scripts/turso-exec.sh \
 ### Update Task
 
 ```bash
-bash ${PROVIDER_PLUGIN_ROOT}/skills/turso-provider/scripts/turso-exec.sh \
+bash ${CLAUDE_PLUGIN_ROOT}/skills/turso-provider/scripts/turso-exec.sh \
   "UPDATE tasks SET <field> = '<value>', updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now') WHERE id = '<task_id>';"
 ```
 
 ### Get Task
 
 ```bash
-bash ${PROVIDER_PLUGIN_ROOT}/skills/turso-provider/scripts/turso-exec.sh \
+bash ${CLAUDE_PLUGIN_ROOT}/skills/turso-provider/scripts/turso-exec.sh \
   "SELECT t.*, GROUP_CONCAT(td.blocked_by_id) as blocked_by_ids FROM tasks t LEFT JOIN task_dependencies td ON t.id = td.task_id WHERE t.id = '<task_id>' GROUP BY t.id;"
 ```
 
 ### Delete Task
 
 ```bash
-bash ${PROVIDER_PLUGIN_ROOT}/skills/turso-provider/scripts/turso-exec.sh \
+bash ${CLAUDE_PLUGIN_ROOT}/skills/turso-provider/scripts/turso-exec.sh \
   "DELETE FROM tasks WHERE id = '<task_id>';"
 ```
 
@@ -79,20 +79,20 @@ bash ${PROVIDER_PLUGIN_ROOT}/skills/turso-provider/scripts/turso-exec.sh \
 
 Add dependency:
 ```bash
-bash ${PROVIDER_PLUGIN_ROOT}/skills/turso-provider/scripts/turso-exec.sh \
+bash ${CLAUDE_PLUGIN_ROOT}/skills/turso-provider/scripts/turso-exec.sh \
   "INSERT OR IGNORE INTO task_dependencies (task_id, blocked_by_id) VALUES ('<task_id>', '<blocker_id>');"
 ```
 
 Remove dependency:
 ```bash
-bash ${PROVIDER_PLUGIN_ROOT}/skills/turso-provider/scripts/turso-exec.sh \
+bash ${CLAUDE_PLUGIN_ROOT}/skills/turso-provider/scripts/turso-exec.sh \
   "DELETE FROM task_dependencies WHERE task_id = '<task_id>' AND blocked_by_id = '<blocker_id>';"
 ```
 
 ## Querying Tasks
 
 ```bash
-bash ${PROVIDER_PLUGIN_ROOT}/skills/turso-provider/scripts/query-tasks.sh \
+bash ${CLAUDE_PLUGIN_ROOT}/skills/turso-provider/scripts/query-tasks.sh \
   '<where_clause>' '<order_clause>'
 ```
 
@@ -102,37 +102,37 @@ Note: Turso query-tasks.sh does NOT take a db_path argument (connection info com
 
 **All tasks (no filter):**
 ```bash
-bash ${PROVIDER_PLUGIN_ROOT}/skills/turso-provider/scripts/query-tasks.sh
+bash ${CLAUDE_PLUGIN_ROOT}/skills/turso-provider/scripts/query-tasks.sh
 ```
 
 **Ready tasks:**
 ```bash
-bash ${PROVIDER_PLUGIN_ROOT}/skills/turso-provider/scripts/query-tasks.sh "t.status = 'Ready'"
+bash ${CLAUDE_PLUGIN_ROOT}/skills/turso-provider/scripts/query-tasks.sh "t.status = 'Ready'"
 ```
 
 **Tasks by executor and status (single executor):**
 ```bash
-bash ${PROVIDER_PLUGIN_ROOT}/skills/turso-provider/scripts/query-tasks.sh "t.status = 'Ready' AND t.executor = 'cowork'"
+bash ${CLAUDE_PLUGIN_ROOT}/skills/turso-provider/scripts/query-tasks.sh "t.status = 'Ready' AND t.executor = 'cowork'"
 ```
 
 **Tasks by executor and status (multiple executors — for cli/claude-desktop environments):**
 ```bash
-bash ${PROVIDER_PLUGIN_ROOT}/skills/turso-provider/scripts/query-tasks.sh "t.status = 'Ready' AND t.executor IN ('cli','claude-desktop','cowork')"
+bash ${CLAUDE_PLUGIN_ROOT}/skills/turso-provider/scripts/query-tasks.sh "t.status = 'Ready' AND t.executor IN ('cli','claude-desktop','cowork')"
 ```
 
 **Tasks assigned to current user:**
 ```bash
-bash ${PROVIDER_PLUGIN_ROOT}/skills/turso-provider/scripts/query-tasks.sh "t.assignees LIKE '%<user_id>%'"
+bash ${CLAUDE_PLUGIN_ROOT}/skills/turso-provider/scripts/query-tasks.sh "t.assignees LIKE '%<user_id>%'"
 ```
 
 **In Progress tasks (for concurrency check):**
 ```bash
-bash ${PROVIDER_PLUGIN_ROOT}/skills/turso-provider/scripts/query-tasks.sh "t.status = 'In Progress' AND t.assignees LIKE '%<user_id>%'"
+bash ${CLAUDE_PLUGIN_ROOT}/skills/turso-provider/scripts/query-tasks.sh "t.status = 'In Progress' AND t.assignees LIKE '%<user_id>%'"
 ```
 
 **Sort by Priority then Due Date:**
 ```bash
-bash ${PROVIDER_PLUGIN_ROOT}/skills/turso-provider/scripts/query-tasks.sh "" \
+bash ${CLAUDE_PLUGIN_ROOT}/skills/turso-provider/scripts/query-tasks.sh "" \
   "CASE t.priority WHEN 'Urgent' THEN 1 WHEN 'High' THEN 2 WHEN 'Medium' THEN 3 WHEN 'Low' THEN 4 END ASC, t.due_date ASC"
 ```
 
@@ -140,17 +140,17 @@ bash ${PROVIDER_PLUGIN_ROOT}/skills/turso-provider/scripts/query-tasks.sh "" \
 
 **Subtasks of a parent:**
 ```bash
-bash ${PROVIDER_PLUGIN_ROOT}/skills/turso-provider/scripts/query-tasks.sh "t.parent_task_id = '<parent_task_id>'"
+bash ${CLAUDE_PLUGIN_ROOT}/skills/turso-provider/scripts/query-tasks.sh "t.parent_task_id = '<parent_task_id>'"
 ```
 
 **Check if a task has children:**
 ```bash
-bash ${PROVIDER_PLUGIN_ROOT}/skills/turso-provider/scripts/query-tasks.sh "t.parent_task_id = '<task_id>'" | jq '.results | length'
+bash ${CLAUDE_PLUGIN_ROOT}/skills/turso-provider/scripts/query-tasks.sh "t.parent_task_id = '<task_id>'" | jq '.results | length'
 ```
 
 **Check if a candidate parent is itself a subtask:**
 ```bash
-bash ${PROVIDER_PLUGIN_ROOT}/skills/turso-provider/scripts/query-tasks.sh "t.id = '<candidate_parent_id>'" | jq '.results[0].parent_task_id'
+bash ${CLAUDE_PLUGIN_ROOT}/skills/turso-provider/scripts/query-tasks.sh "t.id = '<candidate_parent_id>'" | jq '.results[0].parent_task_id'
 ```
 If the result is non-null, the candidate is already a subtask and cannot be used as a parent (2-level limit).
 
@@ -162,11 +162,11 @@ If the result is non-null, the candidate is already a subtask and cannot be used
 ## Task Record Reference
 
 - **Task ID**: the hex string ID from the `id` column
-- **Update instruction**: "Run: `bash ${PROVIDER_PLUGIN_ROOT}/skills/turso-provider/scripts/turso-exec.sh \"UPDATE tasks SET agent_output = '<result>', status = 'Done', updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now') WHERE id = '<task_id>';\"`"
+- **Update instruction**: "Run: `bash ${CLAUDE_PLUGIN_ROOT}/skills/turso-provider/scripts/turso-exec.sh \"UPDATE tasks SET agent_output = '<result>', status = 'Done', updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now') WHERE id = '<task_id>';\"`"
 
 ## On Completion Template
 
-The following template is injected into dispatch prompts by `executing-tasks`. Placeholders are resolved at dispatch time. `<absolute_path_to_turso_exec_sh>` is resolved to the absolute path of `${PROVIDER_PLUGIN_ROOT}/skills/turso-provider/scripts/turso-exec.sh` at dispatch generation time.
+The following template is injected into dispatch prompts by `executing-tasks`. Placeholders are resolved at dispatch time. `<absolute_path_to_turso_exec_sh>` is resolved to the absolute path of `${CLAUDE_PLUGIN_ROOT}/skills/turso-provider/scripts/turso-exec.sh` at dispatch generation time.
 
 ```
 Task ID: <task_id>
@@ -181,7 +181,7 @@ On completion:
 ## Pushing Data to View Server
 
 ```bash
-TASKS_JSON=$(bash ${PROVIDER_PLUGIN_ROOT}/skills/turso-provider/scripts/query-tasks.sh | jq -c '{tasks: [.results[] | {
+TASKS_JSON=$(bash ${CLAUDE_PLUGIN_ROOT}/skills/turso-provider/scripts/query-tasks.sh | jq -c '{tasks: [.results[] | {
   id, title, description, acceptanceCriteria: .acceptance_criteria, status, blockedBy: .blocked_by,
   priority, executor, requiresReview: .requires_review, executionPlan: .execution_plan,
   workingDirectory: .working_directory, sessionReference: .session_reference,
@@ -240,7 +240,7 @@ Turso is remote but has no user system. Set:
 ## Identity: Resolve Team Membership
 
 If teams table has rows:
-1. Query: `bash ${PROVIDER_PLUGIN_ROOT}/skills/turso-provider/scripts/turso-exec.sh "SELECT * FROM teams;"`
+1. Query: `bash ${CLAUDE_PLUGIN_ROOT}/skills/turso-provider/scripts/turso-exec.sh "SELECT * FROM teams;"`
 2. Parse members JSON array for each team
 3. Match by name (case-insensitive) against `current_user.name`
 4. Set `current_user.teams` and `current_team` per the same logic as other providers

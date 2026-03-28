@@ -67,7 +67,7 @@ The Intake Log is a Notion database (`Intake Log`) that tracks which messages ha
      | Tool Name | select | `slack` / `teams` / `discord` |
      | Processed At | date | Processing timestamp |
    - Write the new database ID back to the config page as `intakeLogDatabaseId`.
-3. Load `processed_message_ids`: query `intakeLogDatabaseId` via `notion-search` and collect all existing Message ID values.
+3. Load `processed_message_ids`: query `intakeLogDatabaseId` using the provider's "Querying Any Notion Database" flow and collect all existing Message ID values.
 4. **FIFO cleanup**: If the Intake Log has more than 1000 entries, delete the oldest records (by Processed At) until the count is at or below 1000.
 
 ### Custom Intake Source Loading

@@ -63,7 +63,7 @@ On completion, perform the following:
 3. If the update script fails, ignore the error and complete execution
 ```
 
-Note: The script paths above are absolute paths resolved at dispatch time. The SKILL.md would use `${PROVIDER_PLUGIN_ROOT}` as a placeholder, and waggle core resolves it to the actual path before injecting into the dispatch prompt.
+Note: The script paths above are absolute paths resolved at dispatch time. The SKILL.md uses `${CLAUDE_PLUGIN_ROOT}` which is automatically resolved to absolute paths when the provider SKILL.md is loaded via the Skill tool.
 
 ## Writing Your On Completion Template
 
@@ -71,4 +71,4 @@ In your provider SKILL.md, write the template with `<page-id>` or `<task-id>` as
 
 If your provider uses MCP tools (like Notion), reference the tool name directly — MCP tools are available to dispatched agents.
 
-If your provider uses scripts, reference them with `${PROVIDER_PLUGIN_ROOT}` in the SKILL.md. Waggle core resolves this to the absolute path at dispatch time. The scripts themselves MUST use the `SCRIPT_DIR` pattern internally, not `${PROVIDER_PLUGIN_ROOT}`.
+If your provider uses scripts, reference them with `${CLAUDE_PLUGIN_ROOT}` in the SKILL.md. The Skill tool automatically resolves this to the absolute path when the SKILL.md is loaded. The scripts themselves MUST use the `SCRIPT_DIR` pattern internally, not `${CLAUDE_PLUGIN_ROOT}`.

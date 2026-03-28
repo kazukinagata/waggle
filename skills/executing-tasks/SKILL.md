@@ -140,13 +140,13 @@ See `dispatch-prompt.md` in this directory.
 
 When generating the dispatch prompt for each task, replace the `<ON_COMPLETION_BLOCK>` placeholder with the active provider's On Completion Template:
 
-1. Read the "On Completion Template" section from the provider SKILL.md (from detecting-provider's `provider_skill_path`)
+1. Read the "On Completion Template" section from the provider SKILL.md (already loaded in conversation context)
 2. Replace placeholders in the template with actual values:
    - `<task_id>` → the actual task page ID / row ID
    - `<db_path>` → the actual database path (SQLite/Turso providers)
-   - `<absolute_path_to_turso_exec_sh>` → resolved absolute path of `${PROVIDER_PLUGIN_ROOT}/skills/turso-provider/scripts/turso-exec.sh` (Turso provider only)
+   - `<absolute_path_to_turso_exec_sh>` → resolved absolute path of `${CLAUDE_PLUGIN_ROOT}/skills/turso-provider/scripts/turso-exec.sh` (Turso provider only)
 3. Inject the rendered block into the dispatch prompt, replacing `<ON_COMPLETION_BLOCK>`
-4. **All paths MUST be absolute** — no `${CLAUDE_PLUGIN_ROOT}` or `${PROVIDER_PLUGIN_ROOT}` should remain in the final dispatch prompt
+4. **All paths MUST be absolute** — no `${CLAUDE_PLUGIN_ROOT}` should remain in the final dispatch prompt
 
 ## Fallback: Sequential Execution
 

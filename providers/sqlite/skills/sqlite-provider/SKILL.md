@@ -34,7 +34,7 @@ Expected tables: `tasks`, `task_dependencies`, `teams`, `sprints`, `intake_log`.
 If any table is missing, run the init script to auto-repair:
 
 ```bash
-bash ${PROVIDER_PLUGIN_ROOT}/skills/sqlite-provider/scripts/init-db.sh "<dbPath>"
+bash ${CLAUDE_PLUGIN_ROOT}/skills/sqlite-provider/scripts/init-db.sh "<dbPath>"
 ```
 
 ## CRUD Operations
@@ -94,7 +94,7 @@ sqlite3 "<dbPath>" "DELETE FROM task_dependencies WHERE task_id = '<task_id>' AN
 Use the query script for filtered queries with JSON output:
 
 ```bash
-bash ${PROVIDER_PLUGIN_ROOT}/skills/sqlite-provider/scripts/query-tasks.sh \
+bash ${CLAUDE_PLUGIN_ROOT}/skills/sqlite-provider/scripts/query-tasks.sh \
   "<dbPath>" '<where_clause>' '<order_clause>'
 ```
 
@@ -102,37 +102,37 @@ bash ${PROVIDER_PLUGIN_ROOT}/skills/sqlite-provider/scripts/query-tasks.sh \
 
 **All tasks (no filter):**
 ```bash
-bash ${PROVIDER_PLUGIN_ROOT}/skills/sqlite-provider/scripts/query-tasks.sh "<dbPath>"
+bash ${CLAUDE_PLUGIN_ROOT}/skills/sqlite-provider/scripts/query-tasks.sh "<dbPath>"
 ```
 
 **Ready tasks:**
 ```bash
-bash ${PROVIDER_PLUGIN_ROOT}/skills/sqlite-provider/scripts/query-tasks.sh "<dbPath>" "t.status = 'Ready'"
+bash ${CLAUDE_PLUGIN_ROOT}/skills/sqlite-provider/scripts/query-tasks.sh "<dbPath>" "t.status = 'Ready'"
 ```
 
 **Tasks by executor and status (single executor):**
 ```bash
-bash ${PROVIDER_PLUGIN_ROOT}/skills/sqlite-provider/scripts/query-tasks.sh "<dbPath>" "t.status = 'Ready' AND t.executor = 'cowork'"
+bash ${CLAUDE_PLUGIN_ROOT}/skills/sqlite-provider/scripts/query-tasks.sh "<dbPath>" "t.status = 'Ready' AND t.executor = 'cowork'"
 ```
 
 **Tasks by executor and status (multiple executors — for cli/claude-desktop environments):**
 ```bash
-bash ${PROVIDER_PLUGIN_ROOT}/skills/sqlite-provider/scripts/query-tasks.sh "<dbPath>" "t.status = 'Ready' AND t.executor IN ('cli','claude-desktop','cowork')"
+bash ${CLAUDE_PLUGIN_ROOT}/skills/sqlite-provider/scripts/query-tasks.sh "<dbPath>" "t.status = 'Ready' AND t.executor IN ('cli','claude-desktop','cowork')"
 ```
 
 **Tasks assigned to current user:**
 ```bash
-bash ${PROVIDER_PLUGIN_ROOT}/skills/sqlite-provider/scripts/query-tasks.sh "<dbPath>" "t.assignees LIKE '%<user_id>%'"
+bash ${CLAUDE_PLUGIN_ROOT}/skills/sqlite-provider/scripts/query-tasks.sh "<dbPath>" "t.assignees LIKE '%<user_id>%'"
 ```
 
 **In Progress tasks (for concurrency check):**
 ```bash
-bash ${PROVIDER_PLUGIN_ROOT}/skills/sqlite-provider/scripts/query-tasks.sh "<dbPath>" "t.status = 'In Progress' AND t.assignees LIKE '%<user_id>%'"
+bash ${CLAUDE_PLUGIN_ROOT}/skills/sqlite-provider/scripts/query-tasks.sh "<dbPath>" "t.status = 'In Progress' AND t.assignees LIKE '%<user_id>%'"
 ```
 
 **Sort by Priority then Due Date:**
 ```bash
-bash ${PROVIDER_PLUGIN_ROOT}/skills/sqlite-provider/scripts/query-tasks.sh "<dbPath>" "" \
+bash ${CLAUDE_PLUGIN_ROOT}/skills/sqlite-provider/scripts/query-tasks.sh "<dbPath>" "" \
   "CASE t.priority WHEN 'Urgent' THEN 1 WHEN 'High' THEN 2 WHEN 'Medium' THEN 3 WHEN 'Low' THEN 4 END ASC, t.due_date ASC"
 ```
 
@@ -140,17 +140,17 @@ bash ${PROVIDER_PLUGIN_ROOT}/skills/sqlite-provider/scripts/query-tasks.sh "<dbP
 
 **Subtasks of a parent:**
 ```bash
-bash ${PROVIDER_PLUGIN_ROOT}/skills/sqlite-provider/scripts/query-tasks.sh "<dbPath>" "t.parent_task_id = '<parent_task_id>'"
+bash ${CLAUDE_PLUGIN_ROOT}/skills/sqlite-provider/scripts/query-tasks.sh "<dbPath>" "t.parent_task_id = '<parent_task_id>'"
 ```
 
 **Check if a task has children:**
 ```bash
-bash ${PROVIDER_PLUGIN_ROOT}/skills/sqlite-provider/scripts/query-tasks.sh "<dbPath>" "t.parent_task_id = '<task_id>'" | jq '.results | length'
+bash ${CLAUDE_PLUGIN_ROOT}/skills/sqlite-provider/scripts/query-tasks.sh "<dbPath>" "t.parent_task_id = '<task_id>'" | jq '.results | length'
 ```
 
 **Check if a candidate parent is itself a subtask:**
 ```bash
-bash ${PROVIDER_PLUGIN_ROOT}/skills/sqlite-provider/scripts/query-tasks.sh "<dbPath>" "t.id = '<candidate_parent_id>'" | jq '.results[0].parent_task_id'
+bash ${CLAUDE_PLUGIN_ROOT}/skills/sqlite-provider/scripts/query-tasks.sh "<dbPath>" "t.id = '<candidate_parent_id>'" | jq '.results[0].parent_task_id'
 ```
 If the result is non-null, the candidate is already a subtask and cannot be used as a parent (2-level limit).
 
@@ -162,7 +162,7 @@ If the result is non-null, the candidate is already a subtask and cannot be used
 ### Displaying Task Lists
 
 ```bash
-bash ${PROVIDER_PLUGIN_ROOT}/skills/sqlite-provider/scripts/query-tasks.sh "<dbPath>" '<where>' '<order>' | \
+bash ${CLAUDE_PLUGIN_ROOT}/skills/sqlite-provider/scripts/query-tasks.sh "<dbPath>" '<where>' '<order>' | \
   jq '[.results[] | {id, title, status, priority, executor, assignees, due_date, blocked_by: (.blocked_by | length | tostring) + " deps"}]'
 ```
 
@@ -192,12 +192,12 @@ After any task operation (create, update, delete), push fresh data to the local 
 
 1. Fetch all tasks:
 ```bash
-bash ${PROVIDER_PLUGIN_ROOT}/skills/sqlite-provider/scripts/query-tasks.sh "<dbPath>"
+bash ${CLAUDE_PLUGIN_ROOT}/skills/sqlite-provider/scripts/query-tasks.sh "<dbPath>"
 ```
 
 2. Format as TasksResponse and POST:
 ```bash
-TASKS_JSON=$(bash ${PROVIDER_PLUGIN_ROOT}/skills/sqlite-provider/scripts/query-tasks.sh "<dbPath>" | jq -c '{tasks: [.results[] | {
+TASKS_JSON=$(bash ${CLAUDE_PLUGIN_ROOT}/skills/sqlite-provider/scripts/query-tasks.sh "<dbPath>" | jq -c '{tasks: [.results[] | {
   id, title, description, acceptanceCriteria: .acceptance_criteria, status, blockedBy: .blocked_by,
   priority, executor, requiresReview: .requires_review, executionPlan: .execution_plan,
   workingDirectory: .working_directory, sessionReference: .session_reference,

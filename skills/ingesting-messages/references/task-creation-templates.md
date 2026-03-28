@@ -4,7 +4,7 @@
 
 Before creating each task:
 1. Generate `source_message_id` from the message unique ID (Slack: `channel_id:ts`)
-2. Query the Tasks DB via `notion-search` for existing tasks with the same `Source Message ID`
+2. Query the Tasks DB using the provider's "Querying Any Notion Database" flow with a filter for `Source Message ID` matching the current message's ID
 3. If a matching task exists: skip the message and count it as `Skipped (already exists as task)`
 4. If no match: include `Source Message ID` in the created task's fields
 

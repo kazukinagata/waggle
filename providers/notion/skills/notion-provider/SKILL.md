@@ -161,7 +161,7 @@ Use the first available query path. The detection order depends on `execution_en
 Call the query script for server-side filtering:
 
 ```bash
-bash ${PROVIDER_PLUGIN_ROOT}/skills/notion-provider/scripts/query-tasks.sh \
+bash ${CLAUDE_PLUGIN_ROOT}/skills/notion-provider/scripts/query-tasks.sh \
   "<tasksDatabaseId>" '<filter_json>' '<sort_json>'
 ```
 
@@ -233,6 +233,9 @@ Returns `{"results": [...]}` in the same Notion API format as Path 1.
 
 ### Path 2: MCP Fallback (no token)
 
+⚠️ **Before using this path, warn the user:**
+> "NOTION_TOKEN is not set. Falling back to MCP (notion-search + notion-fetch). Server-side filtering is unavailable, which may cause some tasks to be missed. For accurate results, set NOTION_TOKEN in ~/.claude/settings.json env."
+
 Use `notion-search` with `data_source_url` to find task pages, then `notion-fetch` each page individually to get properties. Filter client-side by checking property values.
 
 This is the slower path — use only when Path 1 is unavailable.
@@ -247,7 +250,7 @@ This is the slower path — use only when Path 1 is unavailable.
 When displaying queried tasks to the user in list or table format, extract only display-relevant fields to prevent output truncation:
 
 ```bash
-bash ${PROVIDER_PLUGIN_ROOT}/skills/notion-provider/scripts/query-tasks.sh \
+bash ${CLAUDE_PLUGIN_ROOT}/skills/notion-provider/scripts/query-tasks.sh \
   "<tasksDatabaseId>" '<filter_json>' '<sort_json>' | \
   jq '[.results[] | {
     id: .id,
@@ -267,10 +270,24 @@ For single-task detail views (update, status change), use the full page object.
 
 To retrieve all tasks (e.g. for view server data push), use the detected query path with no filter:
 
-- **Path 1**: `bash ${PROVIDER_PLUGIN_ROOT}/skills/notion-provider/scripts/query-tasks.sh "<tasksDatabaseId>"` (no filter/sort args)
+- **Path 1**: `bash ${CLAUDE_PLUGIN_ROOT}/skills/notion-provider/scripts/query-tasks.sh "<tasksDatabaseId>"` (no filter/sort args)
 - **Path 2**: `notion-search` with `data_source_url` + `notion-fetch` per page
 
 No post-processing needed (no Blocked By filter, no sort required).
+
+## Querying Any Notion Database
+
+When querying ANY Notion database (not just the Tasks DB — e.g., Intake Log, external databases), use the first available query path:
+
+1. **NOTION_TOKEN set** → Use the query script:
+   ```bash
+   bash ${CLAUDE_PLUGIN_ROOT}/skills/notion-provider/scripts/query-tasks.sh \
+     "<database_id>" '<filter_json>' '<sort_json>'
+   ```
+
+2. **`mcp__notion-query__notion-query` available** → Use the MCP tool with the target database ID and filter
+
+3. **Otherwise** → ⚠️ Warn the user (same warning as Path 2), then use `notion-search` + `notion-fetch`
 
 ## Task Record Reference
 

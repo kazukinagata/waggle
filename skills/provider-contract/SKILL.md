@@ -20,7 +20,7 @@ Waggle core discovers provider skills differently depending on the runtime envir
 - **Cowork**: Provider skills appear in the `<available_skills>` system prompt block. Each skill is listed with `<name>`, `<description>`, and `<location>`.
 - **CLI / Claude Desktop**: Provider skills are registered via `installed_plugins.json`. The plugin's `.claude-plugin/plugin.json` declares the plugin metadata.
 
-In all environments, waggle core reads the provider SKILL.md via the Read tool and exports `PROVIDER_PLUGIN_ROOT` as an environment variable pointing to the provider plugin's root directory.
+In all environments, waggle core loads the provider SKILL.md via the Skill tool. `${CLAUDE_PLUGIN_ROOT}` in the provider SKILL.md is automatically resolved to the provider plugin's absolute path.
 
 ## Naming Conventions
 
@@ -162,10 +162,11 @@ Bash scripts in the provider plugin MUST follow these rules:
 
 2. MUST NOT use `${CLAUDE_PLUGIN_ROOT}` in bash scripts. This variable is only available in the SKILL.md instruction context, not in shell execution.
 
-3. SKILL.md instructions MUST reference scripts using `${PROVIDER_PLUGIN_ROOT}`:
+3. SKILL.md instructions MUST reference scripts using `${CLAUDE_PLUGIN_ROOT}`:
    ```
-   bash ${PROVIDER_PLUGIN_ROOT}/skills/{provider}-provider/scripts/query-tasks.sh ...
+   bash ${CLAUDE_PLUGIN_ROOT}/skills/{provider}-provider/scripts/query-tasks.sh ...
    ```
+   Provider SKILL.md is loaded via the Skill tool, which automatically resolves `${CLAUDE_PLUGIN_ROOT}` to the provider plugin's absolute path.
 
 4. Scripts that call other scripts within the plugin MUST use `SCRIPT_DIR`-relative paths:
    ```bash
@@ -219,7 +220,7 @@ Use this checklist to verify a provider plugin meets all requirements before rel
 ### Script Conventions
 - [ ] All bash scripts use `SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"` pattern
 - [ ] No `${CLAUDE_PLUGIN_ROOT}` in bash scripts
-- [ ] SKILL.md uses `${PROVIDER_PLUGIN_ROOT}` for script references
+- [ ] SKILL.md uses `${CLAUDE_PLUGIN_ROOT}` for script references
 
 ### Schema Support
 - [ ] All 15 Core fields supported with correct types
