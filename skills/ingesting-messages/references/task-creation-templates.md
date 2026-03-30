@@ -32,7 +32,7 @@ Before creating each task:
    - Execution Plan: `"1. Contact {requester_name} via {tool_name}\n2. Ask about: {question_summary}\n3. Record response in Agent Output\n4. Update Status to Done"`
 2. Create the main task:
    - Status: `Blocked`
-   - Blocked By: `[blocker_task_id]`
+   - Blocked By: `[blocker_task_id]` *(relation field — set via `update-relations.sh` after task creation, not in `notion-create-pages` properties)*
    - Executor: Determine from message content — if the required action (after hearing) is clearly code/research/docs, infer executor (cli or cowork based on execution_environment). If unclear or requires human judgment → `human` (default, re-evaluated when unblocked).
    - Assignees: `[current_user]`
    - Acceptance Criteria: Derive from message content. Fallback: `"[DRAFT — update after hearing] Determine required action from {requester_name}'s response and complete it."`
