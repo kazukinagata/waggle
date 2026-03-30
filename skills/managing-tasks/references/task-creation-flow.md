@@ -86,6 +86,8 @@ When creating a task, optionally set a Parent Task to create a subtask:
    - Verify the new task has no children (not applicable for new tasks, but required for existing tasks being re-parented)
 3. Set `parentTask` to the resolved parent's ID
 
+> **Important (Notion provider)**: `notion-create-pages` cannot set relation properties. After creating the task, set the Parent Task relation using `update-relations.sh` as a second step. See notion-provider SKILL.md "Updating Relation Fields".
+
 **During normal creation flow:** After gathering Context (step 4 below), if the user has not already specified a parent, ask:
 "Is this a subtask of an existing task? [No / Search for parent task]"
 - If "No" or skipped: proceed as normal

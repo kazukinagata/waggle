@@ -1,6 +1,6 @@
 {
   "name": "waggle",
-  "version": "1.9.0",
+  "version": "1.10.0",
   "description": "An async task coordination protocol for autonomous AI agents. Agents discover, claim, execute, and hand off tasks through a shared board.",
   "author": {
     "name": "Kazuki Nagata"

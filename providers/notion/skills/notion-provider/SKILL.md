@@ -66,6 +66,55 @@ After repair, re-verify and continue. **Never ask the user to manually fix the s
 - `notion-search` — Full-text search across tasks; use for filtering by field value
 - `notion-get-comments` / `notion-create-comment` — Read/write task comments
 
+## Updating Relation Fields
+
+`notion-update-page` properties only accept `string | number | null` — it cannot set relation fields (Blocked By, Parent Task, Sprint) which require arrays of `{id}` objects. Use the `update-relations.sh` script instead.
+
+### Prerequisite
+
+`NOTION_TOKEN` must be set. There is no MCP fallback for relation updates. If `NOTION_TOKEN` is not available, warn the user:
+> "Relation field updates require NOTION_TOKEN. Set it in ~/.claude/settings.json env block."
+
+### Usage
+
+```bash
+bash ${CLAUDE_PLUGIN_ROOT}/skills/notion-provider/scripts/update-relations.sh \
+  <page_id> <property_name> <mode> [page_id_1] [page_id_2] ...
+```
+
+- **mode `replace`**: Set the relation to exactly the provided IDs (zero IDs = clear)
+- **mode `append`**: Merge with existing values (dedup)
+
+### Examples
+
+**Set Blocked By to multiple tasks:**
+```bash
+bash ${CLAUDE_PLUGIN_ROOT}/skills/notion-provider/scripts/update-relations.sh \
+  "<page_id>" "Blocked By" replace "<blocker_id_1>" "<blocker_id_2>"
+```
+
+**Append a blocker:**
+```bash
+bash ${CLAUDE_PLUGIN_ROOT}/skills/notion-provider/scripts/update-relations.sh \
+  "<page_id>" "Blocked By" append "<new_blocker_id>"
+```
+
+**Set Parent Task (single value):**
+```bash
+bash ${CLAUDE_PLUGIN_ROOT}/skills/notion-provider/scripts/update-relations.sh \
+  "<page_id>" "Parent Task" replace "<parent_id>"
+```
+
+**Clear a relation:**
+```bash
+bash ${CLAUDE_PLUGIN_ROOT}/skills/notion-provider/scripts/update-relations.sh \
+  "<page_id>" "Blocked By" replace
+```
+
+### When to use
+
+Use this script for **any** relation field update. For non-relation fields, continue using `notion-update-page`. A single task update that changes both relation and non-relation fields requires two calls.
+
 ## Delete Operation
 
 Notion does not support hard delete via the API. To delete a task, archive the page:
