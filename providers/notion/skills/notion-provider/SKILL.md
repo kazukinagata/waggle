@@ -13,8 +13,9 @@ Load this file when the active provider is **notion**.
 
 When `detecting-provider` requests config retrieval for the Notion provider, follow these steps to populate `headless_config`:
 
-1. **Local config file** (fastest path): Read `~/.waggle/config.json` via Bash: `cat ~/.waggle/config.json 2>/dev/null`
-   - If the file exists and contains `tasksDatabaseId`, use those values to populate `headless_config` and skip to Schema Validation.
+1. **Environment variable** (fastest path): Check if `WAGGLE_NOTION_TASKS_DB_ID` is set.
+   - If set, use it as `tasksDatabaseId`. Also check `WAGGLE_NOTION_TEAMS_DB_ID` for `teamsDatabaseId`.
+   - Populate `headless_config` and skip to Schema Validation.
 
 2. **Waggle Config page**: Search for the "Waggle Config" page using `notion-search`:
    - If multiple pages match:

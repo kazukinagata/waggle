@@ -13,47 +13,39 @@ If either is missing, guide the user:
 - **sqlite3**: `sudo apt install sqlite3` (Linux) / `brew install sqlite` (macOS)
 - **jq**: `sudo apt install jq` (Linux) / `brew install jq` (macOS)
 
-## Step 2: Initialize Database
+## Step 2: Configure Database Path (optional)
 
-```bash
-bash ${CLAUDE_PLUGIN_ROOT}/skills/sqlite-provider/scripts/init-db.sh
-```
-
-This creates `~/.waggle/tasks.db` with all required tables.
-
-## Step 3: Create Config
-
-Write `~/.waggle/config.json`:
+The default database path is `~/.waggle/tasks.db`. If the user wants a custom path, set the `WAGGLE_SQLITE_DB_PATH` environment variable in `~/.claude/settings.json`:
 
 ```json
 {
-  "provider": "sqlite",
-  "dbPath": "~/.waggle/tasks.db"
+  "env": {
+    "WAGGLE_SQLITE_DB_PATH": "/custom/path/to/tasks.db"
+  }
 }
 ```
 
-Use Bash to create:
+If using the default path, this step can be skipped.
+
+## Step 3: Initialize Database
+
 ```bash
-mkdir -p ~/.waggle
-cat > ~/.waggle/config.json << 'EOF'
-{
-  "provider": "sqlite",
-  "dbPath": "~/.waggle/tasks.db"
-}
-EOF
+bash ${CLAUDE_PLUGIN_ROOT}/skills/sqlite-provider/scripts/init-db.sh "${WAGGLE_SQLITE_DB_PATH:-$HOME/.waggle/tasks.db}"
 ```
+
+This creates the database with all required tables at the configured path (or the default `~/.waggle/tasks.db`).
 
 ## Step 4: Verify
 
 Insert and query a test task:
 
 ```bash
-DB_PATH="$HOME/.waggle/tasks.db"
+DB_PATH="${WAGGLE_SQLITE_DB_PATH:-$HOME/.waggle/tasks.db}"
 sqlite3 "$DB_PATH" "INSERT INTO tasks (title, status, priority) VALUES ('Setup test', 'Backlog', 'Low') RETURNING id, title, status;"
 ```
 
 If the insert succeeds, report:
-> "SQLite provider is set up. Database at `~/.waggle/tasks.db`. Ready to use."
+> "SQLite provider is set up. Database at `<DB_PATH>`. Ready to use."
 
 Then delete the test task:
 ```bash
