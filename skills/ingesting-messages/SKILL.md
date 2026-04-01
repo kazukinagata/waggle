@@ -117,6 +117,41 @@ Merge all query results and deduplicate by message unique ID (Slack: `channel_id
 
 ---
 
+## Step 1.6: Thread Context Enrichment
+
+For each message in the deduplicated pool that originated from a thread (i.e., has a `thread_ts` or equivalent thread identifier), fetch the full thread to provide conversational context for classification and task creation.
+
+### Slack
+
+For each unique `thread_ts` among the fetched messages:
+1. Call `slack_read_thread` with `channel_id` and `message_ts` set to the `thread_ts` value.
+2. From the response, extract:
+   - **Parent message**: The thread's root message (first message in the thread).
+   - **Preceding replies**: All replies that came *before* the triggering message, in chronological order.
+3. Construct `thread_context` for the message:
+   ```
+   [Thread Context — {N} messages in #{channel_name}]
+   @{parent_author} (thread start): {parent_message_text}
+   @{reply_1_author}: {reply_1_text}
+   ...
+   @{reply_N_author}: {reply_N_text}
+   ---
+   [This message]
+   @{sender}: {message_text}
+   ```
+4. **Truncation**: If the assembled thread context exceeds 2000 characters, keep the parent message in full and truncate the middle replies, preserving the 3 most recent replies before the triggering message. Insert `... ({K} earlier replies omitted)` where truncation occurs.
+5. Attach `thread_context` to the message object for use in Steps 2 and 3.
+
+### Teams / Discord
+
+Apply the same pattern using equivalent thread/reply-fetching APIs if available. If the platform's MCP does not support thread fetching, set `thread_context = null` and note: `(thread context: unavailable — platform MCP does not support thread reads)`.
+
+### Non-Thread Messages
+
+Messages that are not part of a thread: set `thread_context = null`. No additional API calls.
+
+---
+
 ## Step 1.5: Custom Source Intake
 
 If `custom_intake_instructions` is null, skip this step.
@@ -134,7 +169,7 @@ Follow the instructions in `custom_intake_instructions` to fetch items from each
 
 ## Step 2: Classify Messages (3 Categories)
 
-Classify each message into A (Hearing Needed), B (Self-Action), or C (Delegate). For the full classification heuristics, examples, and confirmation flow, follow `references/classification-guide.md` in this directory.
+Classify each message into A (Hearing Needed), B (Self-Action), or C (Delegate). When `thread_context` is available, use it alongside the message text to improve classification accuracy. For the full classification heuristics, examples, and confirmation flow, follow `references/classification-guide.md` in this directory.
 
 When classification is unclear, treat as Category A (safe default).
 
@@ -211,6 +246,7 @@ Processed: N / Skipped (already processed): K / Skipped (already exists as task)
   B (Self-Action):    Y → Ready tasks created
   C (Delegate):       Z → Backlog tasks created
 Custom sources: {list of sources processed, or "none configured"}
+Thread context: {T} messages enriched with thread history
 ```
 
 ---
