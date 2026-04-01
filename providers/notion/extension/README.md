@@ -24,7 +24,7 @@ Open the `.mcpb` file in Claude Desktop or Cowork. You will be prompted to enter
 2. Click **New integration**
 3. Capabilities: **Read content** and **Update content**
 4. Copy the token (`ntn_...`)
-5. In Notion, open your **Agentic Tasks** page → **⋯** → **Connections** → connect the integration
+5. In Notion, open your **Waggle** page → **⋯** → **Connections** → connect the integration
 
 ## Tool: notion-query
 

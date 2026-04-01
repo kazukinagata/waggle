@@ -1,7 +1,7 @@
 {
   "name": "notion-extension",
   "version": "0.2.0",
-  "description": "Notion MCP server for Agentic Tasks — database queries and relation updates",
+  "description": "Notion MCP server for Waggle — database queries and relation updates",
   "type": "module",
   "main": "server/index.js",
   "license": "MIT",

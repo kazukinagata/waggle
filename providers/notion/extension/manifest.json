@@ -1,9 +1,9 @@
 {
   "manifest_version": "0.3",
   "name": "notion-extension",
-  "display_name": "Notion Extension for Agentic Tasks",
+  "display_name": "Notion Extension for Waggle",
   "version": "0.2.0",
-  "description": "Notion database querying with people property filters and relation property updates. Designed for Agentic Tasks plugin.",
+  "description": "Notion database querying with people property filters and relation property updates. Designed for Waggle plugin.",
   "author": {
     "name": "Kazuki Nagata"
   },
@@ -32,12 +32,12 @@
     "notion_token": {
       "type": "string",
       "title": "Notion Internal Integration Token",
-      "description": "Your Notion internal integration token (ntn_...). Create one at https://www.notion.so/profile/integrations with Read content permission, then connect it to your Agentic Tasks page.",
+      "description": "Your Notion internal integration token (ntn_...). Create one at https://www.notion.so/profile/integrations with Read content permission, then connect it to your Waggle page.",
       "sensitive": true,
       "required": true
     }
   },
-  "keywords": ["notion", "query", "relation", "agentic-tasks", "database", "filter"],
+  "keywords": ["notion", "query", "relation", "waggle", "database", "filter"],
   "license": "MIT",
   "compatibility": {
     "platforms": ["darwin", "win32", "linux"]
