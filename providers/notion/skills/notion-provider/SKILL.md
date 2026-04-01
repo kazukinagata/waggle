@@ -68,14 +68,26 @@ After repair, re-verify and continue. **Never ask the user to manually fix the s
 
 ## Updating Relation Fields
 
-`notion-update-page` properties only accept `string | number | null` — it cannot set relation fields (Blocked By, Parent Task, Sprint) which require arrays of `{id}` objects. Use the `update-relations.sh` script instead.
+`notion-update-page` properties only accept `string | number | null` — it cannot set relation fields (Blocked By, Parent Task, Sprint) which require arrays of `{id}` objects. Use the appropriate path below.
 
-### Prerequisite
+### Relation Update Path Detection
 
-`NOTION_TOKEN` must be set. There is no MCP fallback for relation updates. If `NOTION_TOKEN` is not available, warn the user:
-> "Relation field updates require NOTION_TOKEN. Set it in ~/.claude/settings.json env block."
+**CLI (`execution_environment = "cli"`):**
+1. `NOTION_TOKEN` env var set → Path 1 (bash script)
 
-### Usage
+**Claude Desktop (`execution_environment = "claude-desktop"`):**
+1. `NOTION_TOKEN` env var set → Path 1 (bash script)
+2. `mcp__notion-extension__notion-update-relation` tool available → Path 1b (Desktop Extension)
+3. Otherwise → warn user (no fallback)
+
+**Cowork (`execution_environment = "cowork"`):**
+1. `mcp__notion-extension__notion-update-relation` tool available → Path 1b (Desktop Extension)
+2. Otherwise → warn user (no fallback)
+
+If no path is available, warn the user:
+> "Relation field updates require NOTION_TOKEN or the notion-extension Desktop Extension. Set NOTION_TOKEN in ~/.claude/settings.json env block, or install the extension."
+
+### Path 1: Bash Script (requires NOTION_TOKEN)
 
 ```bash
 bash ${CLAUDE_PLUGIN_ROOT}/skills/notion-provider/scripts/update-relations.sh \
@@ -85,7 +97,7 @@ bash ${CLAUDE_PLUGIN_ROOT}/skills/notion-provider/scripts/update-relations.sh \
 - **mode `replace`**: Set the relation to exactly the provided IDs (zero IDs = clear)
 - **mode `append`**: Merge with existing values (dedup)
 
-### Examples
+#### Examples
 
 **Set Blocked By to multiple tasks:**
 ```bash
@@ -111,9 +123,21 @@ bash ${CLAUDE_PLUGIN_ROOT}/skills/notion-provider/scripts/update-relations.sh \
   "<page_id>" "Blocked By" replace
 ```
 
+### Path 1b: Desktop Extension (notion-update-relation MCP tool)
+
+Available when the `mcp__notion-extension__notion-update-relation` tool is present.
+
+Call `mcp__notion-extension__notion-update-relation` with:
+- `page_id`: the Notion page UUID
+- `property_name`: relation property name (e.g., `"Blocked By"`, `"Parent Task"`)
+- `mode`: `"replace"` or `"append"`
+- `relation_ids`: array of page IDs (omit or `[]` with replace to clear)
+
+Returns the updated Notion page object.
+
 ### When to use
 
-Use this script for **any** relation field update. For non-relation fields, continue using `notion-update-page`. A single task update that changes both relation and non-relation fields requires two calls.
+Use the relation update path for **any** relation field update. For non-relation fields, continue using `notion-update-page`. A single task update that changes both relation and non-relation fields requires two calls.
 
 ## Delete Operation
 
@@ -198,11 +222,11 @@ Use the first available query path. The detection order depends on `execution_en
 
 **Claude Desktop (`execution_environment = "claude-desktop"`):**
 1. `NOTION_TOKEN` env var set → Path 1 (API script)
-2. `mcp__notion-query__notion-query` tool available → Path 1b (Desktop Extension)
+2. `mcp__notion-extension__notion-query` tool available → Path 1b (Desktop Extension)
 3. Otherwise → Path 2 (MCP fallback)
 
 **Cowork (`execution_environment = "cowork"`):**
-1. `mcp__notion-query__notion-query` tool available → Path 1b (Desktop Extension, preferred)
+1. `mcp__notion-extension__notion-query` tool available → Path 1b (Desktop Extension, preferred)
 2. Otherwise → Path 2 (MCP fallback)
 
 ### Path 1: Notion API Script (requires NOTION_TOKEN)
@@ -271,9 +295,9 @@ The script returns `{"results": [...]}` with full page objects including all pro
 
 ### Path 1b: Desktop Extension (notion-query MCP tool)
 
-Available when the `mcp__notion-query__notion-query` tool is present. Primary query path in cowork environments.
+Available when the `mcp__notion-extension__notion-query` tool is present. Primary query path in cowork environments.
 
-Call `mcp__notion-query__notion-query` with:
+Call `mcp__notion-extension__notion-query` with:
 - `database_id`: the `tasksDatabaseId`
 - `filter`: filter JSON (same format as Path 1 filter recipes above)
 - `sorts`: sort JSON
@@ -334,7 +358,7 @@ When querying ANY Notion database (not just the Tasks DB — e.g., Intake Log, e
      "<database_id>" '<filter_json>' '<sort_json>'
    ```
 
-2. **`mcp__notion-query__notion-query` available** → Use the MCP tool with the target database ID and filter
+2. **`mcp__notion-extension__notion-query` available** → Use the MCP tool with the target database ID and filter
 
 3. **Otherwise** → ⚠️ Warn the user (same warning as Path 2), then use `notion-search` + `notion-fetch`
 
