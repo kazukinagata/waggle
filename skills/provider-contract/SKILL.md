@@ -175,15 +175,13 @@ Bash scripts in the provider plugin MUST follow these rules:
 
 ## Config Storage
 
-Each provider stores configuration in its natural storage mechanism:
+All provider configuration is stored via environment variables in `~/.claude/settings.json` (under the `env` field). The legacy `~/.waggle/config.json` file is deprecated — use the `health-checking` skill to migrate.
 
-| Provider | Primary Config Storage | Local Cache |
+| Provider | Env Vars | Fallback |
 |---|---|---|
-| Notion | "Waggle Config" Notion page | `~/.waggle/config.json` (optional) |
-| Turso | Environment variables (`TURSO_URL`, `TURSO_AUTH_TOKEN`) | `~/.waggle/config.json` (optional) |
-| SQLite | Local database file (`~/.waggle/waggle.db`) | N/A (config is in the DB itself) |
-
-The local cache `~/.waggle/config.json` is optional and used for faster startup. It MUST NOT be the sole source of truth for cloud-backed providers.
+| Notion | `WAGGLE_NOTION_TASKS_DB_ID`, `WAGGLE_NOTION_TEAMS_DB_ID` (optional cache) | "Waggle Config" Notion page search |
+| Turso | `TURSO_URL`, `TURSO_AUTH_TOKEN` (required) | None |
+| SQLite | `WAGGLE_SQLITE_DB_PATH` (optional, default: `~/.waggle/tasks.db`) | Default path |
 
 ## Environment Support
 
@@ -192,7 +190,7 @@ Not all providers support all execution environments:
 | Provider | CLI | Claude Desktop | Cowork | Notes |
 |---|---|---|---|---|
 | Notion | Yes | Yes | Yes | Requires Notion MCP tools |
-| Turso | Yes | Yes | Yes | Requires `TURSO_URL` and `TURSO_AUTH_TOKEN` env vars |
+| Turso | Yes | Yes | No | Requires `TURSO_URL` and `TURSO_AUTH_TOKEN` env vars; Cowork requires Desktop Extension (not yet available) |
 | SQLite | Yes | Yes | No | Local file — not accessible from Cowork |
 
 See `references/environment-detection.md` for runtime environment detection logic.

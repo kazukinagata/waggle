@@ -13,19 +13,17 @@ Load this file when the active provider is **turso**.
 
 When `detecting-provider` requests config retrieval for the Turso provider:
 
-1. Read `~/.waggle/config.json`
-2. Parse and set the following as the `headless_config` session variable:
-   - `tursoUrl` (required) — Turso database HTTP URL
-   - `tursoAuthToken` (required) — Turso auth token
+1. **Cowork check**: If `execution_environment = "cowork"`, stop with error:
+   > "Turso provider on Cowork requires a Desktop Extension for credential management, which is not yet available. Use the Notion provider for Cowork environments."
+
+2. Read environment variables `TURSO_URL` and `TURSO_AUTH_TOKEN`.
+   - If either is missing, instruct the user to set them in `~/.claude/settings.json` under the `env` field, then run the **setting-up-tasks** skill. Stop.
+
+3. Set the following as the `headless_config` session variable:
+   - `tursoUrl` — value of `TURSO_URL`
+   - `tursoAuthToken` — value of `TURSO_AUTH_TOKEN`
    - `teamsDatabaseExists` (optional)
    - `sprintsDatabaseExists` (optional)
-3. Set environment variables for scripts:
-   ```bash
-   export TURSO_URL="<tursoUrl>"
-   export TURSO_AUTH_TOKEN="<tursoAuthToken>"
-   ```
-
-If `~/.waggle/config.json` is not found or missing Turso fields, instruct the user to run the **setting-up-tasks** skill.
 
 ## Schema Validation
 

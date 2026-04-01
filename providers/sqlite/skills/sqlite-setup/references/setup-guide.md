@@ -21,27 +21,19 @@ bash ${CLAUDE_PLUGIN_ROOT}/skills/sqlite-provider/scripts/init-db.sh
 
 This creates `~/.waggle/tasks.db` with all required tables.
 
-## Step 3: Create Config
+## Step 3: Configure Database Path (optional)
 
-Write `~/.waggle/config.json`:
+The default database path is `~/.waggle/tasks.db`. If the user wants a custom path, set the `WAGGLE_SQLITE_DB_PATH` environment variable in `~/.claude/settings.json`:
 
 ```json
 {
-  "provider": "sqlite",
-  "dbPath": "~/.waggle/tasks.db"
+  "env": {
+    "WAGGLE_SQLITE_DB_PATH": "/custom/path/to/tasks.db"
+  }
 }
 ```
 
-Use Bash to create:
-```bash
-mkdir -p ~/.waggle
-cat > ~/.waggle/config.json << 'EOF'
-{
-  "provider": "sqlite",
-  "dbPath": "~/.waggle/tasks.db"
-}
-EOF
-```
+If using the default path, this step can be skipped.
 
 ## Step 4: Verify
 

@@ -223,19 +223,21 @@ export NOTION_TOKEN="ntn_xxxxxxxxxxxxx"
 
 This step is optional — the plugin works without it using MCP-only queries, but server-side filtering is significantly faster for large task databases.
 
-## Step 5c: Write ~/.waggle/config.json
+## Step 5c: Write environment variables
 
-After the Config page is created, write a local config file so waggle can detect the Notion provider without relying solely on MCP tool auto-detection:
+**Skip this step if** `execution_environment = "cowork"` (Cowork discovers config via Notion Config page search).
 
-```bash
-mkdir -p ~/.waggle
-cat > ~/.waggle/config.json << EOF
+After the Config page is created, write environment variables to `~/.claude/settings.json` so waggle can detect the Notion provider quickly without searching Notion on every startup:
+
+Read `~/.claude/settings.json` (create if it doesn't exist). Add the following to the `env` field (preserve any existing env vars):
+
+```json
 {
-  "provider": "notion",
-  "tasksDatabaseId": "<TASKS_DB_ID from Step 4>",
-  "teamsDatabaseId": "<TEAMS_DB_ID from Step 4>"
+  "env": {
+    "WAGGLE_NOTION_TASKS_DB_ID": "<TASKS_DB_ID from Step 4>",
+    "WAGGLE_NOTION_TEAMS_DB_ID": "<TEAMS_DB_ID from Step 4>"
+  }
 }
-EOF
 ```
 
 Replace the placeholders with the actual IDs from Step 4.

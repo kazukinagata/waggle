@@ -30,19 +30,7 @@ Get the URL and token from the user via AskUserQuestion:
 Then:
 > "Please provide your Turso auth token:"
 
-Write config:
-```bash
-mkdir -p ~/.waggle
-cat > ~/.waggle/config.json << EOF
-{
-  "provider": "turso",
-  "tursoUrl": "<user_provided_url>",
-  "tursoAuthToken": "<user_provided_token>"
-}
-EOF
-```
-
-Also set env vars in `~/.claude/settings.json` for script access:
+Set env vars in `~/.claude/settings.json`:
 ```json
 {
   "env": {
@@ -51,6 +39,8 @@ Also set env vars in `~/.claude/settings.json` for script access:
   }
 }
 ```
+
+Read `~/.claude/settings.json` (create if it doesn't exist), add the env vars (preserve any existing env vars), and write the file back.
 
 ## Step 4: Initialize Database
 

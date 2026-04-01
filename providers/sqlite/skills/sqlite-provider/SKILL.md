@@ -13,13 +13,11 @@ Load this file when the active provider is **sqlite**.
 
 When `detecting-provider` requests config retrieval for the SQLite provider:
 
-1. Read `~/.waggle/config.json`
-2. Parse and set the following as the `headless_config` session variable:
-   - `dbPath` (required) — path to the SQLite database file
+1. Check the `WAGGLE_SQLITE_DB_PATH` environment variable. If not set, default to `~/.waggle/tasks.db`.
+2. Set the following as the `headless_config` session variable:
+   - `dbPath` — the resolved path from step 1
    - `teamsDatabaseExists` (optional — true if teams table has rows)
    - `sprintsDatabaseExists` (optional — true if sprints table has rows)
-
-If `~/.waggle/config.json` is not found, instruct the user to run the **setting-up-tasks** skill, then stop.
 
 ## Schema Validation
 
