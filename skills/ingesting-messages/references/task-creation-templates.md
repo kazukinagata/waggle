@@ -13,10 +13,28 @@ Before creating each task:
 | Field | Value |
 |---|---|
 | Title | `From @{sender}: {message summary (50 chars max)}` |
-| Description | Full original message + append `Source: {tool_name} DM from @{sender} at {datetime}` |
+| Description | If `thread_context` is available: include thread context followed by a `---` separator, then the full original message. If no thread context: full original message only. Always append `Source: {tool_name} DM from @{sender} at {datetime}` at the end. |
 | Tags | `["ingesting-messages"]` |
 | Context | `Received via {tool_name} on {date}` |
 | Issuer | `[current_user]` |
+
+### Thread Context in Descriptions
+
+When a message has `thread_context`, structure the Description field as:
+
+```
+[Thread Context — {N} messages in #{channel_name}]
+@{parent_author}: {parent_message_text}
+@{reply_author}: {reply_text}
+... ({K} earlier replies omitted)
+@{recent_reply_author}: {recent_reply_text}
+---
+@{sender}: {original_message_text}
+
+Source: {tool_name} DM from @{sender} at {datetime}
+```
+
+This gives the task executor full conversational context without needing to open the messaging tool.
 
 ## Category-Specific Fields
 

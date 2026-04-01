@@ -31,15 +31,33 @@
 
 **Decision rule**: If torn between B and A → choose A. If torn between C and A → choose A. A is always the safe default.
 
+## Using Thread Context for Classification
+
+When `thread_context` is available for a message, use the full thread conversation — not just the individual reply — to determine the correct category:
+
+1. **Read the parent message first**: The parent often establishes the topic and intent. A reply that says "sure, go ahead" is ambiguous alone but clear when the parent says "Can I refactor the auth module?"
+2. **Track action ownership across the thread**: If earlier messages establish that a specific person is responsible, a follow-up reply may be a status update (Category A) rather than a new work request (Category B).
+3. **Resolve ambiguous references**: Thread replies frequently use pronouns ("it", "that", "this") or short phrases. The parent message and preceding replies resolve these references.
+
+### Thread-Aware Examples
+
+| Message alone | Without context | With thread context | Correct classification |
+|---|---|---|---|
+| "Sure, I'll handle it" | A (unclear what "it" is) | Parent: "@you Can you write the migration script for the users table?" | B (Self-Action — clear task) |
+| "Done" | A (what is done?) | Parent: "@you Please review PR #42" → earlier reply: "Looking at it now" | A (Hearing — need to confirm what action, if any, remains) |
+| "Can you take a look?" | A (ambiguous) | Parent: "@alice Deploy fix for #123" → "@you Can you take a look?" | B (Self-Action — code review request with clear PR reference) |
+
 ## Classification Confirmation
 
 After classifying all messages, display the results and ask the user to confirm:
 
-| # | Category | Sender | Summary |
-|---|----------|--------|---------|
-| 1 | B: Self-Action | @alice | Update README with new endpoints |
-| 2 | A: Hearing Needed | @bob | Design doc review request |
-| 3 | C: Delegate | @alice → @charlie | Deployment script update |
+| # | Category | Sender | Summary | Thread |
+|---|----------|--------|---------|--------|
+| 1 | B: Self-Action | @alice | Update README with new endpoints | |
+| 2 | A: Hearing Needed | @bob | Design doc review request | yes |
+| 3 | C: Delegate | @alice → @charlie | Deployment script update | |
+
+The Thread column shows "yes" if thread context was used for classification, blank otherwise.
 
 Use `AskUserQuestion`: "Review the classification. Change any categories?"
 - **"Looks good"** — proceed to Step 2.5 with current categories
