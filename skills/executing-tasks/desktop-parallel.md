@@ -6,19 +6,26 @@ Loaded when the user chooses "Scheduled Task parallel creation" in executing-tas
 
 For each task, use the Dispatch Prompt Template (see `dispatch-prompt.md` in this directory) to build the prompt text.
 
-## Step 2: Claim Task
+## Step 2: Ask Execution Time
+
+Use AskUserQuestion to ask the user when to execute the tasks:
+> "What time should the tasks start? (e.g. 14:30)"
+
+Convert the answer to an ISO 8601 timestamp with the user's timezone offset for today's date (or tomorrow if the time has already passed). Example: `2026-04-01T14:30:00+09:00`. All tasks share the same `fireAt` time.
+
+## Step 3: Claim Task
 
 For each task:
 - Status → "In Progress"
 - Dispatched At → current time in ISO 8601
 
-## Step 3: Scheduled Task Creation
+## Step 4: Scheduled Task Creation
 
 For each task, call `mcp__scheduled-tasks__create_scheduled_task`:
 - `taskId`: `<task-title-slug>-<page-id-4char>` (see Slug Generation Rules below)
 - `prompt`: the constructed dispatch prompt
 - `description`: `Waggle: <task-title>`
-- `cronExpression`: omit (manual / ad-hoc execution)
+- `fireAt`: the ISO 8601 timestamp from Step 2 (one-time execution; auto-disabled after run)
 
 ### Slug Generation Rules
 
@@ -34,10 +41,10 @@ To generate `<task-title-slug>` from the task title:
 
 Example: "Implement Login API" with ID `b2dc0275...` → `implement-login-api-b2dc`
 
-## Step 4: Session Reference
+## Step 5: Session Reference
 
 Write `scheduled:<taskId>` to the task's Session Reference field.
 
-## Step 5: Report
+## Step 6: Report
 
 Report the created Scheduled Tasks and their working directories.
