@@ -68,7 +68,7 @@ Tasks have 15 Core fields (auto-repaired if missing) and 9 Extended fields (grac
 ```bash
 cd skills/viewing-tasks/server
 
-npm install          # Install dependencies
+npm ci               # Install dependencies (uses lockfile)
 npm run dev          # Start with hot-reload (tsx watch)
 npm run build        # TypeScript compilation
 npm test             # Run tests (vitest)
