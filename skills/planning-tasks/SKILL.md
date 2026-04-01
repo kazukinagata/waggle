@@ -79,10 +79,65 @@ If the task title starts with `[Hearing]`:
 
 ### Batch Execution
 
-When processing multiple tasks:
-- Spawn agents in parallel (up to `maxConcurrentAgents`)
-- Present all results together for bulk confirmation
-- Summary: "Planned N tasks. M Ready-eligible. K need more context."
+When processing multiple tasks (batch mode or pipeline mode):
+
+#### Phase 1: Classify and Group
+
+- Separate tasks into: code tasks (have Working Directory) vs non-code tasks
+- Within each group, sort by Priority (Urgent > High > Medium > Low)
+
+#### Phase 2: Parallel Agent Dispatch
+
+- Spawn up to **5 agents in parallel** using a single message with multiple Agent tool calls
+- If >5 tasks in a group, process in chunks of 5 (wait for chunk to complete before next)
+- Each agent receives the full task context (Title, Description, Context, AC, Working Directory, Repository)
+- Code tasks → `code-planning-agent`
+- Non-code tasks → `knowledge-planning-agent`
+
+Example (3 code tasks + 2 non-code tasks = 5 total, fits in one chunk):
+```
+Message 1: [Agent(code-task-1), Agent(code-task-2), Agent(code-task-3), Agent(non-code-task-1), Agent(non-code-task-2)]
+→ All 5 run in parallel
+```
+
+Example (8 tasks = 2 chunks):
+```
+Message 1: [Agent(task-1), Agent(task-2), Agent(task-3), Agent(task-4), Agent(task-5)]
+→ Wait for all 5 to complete
+Message 2: [Agent(task-6), Agent(task-7), Agent(task-8)]
+→ Wait for all 3 to complete
+```
+
+#### Phase 3: Result Collection
+
+Wait for all agents in the current chunk to complete. Classify each result:
+- **Success** → store generated AC + Execution Plan
+- **Failure/timeout** → mark as "needs manual planning"
+- **Insufficient context** (agent requested more info) → mark as "needs user input"
+
+#### Phase 4: Bulk Confirmation
+
+Present all results together:
+```
+Planning results (5 tasks):
+1. [OK]          "API endpoint"  — AC: 4 criteria, Plan: 6 steps
+2. [OK]          "Fix auth bug"  — AC: 3 criteria, Plan: 4 steps
+3. [NEEDS INPUT] "Refactor DB"   — agent needs: "Which tables are affected?"
+4. [OK]          "Write blog"    — AC: 5 criteria, Plan: 7 steps
+5. [FAILED]      "Update docs"   — agent error: timeout
+
+[Accept all OK] [Review one by one] [Skip all]
+```
+
+- **Accept all OK**: Update all successful tasks via provider, then handle "needs input" tasks interactively
+- **Review one by one**: Present each task's AC/Plan for individual Accept/Edit/Skip
+- **Skip all**: Leave all tasks unchanged
+
+#### Phase 5: Validation and Promotion
+
+For each accepted task, run validation and promote to Ready if valid (same as single-task flow).
+
+Summary: "Planned N tasks. M Ready-eligible. K need more context. J failed."
 
 ## Multi-round Brainstorming Protocol
 
