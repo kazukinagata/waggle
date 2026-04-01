@@ -1,7 +1,7 @@
 {
-  "name": "notion-query-extension",
-  "version": "0.1.1",
-  "description": "Notion database query MCP server for Agentic Tasks",
+  "name": "notion-extension",
+  "version": "0.2.0",
+  "description": "Notion MCP server for Agentic Tasks — database queries and relation updates",
   "type": "module",
   "main": "server/index.js",
   "license": "MIT",

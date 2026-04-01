@@ -1,9 +1,9 @@
 {
   "manifest_version": "0.3",
-  "name": "notion-query",
-  "display_name": "Notion Query for Agentic Tasks",
-  "version": "0.1.1",
-  "description": "Server-side Notion database querying with people property filters. Designed for Agentic Tasks plugin.",
+  "name": "notion-extension",
+  "display_name": "Notion Extension for Agentic Tasks",
+  "version": "0.2.0",
+  "description": "Notion database querying with people property filters and relation property updates. Designed for Agentic Tasks plugin.",
   "author": {
     "name": "Kazuki Nagata"
   },
@@ -22,6 +22,10 @@
     {
       "name": "notion-query",
       "description": "Query a Notion database with server-side filtering, sorting, and pagination. Supports people property filters (Assignees) that the Notion hosted MCP cannot handle."
+    },
+    {
+      "name": "notion-update-relation",
+      "description": "Update a relation property on a Notion page. Supports replace (set exact list) and append (merge with existing, dedup) modes."
     }
   ],
   "user_config": {
@@ -33,7 +37,7 @@
       "required": true
     }
   },
-  "keywords": ["notion", "query", "agentic-tasks", "database", "filter"],
+  "keywords": ["notion", "query", "relation", "agentic-tasks", "database", "filter"],
   "license": "MIT",
   "compatibility": {
     "platforms": ["darwin", "win32", "linux"]

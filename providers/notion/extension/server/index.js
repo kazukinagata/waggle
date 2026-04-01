@@ -17,7 +17,7 @@ if (!NOTION_TOKEN) {
 const notion = new Client({ auth: NOTION_TOKEN });
 
 const server = new Server(
-  { name: "notion-query", version: "0.1.0" },
+  { name: "notion-extension", version: "0.2.0" },
   { capabilities: { tools: {} } }
 );
 
@@ -48,15 +48,43 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
         required: ["database_id"],
       },
     },
+    {
+      name: "notion-update-relation",
+      description:
+        "Update a relation property on a Notion page. Supports replace (set exact list) and append (merge with existing, dedup) modes.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          page_id: {
+            type: "string",
+            description: "Notion page UUID to update",
+          },
+          property_name: {
+            type: "string",
+            description:
+              'Relation property name (e.g., "Blocked By", "Parent Task")',
+          },
+          mode: {
+            type: "string",
+            enum: ["replace", "append"],
+            description:
+              '"replace" sets exact list (empty array clears the relation), "append" merges with existing and deduplicates',
+          },
+          relation_ids: {
+            type: "array",
+            items: { type: "string" },
+            description: "Page IDs for the relation",
+            default: [],
+          },
+        },
+        required: ["page_id", "property_name", "mode"],
+      },
+    },
   ],
 }));
 
-server.setRequestHandler(CallToolRequestSchema, async (request) => {
-  if (request.params.name !== "notion-query") {
-    throw new Error(`Unknown tool: ${request.params.name}`);
-  }
-
-  const { database_id, filter, sorts } = request.params.arguments;
+async function handleQuery(args) {
+  const { database_id, filter, sorts } = args;
   const allResults = [];
   let startCursor = undefined;
   let hasMore = true;
@@ -73,17 +101,58 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     startCursor = response.next_cursor;
   }
 
+  return { results: allResults };
+}
+
+async function handleUpdateRelation(args) {
+  const { page_id, property_name, mode, relation_ids = [] } = args;
+
+  let finalIds = relation_ids;
+
+  if (mode === "append" && relation_ids.length > 0) {
+    const page = await notion.pages.retrieve({ page_id });
+    const existing = page.properties[property_name]?.relation ?? [];
+    const existingIds = existing.map((r) => r.id);
+    const seen = new Set(existingIds);
+    for (const id of relation_ids) {
+      if (!seen.has(id)) {
+        existingIds.push(id);
+        seen.add(id);
+      }
+    }
+    finalIds = existingIds;
+  }
+
+  const relation = finalIds.map((id) => ({ id }));
+  const result = await notion.pages.update({
+    page_id,
+    properties: { [property_name]: { relation } },
+  });
+
+  return result;
+}
+
+server.setRequestHandler(CallToolRequestSchema, async (request) => {
+  const { name, arguments: args } = request.params;
+
+  let result;
+  switch (name) {
+    case "notion-query":
+      result = await handleQuery(args);
+      break;
+    case "notion-update-relation":
+      result = await handleUpdateRelation(args);
+      break;
+    default:
+      throw new Error(`Unknown tool: ${name}`);
+  }
+
   return {
-    content: [
-      {
-        type: "text",
-        text: JSON.stringify({ results: allResults }),
-      },
-    ],
+    content: [{ type: "text", text: JSON.stringify(result) }],
   };
 });
 
 const transport = new StdioServerTransport();
 server.connect(transport);
 
-console.error("notion-query MCP server running...");
+console.error("notion-extension MCP server running...");
