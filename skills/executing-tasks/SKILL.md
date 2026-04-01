@@ -99,14 +99,14 @@ Use AskUserQuestion to choose execution method:
 | Option | Description |
 |--------|-------------|
 | One at a time (Recommended) | Select one task and execute in the current session |
-| Scheduled Task parallel creation | Register each task as a Scheduled Task for parallel execution |
+| Scheduled Task parallel creation | Register each task as a one-time Scheduled Task (fireAt) for parallel execution |
 
 **Cowork (`execution_environment = "cowork"`):**
 
 | Option | Description |
 |--------|-------------|
 | One at a time (Recommended) | Select one task and execute in the current session |
-| Scheduled Task parallel creation | Register each task as a Scheduled Task for parallel execution |
+| Scheduled Task parallel creation | Register each task as a one-time Scheduled Task (fireAt) for parallel execution |
 
 ### When "One at a time" is selected
 
@@ -130,7 +130,7 @@ Use AskUserQuestion to choose execution method:
 
 ### When "Scheduled Task parallel creation" is selected (Claude Desktop / Cowork)
 
-Load `desktop-parallel.md` (this directory) and follow Steps 1–5.
+Load `desktop-parallel.md` (this directory) and follow Steps 1–6.
 
 ## Dispatch Prompt Template
 
@@ -169,7 +169,7 @@ For each task:
 - Never use `--dangerously-skip-permissions`
 - Display In Progress count to the user; parallel execution count is chosen interactively
 - Terminal CLI: Order strictly: generate files → claim in data source → launch tmux
-- Claude Desktop / Cowork: Order strictly: generate prompts → claim in data source → create Scheduled Tasks
+- Claude Desktop / Cowork: Order strictly: generate prompts → confirm fireAt time → claim in data source → create Scheduled Tasks
 - Write Session Reference only after pane/task creation succeeds (no speculative writes)
 - On tmux unavailable (Terminal CLI): error message + fallback to sequential Agent tool execution
 - On Scheduled Task creation failure (Claude Desktop / Cowork): fallback to sequential in-session execution
