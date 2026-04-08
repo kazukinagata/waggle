@@ -311,6 +311,8 @@
     .s-progress { background: rgba(255,159,10,0.15);  color: var(--orange); }
     .s-review   { background: rgba(191,90,242,0.15);  color: var(--purple); }
     .s-done     { background: rgba(48,209,88,0.15);   color: var(--green); }
+    .s-blocked  { background: rgba(255,69,58,0.15);  color: var(--red); }
+    .s-cancelled { background: rgba(142,142,147,0.15); color: var(--gray); text-decoration: line-through; }
 
     .p-urgent { background: rgba(255,69,58,0.15);  color: var(--red); }
     .p-high   { background: rgba(255,159,10,0.15); color: var(--orange); }
@@ -467,6 +469,8 @@
     <button class="segment" data-value="In Progress">In Progress</button>
     <button class="segment" data-value="In Review">In Review</button>
     <button class="segment" data-value="Done">Done</button>
+    <button class="segment" data-value="Blocked">Blocked</button>
+    <button class="segment" data-value="Cancelled">Cancelled</button>
   </div>
 
   <input type="hidden" id="filter-priority" value="">
@@ -520,7 +524,7 @@
   const today = new Date().toISOString().split('T')[0];
 
   function statusClass(s) {
-    return { Backlog:'s-backlog', Ready:'s-ready', 'In Progress':'s-progress', 'In Review':'s-review', Done:'s-done' }[s] || 's-backlog';
+    return { Backlog:'s-backlog', Ready:'s-ready', 'In Progress':'s-progress', 'In Review':'s-review', Done:'s-done', Blocked:'s-blocked', Cancelled:'s-cancelled' }[s] || 's-backlog';
   }
   function priorityClass(p) {
     return { Urgent:'p-urgent', High:'p-high', Medium:'p-medium', Low:'p-low' }[p] || '';

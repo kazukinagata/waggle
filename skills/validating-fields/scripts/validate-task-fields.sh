@@ -4,7 +4,7 @@
 # Usage: validate-task-fields.sh <target_status> <task_json_file>
 #
 # Arguments:
-#   target_status  — Status being transitioned TO: Ready, In Progress, Blocked, Done
+#   target_status  — Status being transitioned TO: Ready, In Progress, Blocked, Done, Cancelled
 #   task_json_file — Path to JSON file in canonical flat format (see SKILL.md)
 #
 # Output:
@@ -129,6 +129,9 @@ RESULT=$(jq --arg target "$TARGET_STATUS" '
     (if ($executor == "cli" or $executor == "claude-desktop" or $executor == "cowork") and ($agent_output | length) == 0
      then $warnings + [{"field":"Agent Output","rule":"recommended","message":"Agent Output is empty for AI executor. Record execution results."}]
      else $warnings end) as $warnings |
+    {"errors": $errors, "warnings": $warnings}
+
+  elif $target == "Cancelled" then
     {"errors": $errors, "warnings": $warnings}
 
   else

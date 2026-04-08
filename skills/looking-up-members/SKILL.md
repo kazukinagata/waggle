@@ -20,7 +20,7 @@ Before running the Resolution Algorithm, check if the query matches a team name 
 
 1. If `teamsDatabaseId` is available in `headless_config`:
    a. Fetch team names from the Teams database (Name/title property of each row).
-   b. If the query (case-insensitive) exactly matches or is contained in any team name:
+   b. If the query (case-insensitive) exactly matches any team name, or if any team name contains the query as a substring:
       - Return empty array `[]` with metadata: `{ "teamMatch": true, "teamName": "<matched team name>" }`
       - The caller MUST NOT expand this to team members.
       - The caller should ask the user: "'{query}' is a team name. Assignee must be exactly 1 person. Which member of {team} should be assigned?"

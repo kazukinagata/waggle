@@ -21,7 +21,7 @@ bash ${CLAUDE_PLUGIN_ROOT}/skills/validating-fields/scripts/validate-task-fields
   <target_status> /tmp/task_validate.json
 ```
 
-- `target_status`: The status being transitioned TO (e.g., `Ready`, `In Progress`, `Blocked`, `Done`)
+- `target_status`: The status being transitioned TO (e.g., `Ready`, `In Progress`, `Blocked`, `Done`, `Cancelled`)
 - `task_json_file`: Path to a JSON file in the **canonical flat format** (see below)
 
 ## Canonical Input Format
@@ -101,6 +101,7 @@ errorMessage     <- .error_message
 | **In Progress** | All Ready requirements + Executor (set), Working Directory (non-empty for AI executors) | Issuer, Branch (for cli executor) |
 | **Blocked** | Description (non-empty), AC (non-empty) | Issuer, Error Message |
 | **Done** | Description (non-empty) | Agent Output (for AI executors) |
+| **Cancelled** | Description (non-empty) | — |
 
 **Issuer is always a warning**, never an error -- ensures backward compatibility with pre-migration tasks.
 

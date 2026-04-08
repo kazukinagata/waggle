@@ -404,6 +404,9 @@
       border-radius: 2px;
       background: var(--green);
     }
+
+    .card-cancelled { opacity: 0.5; text-decoration: line-through; }
+    .card-blocked { border-left: 3px solid var(--red, #ff453a); }
   </style>
 </head>
 <body>
@@ -452,7 +455,7 @@
 <script>
   let allTasks = [];
   const today = new Date().toISOString().split('T')[0];
-  const colMap = { 'Backlog':'backlog', 'Ready':'ready', 'In Progress':'progress', 'In Review':'review', 'Done':'done', 'Cancelled':'backlog' };
+  const colMap = { 'Backlog':'backlog', 'Ready':'ready', 'In Progress':'progress', 'In Review':'review', 'Done':'done', 'Blocked':'backlog', 'Cancelled':'backlog' };
   const prioClass = { Urgent:'p-urgent', High:'p-high', Medium:'p-medium', Low:'p-low' };
 
   function buildHierarchy(tasks) {
@@ -511,7 +514,8 @@
         const overdue = t.dueDate && t.dueDate < today;
         const parent = parentOf[t.id];
         const stats = statsOf[t.id];
-        return `<div class="card" onclick="copyId('${t.id}')" title="Click to copy ID">
+        const cardExtra = t.status === 'Cancelled' ? ' card-cancelled' : t.status === 'Blocked' ? ' card-blocked' : '';
+        return `<div class="card${cardExtra}" onclick="copyId('${t.id}')" title="Click to copy ID">
           ${parent ? `<div class="parent-badge" title="${esc(parent.title)}">${esc(parent.title)}</div>` : ''}
           <div class="card-title">${esc(t.title)}</div>
           <div class="card-meta">
