@@ -11,7 +11,7 @@ Every waggle-compatible task board MUST support these fields. Providers MUST aut
 | Title | text | `title` | Task name |
 | Description | rich_text | `description` | What the task should accomplish |
 | Acceptance Criteria | rich_text | `acceptanceCriteria` | Verifiable completion conditions |
-| Status | enum | `status` | One of: `Backlog`, `Ready`, `In Progress`, `In Review`, `Done`, `Blocked` |
+| Status | enum | `status` | One of: `Backlog`, `Ready`, `In Progress`, `In Review`, `Done`, `Blocked`, `Cancelled` |
 | Priority | enum | `priority` | One of: `Urgent`, `High`, `Medium`, `Low` |
 | Executor | enum | `executor` | One of: `cli`, `claude-desktop`, `cowork`, `human` (extensible) |
 | Blocked By | relation[] | `blockedBy` | Array of task IDs that must be Done before this task is actionable |

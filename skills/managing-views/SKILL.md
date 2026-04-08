@@ -191,7 +191,7 @@ interface Task {
   title: string;
   description: string;
   acceptanceCriteria: string;
-  status: "Backlog" | "Ready" | "In Progress" | "In Review" | "Done" | "Blocked";
+  status: "Backlog" | "Ready" | "In Progress" | "In Review" | "Done" | "Blocked" | "Cancelled";
   blockedBy: string[];
   priority: "Urgent" | "High" | "Medium" | "Low";
   executor: string;           // "cli" | "claude-desktop" | "cowork" | "human" | custom

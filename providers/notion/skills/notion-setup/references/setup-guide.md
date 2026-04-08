@@ -103,7 +103,7 @@ Create with all non-relation fields:
 | Title | title | — |
 | Description | rich_text | — |
 | Acceptance Criteria | rich_text | — |
-| Status | select | Options: Backlog, Ready, In Progress, In Review, Done, Blocked |
+| Status | select | Options: Backlog, Ready, In Progress, In Review, Done, Blocked, Cancelled |
 | Priority | select | Options: Urgent, High, Medium, Low |
 | Executor | select | Options: cli, claude-desktop, cowork, human |
 | Requires Review | checkbox | — |

@@ -50,7 +50,7 @@ Then run the appropriate DDL (one `ADD COLUMN` per call):
 
 | Missing Field | Repair DDL |
 |---|---|
-| Status | `ADD COLUMN "Status" SELECT('Backlog':gray, 'Ready':blue, 'In Progress':yellow, 'In Review':orange, 'Done':green, 'Blocked':red)` |
+| Status | `ADD COLUMN "Status" SELECT('Backlog':gray, 'Ready':blue, 'In Progress':yellow, 'In Review':orange, 'Done':green, 'Blocked':red, 'Cancelled':purple)` |
 | Priority | `ADD COLUMN "Priority" SELECT('Urgent':red, 'High':orange, 'Medium':yellow, 'Low':blue)` |
 | Executor | `ADD COLUMN "Executor" SELECT('cli':purple, 'claude-desktop':green, 'cowork':blue, 'human':gray)` |
 | Dispatched At / Due Date | `ADD COLUMN "<field>" DATE` |
@@ -159,7 +159,7 @@ This removes the page from views but retains it in Notion's trash (recoverable f
 | Title | title | `task_title` | Task name |
 | Description | rich_text | `task_description` | Orchestrator-written detail |
 | Acceptance Criteria | rich_text | `task_acceptance_criteria` | Verifiable completion conditions |
-| Status | select | `task_status` | Backlog / Ready / In Progress / In Review / Done / Blocked |
+| Status | select | `task_status` | Backlog / Ready / In Progress / In Review / Done / Blocked / Cancelled |
 | Blocked By | relation | `task_blocked_by` | Self-relation (dependency). Empty or all blockers Done = actionable |
 | Priority | select | `task_priority` | Urgent / High / Medium / Low |
 | Executor | select | `task_executor` | cli / claude-desktop / cowork / human |

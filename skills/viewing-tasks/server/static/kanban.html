@@ -452,7 +452,7 @@
 <script>
   let allTasks = [];
   const today = new Date().toISOString().split('T')[0];
-  const colMap = { 'Backlog':'backlog', 'Ready':'ready', 'In Progress':'progress', 'In Review':'review', 'Done':'done' };
+  const colMap = { 'Backlog':'backlog', 'Ready':'ready', 'In Progress':'progress', 'In Review':'review', 'Done':'done', 'Cancelled':'backlog' };
   const prioClass = { Urgent:'p-urgent', High:'p-high', Medium:'p-medium', Low:'p-low' };
 
   function buildHierarchy(tasks) {

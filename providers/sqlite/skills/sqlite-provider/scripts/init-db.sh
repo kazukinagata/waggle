@@ -16,7 +16,7 @@ CREATE TABLE IF NOT EXISTS tasks (
   title TEXT NOT NULL,
   description TEXT DEFAULT '',
   acceptance_criteria TEXT DEFAULT '',
-  status TEXT DEFAULT 'Backlog' CHECK(status IN ('Backlog','Ready','In Progress','In Review','Done','Blocked')),
+  status TEXT DEFAULT 'Backlog' CHECK(status IN ('Backlog','Ready','In Progress','In Review','Done','Blocked','Cancelled')),
   priority TEXT CHECK(priority IN ('Urgent','High','Medium','Low')),
   executor TEXT CHECK(executor IN ('claude-desktop','cli','cowork','human')),
   requires_review INTEGER DEFAULT 0,
