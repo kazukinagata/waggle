@@ -25,6 +25,7 @@ export interface Task {
   team: string | null;
   assignee: { id: string; name: string }[];
   acknowledgedAt: string | null;
+  createdAt: string | null;
   url: string;
 }
 

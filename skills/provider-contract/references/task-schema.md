@@ -50,6 +50,7 @@ Providers MAY support these additional fields. Skills degrade gracefully if abse
 | Project | text | `project` | Project grouping |
 | Team | text | `team` | Team assignment |
 | Assignee | person[] | `assignee` | Array of `{ id, name }` objects |
+| Created At | datetime | `createdAt` | ISO 8601 timestamp, auto-populated on creation. Read-only. |
 
 ## Query-Only Fields
 

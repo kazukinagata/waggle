@@ -33,6 +33,7 @@ function makeTask(overrides: Partial<Task> = {}): Task {
     team: null,
     assignee: [],
     acknowledgedAt: null,
+    createdAt: null,
     url: "https://notion.so/task-1",
     ...overrides,
   };
