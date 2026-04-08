@@ -50,17 +50,17 @@ def extract_task:
     priority: (.properties.Priority.select.name // "N/A"),
     executor: (.properties.Executor.select.name // "N/A"),
     created: .created_time,
-    assignees: [.properties.Assignees.people[]? | .name // .id],
+    assignee: [.properties.Assignee.people[]? | .name // .id],
     has_description: ((.properties.Description.rich_text | length) > 0),
     has_ac: ((.properties["Acceptance Criteria"].rich_text | length) > 0),
     has_plan: ((.properties["Execution Plan"].rich_text | length) > 0),
     has_agent_output: ((.properties["Agent Output"].rich_text | length) > 0),
-    has_assignees: ((.properties.Assignees.people | length) > 0),
+    has_assignee: ((.properties.Assignee.people | length) > 0),
     has_executor: ((.properties.Executor.select.name // null) != null),
     has_issuer: ((.properties.Issuer.people // [] | length) > 0),
     has_acknowledged_at: ((.properties["Acknowledged At"].date.start // null) != null),
     issuer_ids: [.properties.Issuer.people[]? | .id],
-    assignee_ids: [.properties.Assignees.people[]? | .id]
+    assignee_ids: [.properties.Assignee.people[]? | .id]
   };
 
 # Helper: compute age in days from ISO timestamp (handles .000Z milliseconds)
@@ -101,9 +101,9 @@ def age_days:
 
 # === Dimension 2: Task Quality ===
 # Required fields per status:
-#   Ready: Description, Acceptance Criteria, Execution Plan, Assignees
-#   In Progress: Description, Acceptance Criteria, Execution Plan, Assignees, Executor
-#   Backlog: Description, Assignees (recommended)
+#   Ready: Description, Acceptance Criteria, Execution Plan, Assignee
+#   In Progress: Description, Acceptance Criteria, Execution Plan, Assignee, Executor
+#   Backlog: Description, Assignee (recommended)
 #   Done: Agent Output (for AI-executed tasks)
 def pct($field; $total):
   if $total == 0 then null
@@ -119,7 +119,7 @@ def pct($field; $total):
         description_pct: pct(map(select(.has_description)) | length; $n),
         ac_pct: pct(map(select(.has_ac)) | length; $n),
         plan_pct: pct(map(select(.has_plan)) | length; $n),
-        assignees_pct: pct(map(select(.has_assignees)) | length; $n),
+        assignee_pct: pct(map(select(.has_assignee)) | length; $n),
         executor_pct: pct(map(select(.has_executor)) | length; $n),
         issuer_pct: pct(map(select(.has_issuer)) | length; $n)
       }
@@ -138,7 +138,7 @@ def pct($field; $total):
             (if $t.has_description | not then ["Description"] else [] end) +
             (if $t.has_ac | not then ["Acceptance Criteria"] else [] end) +
             (if $t.has_plan | not then ["Execution Plan"] else [] end) +
-            (if $t.has_assignees | not then ["Assignees"] else [] end) +
+            (if $t.has_assignee | not then ["Assignee"] else [] end) +
             (if ($t.status == "In Progress") and ($t.has_executor | not) then ["Executor"] else [] end) +
             (if $t.has_issuer | not then ["Issuer"] else [] end)
           )
@@ -157,7 +157,7 @@ def pct($field; $total):
   | sort_by(-.age_days)
   | map({
       title: .title,
-      assignees: (.assignees | join(", ")),
+      assignee: (.assignee | join(", ")),
       priority: .priority,
       age_days: .age_days
     })
@@ -178,7 +178,7 @@ def executor_counts:
 ($tasks_aged
   | map(select(
       (.has_acknowledged_at | not) and
-      (.has_assignees) and
+      (.has_assignee) and
       (.status != "Done") and
       ((.issuer_ids | length) > 0) and
       ((.assignee_ids - .issuer_ids) | length) > 0
@@ -186,7 +186,7 @@ def executor_counts:
   | sort_by(-.age_days)
   | map({
       title: .title,
-      assignees: (.assignees | join(", ")),
+      assignee: (.assignee | join(", ")),
       status: .status,
       age_days: .age_days
     })

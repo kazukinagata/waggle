@@ -11,7 +11,7 @@ Every waggle-compatible task board MUST support these fields. Providers MUST aut
 | Title | text | `title` | Task name |
 | Description | rich_text | `description` | What the task should accomplish |
 | Acceptance Criteria | rich_text | `acceptanceCriteria` | Verifiable completion conditions |
-| Status | enum | `status` | One of: `Backlog`, `Ready`, `In Progress`, `In Review`, `Done`, `Blocked` |
+| Status | enum | `status` | One of: `Backlog`, `Ready`, `In Progress`, `In Review`, `Done`, `Blocked`, `Cancelled` |
 | Priority | enum | `priority` | One of: `Urgent`, `High`, `Medium`, `Low` |
 | Executor | enum | `executor` | One of: `cli`, `claude-desktop`, `cowork`, `human` (extensible) |
 | Blocked By | relation[] | `blockedBy` | Array of task IDs that must be Done before this task is actionable |
@@ -36,7 +36,7 @@ Every waggle-compatible task board MUST support these fields. Providers MUST aut
 - **No circular references**: A task cannot be its own parent.
 - **Status cascading**: When all subtasks reach Done, the parent auto-transitions to Done. Adding or re-opening a subtask on a Done parent reverts it to In Progress. See managing-tasks for details.
 
-## Extended Fields (8 fields — optional)
+## Extended Fields (10 fields — optional)
 
 Providers MAY support these additional fields. Skills degrade gracefully if absent. Providers MUST NOT fail if these fields do not exist.
 
@@ -49,7 +49,9 @@ Providers MAY support these additional fields. Skills degrade gracefully if abse
 | Tags | multi_select | `tags` | Free-form tags (array of strings) |
 | Project | text | `project` | Project grouping |
 | Team | text | `team` | Team assignment |
-| Assignees | person[] | `assignees` | Array of `{ id, name }` objects |
+| Assignee | person[] | `assignee` | Array of `{ id, name }` objects |
+| Created At | datetime | `createdAt` | ISO 8601 timestamp, auto-populated on creation. Read-only. |
+| Acknowledged At | datetime | `acknowledgedAt` | ISO 8601 timestamp, auto-set when assignee first views the task. Reset on delegation. |
 
 ## Query-Only Fields
 
@@ -86,7 +88,9 @@ The following fields are used in query results but are NOT pushed to the view se
   "parentTask": null,
   "project": "Auth System",
   "team": "Platform",
-  "assignees": [{ "id": "user-123", "name": "Alice" }]
+  "assignee": [{ "id": "user-123", "name": "Alice" }],
+  "createdAt": "2026-03-20T10:00:00.000Z",
+  "acknowledgedAt": null
 }
 ```
 

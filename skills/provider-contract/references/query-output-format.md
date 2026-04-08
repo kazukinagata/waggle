@@ -41,7 +41,7 @@ Each Task object in the `results` array contains:
       "agentOutput": "",
       "errorMessage": "",
       "dueDate": "2026-03-28",
-      "assignees": [{ "id": "user-456", "name": "Bob" }],
+      "assignee": [{ "id": "user-456", "name": "Bob" }],
       "tags": ["auth", "backend"]
     },
     {
@@ -60,7 +60,7 @@ Each Task object in the `results` array contains:
       "dispatchedAt": null,
       "agentOutput": "",
       "errorMessage": "",
-      "assignees": [{ "id": "user-456", "name": "Bob" }],
+      "assignee": [{ "id": "user-456", "name": "Bob" }],
       "tags": ["docs"]
     }
   ]

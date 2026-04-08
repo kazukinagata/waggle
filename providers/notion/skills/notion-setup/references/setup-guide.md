@@ -103,7 +103,7 @@ Create with all non-relation fields:
 | Title | title | — |
 | Description | rich_text | — |
 | Acceptance Criteria | rich_text | — |
-| Status | select | Options: Backlog, Ready, In Progress, In Review, Done, Blocked |
+| Status | select | Options: Backlog, Ready, In Progress, In Review, Done, Blocked, Cancelled |
 | Priority | select | Options: Urgent, High, Medium, Low |
 | Executor | select | Options: cli, claude-desktop, cowork, human |
 | Requires Review | checkbox | — |
@@ -118,7 +118,7 @@ Create with all non-relation fields:
 | Repository | url | — |
 | Due Date | date | — |
 | Tags | multi_select | — |
-| Assignees | people | — |
+| Assignee | people | — |
 | Issuer | people | Who created/initiated this task |
 | Branch | rich_text | Git branch name. Set when using git worktree with Executor=cli |
 

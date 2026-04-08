@@ -40,7 +40,7 @@ When the user asks "what should I do next?" or "next task":
 
 ## Task Creation
 
-For the full task creation flow — assignees resolution, required confirmations, executor choice, questioning flow, pre-creation checklist, and status auto-determination — follow `references/task-creation-flow.md` in this directory.
+For the full task creation flow — assignee resolution, required confirmations, executor choice, questioning flow, pre-creation checklist, and status auto-determination — follow `references/task-creation-flow.md` in this directory.
 
 ## Human → Agent Re-assignment
 
@@ -104,7 +104,7 @@ These auto-transitions are system-initiated and bypass normal validation (no use
 
 ## Auto-Acknowledge on Task Interaction
 
-When the user updates a specific task (status change, field edit, etc.) and the task's `Assignees` includes `current_user.id`: if `Acknowledged At` exists in the schema and is null, set it to the current ISO 8601 timestamp as part of the update. Silent operation — no user prompt.
+When the user updates a specific task (status change, field edit, etc.) and the task's `Assignee` includes `current_user.id`: if `Acknowledged At` exists in the schema and is null, set it to the current ISO 8601 timestamp as part of the update. Silent operation — no user prompt.
 
 ## After Any Task Operation
 

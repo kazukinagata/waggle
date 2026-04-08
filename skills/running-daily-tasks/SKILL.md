@@ -38,7 +38,7 @@ Record the result as `intake_result`. If the skill was skipped (e.g., no messagi
 
 Promote the current user's Backlog tasks to Ready by filling quality gates.
 
-1. Query the provider for tasks where **Status = Backlog** AND **Assignees includes `current_user`**.
+1. Query the provider for tasks where **Status = Backlog** AND **Assignee includes `current_user`**.
    - **Auto-Acknowledge**: After fetching, for each task where `Acknowledged At` exists in the schema and is null, update it to the current ISO 8601 timestamp (silent, no user prompt).
 2. If no tasks are found, set `refinement_result = "skipped (no Backlog tasks)"` and proceed to Step 2.5.
 3. Classify tasks into code tasks (have Working Directory) vs non-code tasks.
@@ -62,8 +62,8 @@ Promote the current user's Backlog tasks to Ready by filling quality gates.
 Review Blocked tasks and surface actionable items.
 
 1. Query using the provider's filter recipe for **Blocked tasks owned by user** (see provider SKILL.md):
-   `Status=Blocked AND (Assignees=current_user OR (Issuer=current_user AND Assignees empty))`
-   - **Auto-Acknowledge**: After fetching, for each task where `Assignees` includes `current_user` and `Acknowledged At` exists in the schema and is null, update it to the current ISO 8601 timestamp (silent, no user prompt).
+   `Status=Blocked AND (Assignee=current_user OR (Issuer=current_user AND Assignee empty))`
+   - **Auto-Acknowledge**: After fetching, for each task where `Assignee` includes `current_user` and `Acknowledged At` exists in the schema and is null, update it to the current ISO 8601 timestamp (silent, no user prompt).
 2. If 0 results: set `blocked_review_result = "skipped (no Blocked tasks)"` and proceed to Step 3.
 3. Separate into two groups:
    - **Group A — Unblocked**: ALL `Blocked By` tasks are Done
@@ -91,7 +91,7 @@ Still blocked (N tasks):
 ```
 
 For tasks blocked >7 days ONLY: offer batch support options:
-"M tasks blocked >7 days. [Ping all blocker assignees] [Escalate all to Urgent] [Skip]"
+"M tasks blocked >7 days. [Ping all blocker assignee] [Escalate all to Urgent] [Skip]"
 - **Ping**: Add a comment on each blocker task noting the stagnation.
 - **Escalate**: Change blocker tasks' Priority to Urgent.
 
@@ -117,8 +117,8 @@ Record the result as `dispatch_result`.
 Surface stagnating Ready tasks with executor=human for action.
 
 1. Query using the provider's filter recipe for **Ready human tasks owned by user** (see provider SKILL.md):
-   `Status=Ready AND Executor=human AND (Assignees=current_user OR (Issuer=current_user AND Assignees empty))`
-   - **Auto-Acknowledge**: After fetching, for each task where `Assignees` includes `current_user` and `Acknowledged At` exists in the schema and is null, update it to the current ISO 8601 timestamp (silent, no user prompt).
+   `Status=Ready AND Executor=human AND (Assignee=current_user OR (Issuer=current_user AND Assignee empty))`
+   - **Auto-Acknowledge**: After fetching, for each task where `Assignee` includes `current_user` and `Acknowledged At` exists in the schema and is null, update it to the current ISO 8601 timestamp (silent, no user prompt).
 2. If 0 results: set `human_ready_result = "skipped (no Ready human tasks)"` and proceed to Step 4.
 3. Run `validate-task-fields.sh` on each task. Note which have validation warnings (empty AC, empty Plan).
 4. For each task (oldest first, max 5, note "and N more..." if truncated):

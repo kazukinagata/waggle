@@ -19,6 +19,7 @@ skills/
 ├── looking-up-members/    # (shared) Member name/email → provider user ID
 ├── providers/notion/      # Notion-specific implementation
 ├── setting-up-tasks/      # Initial plugin setup and MCP configuration
+├── troubleshooting/       # Diagnoses common issues, schema mismatches, post-upgrade problems
 ├── managing-tasks/        # Task CRUD + personal task dashboard
 ├── executing-tasks/       # Task dispatch orchestration (single, tmux parallel, Scheduled Tasks)
 ├── viewing-tasks/         # Local view server management
@@ -59,7 +60,7 @@ Tasks can be executed in three modes based on execution environment:
 
 ### Task Schema
 
-Tasks have 15 Core fields (auto-repaired if missing) and 9 Extended fields (graceful degradation). Key fields: Status (Backlog/Ready/In Progress/In Review/Done/Blocked), Executor (cli/claude-desktop/cowork/human), Priority, Blocked By (dependency relation), Issuer (task creator/owner). CLI and Claude Desktop environments can execute tasks for any AI executor type (cli/claude-desktop/cowork), while Cowork can only execute cowork tasks due to VM constraints.
+Tasks have 15 Core fields (auto-repaired if missing) and 9 Extended fields (graceful degradation). Key fields: Status (Backlog/Ready/In Progress/In Review/Done/Blocked/Cancelled), Executor (cli/claude-desktop/cowork/human), Priority, Blocked By (dependency relation), Issuer (task creator/owner). CLI and Claude Desktop environments can execute tasks for any AI executor type (cli/claude-desktop/cowork), while Cowork can only execute cowork tasks due to VM constraints.
 
 ## Development Commands
 

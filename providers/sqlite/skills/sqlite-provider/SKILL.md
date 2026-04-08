@@ -40,7 +40,7 @@ bash ${CLAUDE_PLUGIN_ROOT}/skills/sqlite-provider/scripts/init-db.sh "<dbPath>"
 ### Create Task
 
 ```bash
-sqlite3 "<dbPath>" "INSERT INTO tasks (title, description, acceptance_criteria, status, priority, executor, requires_review, execution_plan, working_directory, assignees) VALUES ('<title>', '<description>', '<criteria>', '<status>', '<priority>', '<executor>', <0|1>, '<plan>', '<dir>', '<assignees_json>'); SELECT last_insert_rowid();"
+sqlite3 "<dbPath>" "INSERT INTO tasks (title, description, acceptance_criteria, status, priority, executor, requires_review, execution_plan, working_directory, assignee) VALUES ('<title>', '<description>', '<criteria>', '<status>', '<priority>', '<executor>', <0|1>, '<plan>', '<dir>', '<assignee_json>'); SELECT last_insert_rowid();"
 ```
 
 To get the generated ID, use:
@@ -120,12 +120,12 @@ bash ${CLAUDE_PLUGIN_ROOT}/skills/sqlite-provider/scripts/query-tasks.sh "<dbPat
 
 **Tasks assigned to current user:**
 ```bash
-bash ${CLAUDE_PLUGIN_ROOT}/skills/sqlite-provider/scripts/query-tasks.sh "<dbPath>" "t.assignees LIKE '%<user_id>%'"
+bash ${CLAUDE_PLUGIN_ROOT}/skills/sqlite-provider/scripts/query-tasks.sh "<dbPath>" "t.assignee LIKE '%<user_id>%'"
 ```
 
 **In Progress tasks (for concurrency check):**
 ```bash
-bash ${CLAUDE_PLUGIN_ROOT}/skills/sqlite-provider/scripts/query-tasks.sh "<dbPath>" "t.status = 'In Progress' AND t.assignees LIKE '%<user_id>%'"
+bash ${CLAUDE_PLUGIN_ROOT}/skills/sqlite-provider/scripts/query-tasks.sh "<dbPath>" "t.status = 'In Progress' AND t.assignee LIKE '%<user_id>%'"
 ```
 
 **Sort by Priority then Due Date:**
@@ -161,7 +161,7 @@ If the result is non-null, the candidate is already a subtask and cannot be used
 
 ```bash
 bash ${CLAUDE_PLUGIN_ROOT}/skills/sqlite-provider/scripts/query-tasks.sh "<dbPath>" '<where>' '<order>' | \
-  jq '[.results[] | {id, title, status, priority, executor, assignees, due_date, blocked_by: (.blocked_by | length | tostring) + " deps"}]'
+  jq '[.results[] | {id, title, status, priority, executor, assignee, due_date, blocked_by: (.blocked_by | length | tostring) + " deps"}]'
 ```
 
 ## Task Record Reference
@@ -201,7 +201,7 @@ TASKS_JSON=$(bash ${CLAUDE_PLUGIN_ROOT}/skills/sqlite-provider/scripts/query-tas
   workingDirectory: .working_directory, sessionReference: .session_reference,
   dispatchedAt: .dispatched_at, agentOutput: .agent_output, errorMessage: .error_message,
   context, artifacts, repository, dueDate: .due_date, tags, parentTaskId: .parent_task_id,
-  project, team, assignees, issuer, url: "", sprintId: .sprint_id, sprintName: null,
+  project, team, assignee, issuer, url: "", sprintId: .sprint_id, sprintName: null,
   complexityScore: .complexity_score, backlogOrder: .backlog_order
 }], updatedAt: (now | strftime("%Y-%m-%dT%H:%M:%SZ"))}')
 
@@ -237,7 +237,7 @@ curl -s http://localhost:3456/api/health -o /dev/null 2>/dev/null && \
 | parent_task_id | `parentTaskId` |
 | project | `project` |
 | team | `team` |
-| assignees | `assignees` (JSON array) |
+| assignee | `assignee` (JSON array) |
 | issuer | `issuer` |
 | (empty string) | `url` |
 | sprint_id | `sprintId` |

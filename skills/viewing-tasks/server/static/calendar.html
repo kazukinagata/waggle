@@ -346,6 +346,8 @@
     .task-pill.s-progress { background: rgba(255,159,10,0.2); }
     .task-pill.s-review   { background: rgba(191,90,242,0.2); }
     .task-pill.s-done     { background: rgba(48,209,88,0.2); }
+    .task-pill.s-blocked  { background: rgba(255,69,58,0.2); }
+    .task-pill.s-cancelled { background: rgba(142,142,147,0.2); text-decoration: line-through; }
 
     .priority-dot {
       width: 6px;
@@ -478,6 +480,8 @@
     .s-progress { background: rgba(255,159,10,0.15);  color: var(--orange); }
     .s-review   { background: rgba(191,90,242,0.15);  color: var(--purple); }
     .s-done     { background: rgba(48,209,88,0.15);   color: var(--green); }
+    .s-blocked  { background: rgba(255,69,58,0.15);  color: var(--red); }
+    .s-cancelled { background: rgba(142,142,147,0.15); color: var(--gray); text-decoration: line-through; }
 
     .p-urgent { background: rgba(255,69,58,0.15);  color: var(--red); }
     .p-high   { background: rgba(255,159,10,0.15); color: var(--orange); }
@@ -599,7 +603,7 @@
   const MAX_PILLS = 3;
 
   function statusClass(s) {
-    return { Backlog:'s-backlog', Ready:'s-ready', 'In Progress':'s-progress', 'In Review':'s-review', Done:'s-done' }[s] || 's-backlog';
+    return { Backlog:'s-backlog', Ready:'s-ready', 'In Progress':'s-progress', 'In Review':'s-review', Done:'s-done', Blocked:'s-blocked', Cancelled:'s-cancelled' }[s] || 's-backlog';
   }
   function priorityClass(p) {
     return { Urgent:'p-urgent', High:'p-high', Medium:'p-medium', Low:'p-low' }[p] || '';
@@ -752,7 +756,7 @@
     html += `<div class="popover-row"><span class="popover-label">Status</span><span class="badge ${statusClass(t.status)}">${esc(t.status)}</span></div>`;
     if (t.priority) html += `<div class="popover-row"><span class="popover-label">Priority</span><span class="badge ${priorityClass(t.priority)}">${esc(t.priority)}</span></div>`;
     if (t.dueDate) html += `<div class="popover-row"><span class="popover-label">Due</span><span>${esc(t.dueDate)}</span></div>`;
-    if (t.assignees && t.assignees.length) html += `<div class="popover-row"><span class="popover-label">Assigned</span><span>${t.assignees.map(a=>esc(a.name)).join(', ')}</span></div>`;
+    if (t.assignee && t.assignee.length) html += `<div class="popover-row"><span class="popover-label">Assigned</span><span>${t.assignee.map(a=>esc(a.name)).join(', ')}</span></div>`;
     const popParent = hierarchy.parentOf[t.id];
     if (popParent) html += `<div class="popover-row"><span class="popover-label">Parent</span><span>${esc(popParent.title)}</span></div>`;
     const stats = hierarchy.statsOf[t.id];

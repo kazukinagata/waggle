@@ -404,6 +404,9 @@
       border-radius: 2px;
       background: var(--green);
     }
+
+    .card-cancelled { opacity: 0.5; text-decoration: line-through; }
+    .card-blocked { border-left: 3px solid var(--red, #ff453a); }
   </style>
 </head>
 <body>
@@ -452,7 +455,7 @@
 <script>
   let allTasks = [];
   const today = new Date().toISOString().split('T')[0];
-  const colMap = { 'Backlog':'backlog', 'Ready':'ready', 'In Progress':'progress', 'In Review':'review', 'Done':'done' };
+  const colMap = { 'Backlog':'backlog', 'Ready':'ready', 'In Progress':'progress', 'In Review':'review', 'Done':'done', 'Blocked':'backlog', 'Cancelled':'backlog' };
   const prioClass = { Urgent:'p-urgent', High:'p-high', Medium:'p-medium', Low:'p-low' };
 
   function buildHierarchy(tasks) {
@@ -511,13 +514,14 @@
         const overdue = t.dueDate && t.dueDate < today;
         const parent = parentOf[t.id];
         const stats = statsOf[t.id];
-        return `<div class="card" onclick="copyId('${t.id}')" title="Click to copy ID">
+        const cardExtra = t.status === 'Cancelled' ? ' card-cancelled' : t.status === 'Blocked' ? ' card-blocked' : '';
+        return `<div class="card${cardExtra}" onclick="copyId('${t.id}')" title="Click to copy ID">
           ${parent ? `<div class="parent-badge" title="${esc(parent.title)}">${esc(parent.title)}</div>` : ''}
           <div class="card-title">${esc(t.title)}</div>
           <div class="card-meta">
             ${t.priority ? `<span class="prio-dot ${pc}"></span><span class="badge ${pc}">${esc(t.priority)}</span>` : ''}
-            ${!t.acknowledgedAt && t.assignees?.length ? '<span class="badge unack" title="Not yet seen by assignee">unseen</span>' : ''}
-            <div class="avatars">${(t.assignees||[]).map(a=>`<div class="avatar" title="${esc(a.name)}">${initials(a.name)}</div>`).join('')}</div>
+            ${!t.acknowledgedAt && t.assignee?.length ? '<span class="badge unack" title="Not yet seen by assignee">unseen</span>' : ''}
+            <div class="avatars">${(t.assignee||[]).map(a=>`<div class="avatar" title="${esc(a.name)}">${initials(a.name)}</div>`).join('')}</div>
             ${t.dueDate ? `<span class="due${overdue?' overdue':''}">${t.dueDate}${overdue?' ⚠':''}</span>` : ''}
           </div>
           ${t.tags&&t.tags.length ? `<div class="tags">${t.tags.map(g=>`<span class="tag">${esc(g)}</span>`).join('')}</div>` : ''}

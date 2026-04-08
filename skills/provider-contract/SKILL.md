@@ -104,7 +104,7 @@ Filter and sort tasks, returning results in the standard query output format.
 Requirements:
 - Accept filter and sort parameters.
 - Return `{ "results": [Task, Task, ...] }` — see `references/query-output-format.md`.
-- Support filtering by: Status, Priority, Executor, Assignees.
+- Support filtering by: Status, Priority, Executor, Assignee.
 - Support sorting by: Priority, Due Date.
 - Document the query mechanism (API script, SQL query, MCP tool).
 - Include a "Fetch All Tasks" variant with no filter for view server data push.

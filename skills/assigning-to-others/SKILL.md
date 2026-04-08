@@ -27,5 +27,5 @@ When assigning a task to someone other than the current user, apply the followin
 ## Rules
 
 - **Issuer is preserved** — it tracks who originated the task, not the current assignee.
-- **Assignees is set to exactly 1 person** — the recipient. If multiple people are needed, suggest splitting the task.
+- **Assignee is set to exactly 1 person** — the recipient. NEVER set multiple people in Assignee, even if the user says "assign to team X" or "assign to everyone". If the user requests a team or group assignment, ask which specific member to assign, or suggest splitting the task into per-member subtasks.
 - These resets apply regardless of the task's current state. Even if the task previously had an AI executor, assigning to another person resets to `human`.

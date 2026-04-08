@@ -1,12 +1,12 @@
 # Task Creation Flow
 
-## Assignees and Identity Resolution
+## Assignee and Identity Resolution
 
-**Assignees is always exactly 1 person** (skill-level rule). If multiple people are needed, suggest splitting the task.
+**Assignee is always exactly 1 person** (skill-level rule). NEVER set multiple people, even when the user mentions a team name or group. If the user says "assign to {team}", ask which specific member to assign. If multiple people are needed, suggest splitting the task into per-member subtasks.
 
 **When the task is for the user themselves:**
 - When the user explicitly says "my" or "for me":
-  Automatically set `current_user` in `Assignees` (no confirmation needed).
+  Automatically set `current_user` in `Assignee` (no confirmation needed).
 
 **When assigning to another member:**
 - When the user specifies another member's name:
@@ -22,7 +22,7 @@ Do not modify Issuer when delegating or reassigning — it tracks "who originate
 
 ## Acknowledged At (auto-populated for self-assigned tasks)
 
-When creating a task where `Assignees = current_user` (self-assigned):
+When creating a task where `Assignee = current_user` (self-assigned):
 - Set `Acknowledged At` to the current ISO 8601 timestamp in the create request.
 - No acknowledgment is needed when you create a task for yourself.
 
@@ -102,7 +102,7 @@ When the user says "decompose task X", "break down X into subtasks", or similar:
 3. For each subtask, inherit from parent where sensible:
    - `Working Directory`: inherit from parent
    - `Repository`: inherit from parent
-   - `Assignees`: inherit from parent
+   - `Assignee`: inherit from parent
    - `Priority`: inherit from parent (user can override per-subtask)
    - `Tags`: inherit from parent
    - `Executor`: ask per-subtask (different subtasks may need different executors)

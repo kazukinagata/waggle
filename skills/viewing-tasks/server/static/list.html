@@ -311,6 +311,8 @@
     .s-progress { background: rgba(255,159,10,0.15);  color: var(--orange); }
     .s-review   { background: rgba(191,90,242,0.15);  color: var(--purple); }
     .s-done     { background: rgba(48,209,88,0.15);   color: var(--green); }
+    .s-blocked  { background: rgba(255,69,58,0.15);  color: var(--red); }
+    .s-cancelled { background: rgba(142,142,147,0.15); color: var(--gray); text-decoration: line-through; }
 
     .p-urgent { background: rgba(255,69,58,0.15);  color: var(--red); }
     .p-high   { background: rgba(255,159,10,0.15); color: var(--orange); }
@@ -320,7 +322,7 @@
     .badge.unack { background: rgba(255,69,58,0.15); color: var(--red); font-size: 10px; }
 
     /* Avatars */
-    .assignees {
+    .assignee {
       display: flex;
       gap: 4px;
       flex-wrap: wrap;
@@ -467,6 +469,8 @@
     <button class="segment" data-value="In Progress">In Progress</button>
     <button class="segment" data-value="In Review">In Review</button>
     <button class="segment" data-value="Done">Done</button>
+    <button class="segment" data-value="Blocked">Blocked</button>
+    <button class="segment" data-value="Cancelled">Cancelled</button>
   </div>
 
   <input type="hidden" id="filter-priority" value="">
@@ -487,7 +491,7 @@
           <th>Title</th>
           <th>Status</th>
           <th>Priority</th>
-          <th>Assignees</th>
+          <th>Assignee</th>
           <th>Due Date</th>
           <th>Tags</th>
         </tr>
@@ -520,7 +524,7 @@
   const today = new Date().toISOString().split('T')[0];
 
   function statusClass(s) {
-    return { Backlog:'s-backlog', Ready:'s-ready', 'In Progress':'s-progress', 'In Review':'s-review', Done:'s-done' }[s] || 's-backlog';
+    return { Backlog:'s-backlog', Ready:'s-ready', 'In Progress':'s-progress', 'In Review':'s-review', Done:'s-done', Blocked:'s-blocked', Cancelled:'s-cancelled' }[s] || 's-backlog';
   }
   function priorityClass(p) {
     return { Urgent:'p-urgent', High:'p-high', Medium:'p-medium', Low:'p-low' }[p] || '';
@@ -601,7 +605,7 @@
         </td>
         <td><span class="badge ${statusClass(t.status)}">${esc(t.status)}</span></td>
         <td>${t.priority ? `<span class="badge ${priorityClass(t.priority)}">${esc(t.priority)}</span>` : '<span style="color:var(--label-tertiary)">—</span>'}</td>
-        <td><div class="assignees">${(t.assignees||[]).map(a=>`<div class="avatar" title="${esc(a.name)}">${initials(a.name)}</div>`).join('')}${!t.acknowledgedAt && t.assignees?.length ? ' <span class="badge unack" title="Not yet seen by assignee">unseen</span>' : ''}</div></td>
+        <td><div class="assignee">${(t.assignee||[]).map(a=>`<div class="avatar" title="${esc(a.name)}">${initials(a.name)}</div>`).join('')}${!t.acknowledgedAt && t.assignee?.length ? ' <span class="badge unack" title="Not yet seen by assignee">unseen</span>' : ''}</div></td>
         <td>${formatDate(t.dueDate)}</td>
         <td><div class="tags">${(t.tags||[]).map(g=>`<span class="tag">${esc(g)}</span>`).join('')}</div></td>
       </tr>`;

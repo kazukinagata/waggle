@@ -1,7 +1,7 @@
 # notion-extension Desktop Extension
 
 MCP server for Notion database operations that the hosted Notion MCP cannot handle:
-- **Query** with people property filters (e.g., Assignees)
+- **Query** with people property filters (e.g., Assignee)
 - **Update relation properties** (e.g., Blocked By, Parent Task) with replace/append modes
 
 ## Build
@@ -40,10 +40,10 @@ Returns `{"results": [...]}` with full page objects across all pages (pagination
 
 ```json
 // Tasks assigned to a user
-{"property":"Assignees","people":{"contains":"<user_id>"}}
+{"property":"Assignee","people":{"contains":"<user_id>"}}
 
 // Ready tasks by assignee
-{"and":[{"property":"Status","select":{"equals":"Ready"}},{"property":"Assignees","people":{"contains":"<user_id>"}}]}
+{"and":[{"property":"Status","select":{"equals":"Ready"}},{"property":"Assignee","people":{"contains":"<user_id>"}}]}
 ```
 
 ## Tool: notion-update-relation

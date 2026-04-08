@@ -19,7 +19,7 @@ describe("Task type — Core fields", () => {
 
   it("status includes Blocked", () => {
     expectTypeOf<Task["status"]>().toEqualTypeOf<
-      "Backlog" | "Ready" | "In Progress" | "In Review" | "Done" | "Blocked"
+      "Backlog" | "Ready" | "In Progress" | "In Review" | "Done" | "Blocked" | "Cancelled"
     >();
   });
 

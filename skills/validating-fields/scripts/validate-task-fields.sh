@@ -4,7 +4,7 @@
 # Usage: validate-task-fields.sh <target_status> <task_json_file>
 #
 # Arguments:
-#   target_status  — Status being transitioned TO: Ready, In Progress, Blocked, Done
+#   target_status  — Status being transitioned TO: Ready, In Progress, Blocked, Done, Cancelled
 #   task_json_file — Path to JSON file in canonical flat format (see SKILL.md)
 #
 # Output:
@@ -43,7 +43,7 @@ RESULT=$(jq --arg target "$TARGET_STATUS" '
   (.acceptanceCriteria // "") as $ac |
   (.executionPlan // "") as $plan |
   (.issuer // false) as $has_issuer |
-  (.assigneesCount // 0) as $assignees_count |
+  (.assigneeCount // 0) as $assignee_count |
   (.priority // null) as $priority |
   (.executor // null) as $executor |
   (.workingDirectory // "") as $workdir |
@@ -65,6 +65,11 @@ RESULT=$(jq --arg target "$TARGET_STATUS" '
   (if ($desc | length) == 0
    then $errors + [{"field":"Description","rule":"required_non_empty","message":"Description is required."}]
    else $errors end) as $errors |
+
+  # --- Multi-assignee check (all statuses) ---
+  (if $assignee_count > 1
+   then $warnings + [{"field":"Assignee","rule":"single_assignee","message":"Multiple people detected in Assignee (\($assignee_count)). Waggle enforces single-assignee per task. Consider splitting into separate tasks."}]
+   else $warnings end) as $warnings |
 
   # --- Status-specific checks ---
   (if $target == "Ready" or $target == "In Progress" then
@@ -97,8 +102,8 @@ RESULT=$(jq --arg target "$TARGET_STATUS" '
     (if $has_issuer == false
      then $warnings + [{"field":"Issuer","rule":"recommended","message":"Issuer is empty. Consider setting it manually."}]
      else $warnings end) as $warnings |
-    (if $assignees_count == 0
-     then $warnings + [{"field":"Assignees","rule":"recommended","message":"Assignees is empty. Issuer provides fallback ownership."}]
+    (if $assignee_count == 0
+     then $warnings + [{"field":"Assignee","rule":"recommended","message":"Assignee is empty. Issuer provides fallback ownership."}]
      else $warnings end) as $warnings |
     (if $priority == null
      then $warnings + [{"field":"Priority","rule":"recommended","message":"Priority is not set."}]
@@ -124,6 +129,9 @@ RESULT=$(jq --arg target "$TARGET_STATUS" '
     (if ($executor == "cli" or $executor == "claude-desktop" or $executor == "cowork") and ($agent_output | length) == 0
      then $warnings + [{"field":"Agent Output","rule":"recommended","message":"Agent Output is empty for AI executor. Record execution results."}]
      else $warnings end) as $warnings |
+    {"errors": $errors, "warnings": $warnings}
+
+  elif $target == "Cancelled" then
     {"errors": $errors, "warnings": $warnings}
 
   else

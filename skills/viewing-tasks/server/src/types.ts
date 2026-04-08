@@ -3,7 +3,7 @@ export interface Task {
   title: string;
   description: string;
   acceptanceCriteria: string;
-  status: "Backlog" | "Ready" | "In Progress" | "In Review" | "Done" | "Blocked";
+  status: "Backlog" | "Ready" | "In Progress" | "In Review" | "Done" | "Blocked" | "Cancelled";
   blockedBy: string[];
   priority: "Urgent" | "High" | "Medium" | "Low" | null;
   executor: "claude-desktop" | "cli" | "cowork" | "human" | null;
@@ -23,8 +23,9 @@ export interface Task {
   parentTaskId: string | null;
   project: string | null;
   team: string | null;
-  assignees: { id: string; name: string }[];
+  assignee: { id: string; name: string }[];
   acknowledgedAt: string | null;
+  createdAt: string | null;
   url: string;
 }
 

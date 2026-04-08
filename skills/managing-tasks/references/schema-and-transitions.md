@@ -9,7 +9,7 @@
 | Title | title | Task name |
 | Description | rich_text | Orchestrator-written detail |
 | Acceptance Criteria | rich_text | Verifiable completion conditions |
-| Status | select | Backlog / Ready / In Progress / In Review / Done / Blocked |
+| Status | select | Backlog / Ready / In Progress / In Review / Done / Blocked / Cancelled |
 | Blocked By | relation | Self-relation (dependency). Empty or all blockers Done = actionable |
 | Priority | select | Urgent / High / Medium / Low |
 | Executor | select | cli / claude-desktop / cowork / human |
@@ -32,7 +32,7 @@
 | Due Date | date | ISO format |
 | Tags | multi_select | Free tags |
 | Parent Task | relation | Self-relation (hierarchy) |
-| Assignees | people | Human executor assignment |
+| Assignee | people | Human executor assignment |
 | Branch | rich_text | Git branch name (e.g. feature/task-slug). Leave blank to work on the current branch |
 | Acknowledged At | date | ISO timestamp — when the assignee first saw this task. Auto-set by skills, reset on re-delegation. |
 
@@ -47,6 +47,7 @@ Valid transitions:
 - In Review → Done (when review approved)
 - In Review → In Progress (when changes requested)
 - Any → Backlog (deprioritize)
+- Any → Cancelled (task abandoned or no longer relevant)
 
 **When `Requires Review` is Off**, skip In Review and transition directly to Done.
 **When writing errors**, set Status to Blocked and write the error message in `Error Message` (not in Agent Output).

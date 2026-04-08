@@ -37,14 +37,14 @@ Subtasks are eligible for execution regardless of their parent task's status. Th
 
 1. Query Ready tasks using the active provider's "Querying Tasks" section:
    - **Auto-Acknowledge**: After fetching, for each task where `Acknowledged At` exists in the schema and is null, update it to the current ISO 8601 timestamp (silent, no user prompt).
-   - Filter: Status = "Ready" AND Executor in (eligible executor types) AND Assignees = `current_user.id`
+   - Filter: Status = "Ready" AND Executor in (eligible executor types) AND Assignee = `current_user.id`
      - `execution_environment = "cli"` → Executor in ("cli", "claude-desktop", "cowork")
      - `execution_environment = "claude-desktop"` → Executor in ("cli", "claude-desktop", "cowork")
      - `execution_environment = "cowork"` → Executor = "cowork"
    - CLI and Claude Desktop have full local capabilities, so they can process tasks for any AI executor type. Cowork runs in a constrained VM and can only process its own tasks.
    - Post-process: Blocked By is empty or all Blocked By tasks are Done (cannot be filtered server-side)
 2. Count In Progress tasks using the same query path:
-   - Filter: Status = "In Progress" AND Executor in (eligible executor types) AND Assignees = `current_user.id`
+   - Filter: Status = "In Progress" AND Executor in (eligible executor types) AND Assignee = `current_user.id`
    - If any In Progress tasks exist, display count to the user as context (not a hard block)
 3. Sort by Priority (Urgent > High > Medium > Low), then Due Date ascending
 

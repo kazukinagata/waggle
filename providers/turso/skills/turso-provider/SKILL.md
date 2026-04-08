@@ -47,7 +47,7 @@ bash ${CLAUDE_PLUGIN_ROOT}/skills/turso-provider/scripts/init-db.sh
 
 ```bash
 bash ${CLAUDE_PLUGIN_ROOT}/skills/turso-provider/scripts/turso-exec.sh \
-  "INSERT INTO tasks (title, description, acceptance_criteria, status, priority, executor, requires_review, execution_plan, working_directory, assignees) VALUES ('<title>', '<description>', '<criteria>', '<status>', '<priority>', '<executor>', <0|1>, '<plan>', '<dir>', '<assignees_json>') RETURNING id;"
+  "INSERT INTO tasks (title, description, acceptance_criteria, status, priority, executor, requires_review, execution_plan, working_directory, assignee) VALUES ('<title>', '<description>', '<criteria>', '<status>', '<priority>', '<executor>', <0|1>, '<plan>', '<dir>', '<assignee_json>') RETURNING id;"
 ```
 
 **IMPORTANT:** Escape single quotes in values by doubling them: `'` → `''`.
@@ -120,12 +120,12 @@ bash ${CLAUDE_PLUGIN_ROOT}/skills/turso-provider/scripts/query-tasks.sh "t.statu
 
 **Tasks assigned to current user:**
 ```bash
-bash ${CLAUDE_PLUGIN_ROOT}/skills/turso-provider/scripts/query-tasks.sh "t.assignees LIKE '%<user_id>%'"
+bash ${CLAUDE_PLUGIN_ROOT}/skills/turso-provider/scripts/query-tasks.sh "t.assignee LIKE '%<user_id>%'"
 ```
 
 **In Progress tasks (for concurrency check):**
 ```bash
-bash ${CLAUDE_PLUGIN_ROOT}/skills/turso-provider/scripts/query-tasks.sh "t.status = 'In Progress' AND t.assignees LIKE '%<user_id>%'"
+bash ${CLAUDE_PLUGIN_ROOT}/skills/turso-provider/scripts/query-tasks.sh "t.status = 'In Progress' AND t.assignee LIKE '%<user_id>%'"
 ```
 
 **Sort by Priority then Due Date:**
@@ -185,7 +185,7 @@ TASKS_JSON=$(bash ${CLAUDE_PLUGIN_ROOT}/skills/turso-provider/scripts/query-task
   workingDirectory: .working_directory, sessionReference: .session_reference,
   dispatchedAt: .dispatched_at, agentOutput: .agent_output, errorMessage: .error_message,
   context, artifacts, repository, dueDate: .due_date, tags, parentTaskId: .parent_task_id,
-  project, team, assignees, issuer, url: "", sprintId: .sprint_id, sprintName: null,
+  project, team, assignee, issuer, url: "", sprintId: .sprint_id, sprintName: null,
   complexityScore: .complexity_score, backlogOrder: .backlog_order
 }], updatedAt: (now | strftime("%Y-%m-%dT%H:%M:%SZ"))}')
 
@@ -221,7 +221,7 @@ curl -s http://localhost:3456/api/health -o /dev/null 2>/dev/null && \
 | parent_task_id | `parentTaskId` |
 | project | `project` |
 | team | `team` |
-| assignees | `assignees` (JSON array) |
+| assignee | `assignee` (JSON array) |
 | issuer | `issuer` |
 | (empty string) | `url` |
 | sprint_id | `sprintId` |

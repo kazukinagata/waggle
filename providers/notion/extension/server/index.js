@@ -17,7 +17,7 @@ if (!NOTION_TOKEN) {
 const notion = new Client({ auth: NOTION_TOKEN });
 
 const server = new Server(
-  { name: "notion-extension", version: "0.2.0" },
+  { name: "notion-extension", version: "0.3.0" },
   { capabilities: { tools: {} } }
 );
 
@@ -26,7 +26,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
     {
       name: "notion-query",
       description:
-        "Query a Notion database with server-side filtering, sorting, and pagination. Supports people property filters (Assignees) that the Notion hosted MCP cannot handle.",
+        "Query a Notion database with server-side filtering, sorting, and pagination. Supports people property filters (Assignee) that the Notion hosted MCP cannot handle.",
       inputSchema: {
         type: "object",
         properties: {
@@ -37,7 +37,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
           filter: {
             type: "object",
             description:
-              'Notion filter object. Example: {"property":"Assignees","people":{"contains":"<user_id>"}}',
+              'Notion filter object. Example: {"property":"Assignee","people":{"contains":"<user_id>"}}',
           },
           sorts: {
             type: "array",
