@@ -2,7 +2,7 @@
 name: monitoring-tasks
 description: >
   Performs a health check on tasks. Analyzes task age (stagnation),
-  field completeness by status, blocked tasks (including other assignee' blockers),
+  field completeness by status, blocked tasks (including other assignees' blockers),
   and executor ratio (human vs AI delegation).
   Supports 3 modes: specific assignee (by name), all tasks (team-wide overview),
   or defaults to current user when no target is specified.
@@ -110,9 +110,9 @@ Table: Status | Description | AC | Exec Plan | Assignee | Executor
   (show percentages, highlight values below 50% as concerning)
 Subsection: Tasks Missing Required Fields (title, status, missing fields)
 
-## 3. Blocked Tasks (All Assignee)
+## 3. Blocked Tasks (All Assignees)
 Table: Title | Assignee | Priority | Age (days)
-  (sorted by age desc, includes tasks from other assignee)
+  (sorted by age desc, includes tasks from other assignees)
 
 ## 4. Executor Ratio
 Table: Executor | All | Done | Active (non-Done)
@@ -122,7 +122,7 @@ Table: Executor | All | Done | Active (non-Done)
 ## 5. Acknowledgment Status
 Table: Title | Assignee | Issuer | Unacknowledged Days | Status
   (tasks where Acknowledged At is null, assigned by someone else, sorted by age desc)
-  Show count: "N tasks not yet acknowledged by assignee"
+  Show count: "N tasks not yet acknowledged by their assignee"
 
 ## Recommendations
 ```

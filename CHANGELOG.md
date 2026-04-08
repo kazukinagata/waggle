@@ -15,7 +15,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - **Team name detection** in `looking-up-members`: Queries matching a team name now return a `teamMatch` result instead of expanding to all team members.
 - **Single-assignee validation warning** in `validate-task-fields.sh`: Warns when `assigneeCount > 1`.
 - `Created At` (created_time) field added to task schema.
-- `Acknowledged At` (date) field added to task schema.
+- `Acknowledged At` (date) column added to Notion migration (existing schema field, previously missing from some databases).
 - `Cancelled` status option added to Status enum.
 - `CHANGELOG.md` for tracking release history.
 - `troubleshooting` skill for diagnosing common issues.
@@ -24,12 +24,3 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - Strengthened single-assignee rule in `assigning-to-others`, `delegating-tasks`, and `task-creation-flow` to explicitly reject team/group assignments.
 - Team name guard added to `delegating-tasks` Step 3.
 
-### Migration
-After merging, run the migration script:
-```bash
-NOTION_TOKEN=xxx bash /tmp/migrate-assignee.sh <database_id>
-```
-This will:
-1. Rename `Assignees` → `Assignee`
-2. Add `Created At` (created_time) column
-3. Add `Acknowledged At` (date) column

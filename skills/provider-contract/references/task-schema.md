@@ -36,7 +36,7 @@ Every waggle-compatible task board MUST support these fields. Providers MUST aut
 - **No circular references**: A task cannot be its own parent.
 - **Status cascading**: When all subtasks reach Done, the parent auto-transitions to Done. Adding or re-opening a subtask on a Done parent reverts it to In Progress. See managing-tasks for details.
 
-## Extended Fields (8 fields — optional)
+## Extended Fields (10 fields — optional)
 
 Providers MAY support these additional fields. Skills degrade gracefully if absent. Providers MUST NOT fail if these fields do not exist.
 
@@ -51,6 +51,7 @@ Providers MAY support these additional fields. Skills degrade gracefully if abse
 | Team | text | `team` | Team assignment |
 | Assignee | person[] | `assignee` | Array of `{ id, name }` objects |
 | Created At | datetime | `createdAt` | ISO 8601 timestamp, auto-populated on creation. Read-only. |
+| Acknowledged At | datetime | `acknowledgedAt` | ISO 8601 timestamp, auto-set when assignee first views the task. Reset on delegation. |
 
 ## Query-Only Fields
 
@@ -87,7 +88,9 @@ The following fields are used in query results but are NOT pushed to the view se
   "parentTask": null,
   "project": "Auth System",
   "team": "Platform",
-  "assignee": [{ "id": "user-123", "name": "Alice" }]
+  "assignee": [{ "id": "user-123", "name": "Alice" }],
+  "createdAt": "2026-03-20T10:00:00.000Z",
+  "acknowledgedAt": null
 }
 ```
 

@@ -79,6 +79,8 @@ Subtasks are eligible for execution regardless of their parent task's status. Th
 Backlog → Ready → In Progress → In Review → Done
                        ↓
                     Blocked
+
+Any → Cancelled
 ```
 
 ### Transition Conditions
@@ -93,6 +95,7 @@ Backlog → Ready → In Progress → In Review → Done
 | In Review | Done | Review approved |
 | In Review | In Progress | Changes requested |
 | Any | Backlog | Deprioritize / re-triage |
+| Any | Cancelled | Task abandoned or no longer relevant |
 
 ### Invalid Transitions
 
