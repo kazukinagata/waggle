@@ -54,7 +54,7 @@ Providers MAY support these additional fields. Skills degrade gracefully if abse
 | Parent Task | relation | Parent task ID (subtask relationship) |
 | Project | text | Project grouping |
 | Team | text | Team assignment |
-| Assignees | person[] | Assigned users |
+| Assignee | person[] | Assigned users |
 
 ## Subtask Hierarchy
 
@@ -85,7 +85,7 @@ Backlog → Ready → In Progress → In Review → Done
 
 | From | To | Condition |
 |---|---|---|
-| Backlog | Ready | Description, Acceptance Criteria, Assignees, and Execution Plan are all non-empty |
+| Backlog | Ready | Description, Acceptance Criteria, Assignee, and Execution Plan are all non-empty |
 | Ready | In Progress | Executor is assigned. Dispatched At is recorded |
 | In Progress | In Review | Requires Review = true. Agent Output is recorded |
 | In Progress | Done | Requires Review = false. Agent Output is recorded |

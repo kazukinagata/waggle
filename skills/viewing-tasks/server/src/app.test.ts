@@ -31,7 +31,8 @@ function makeTask(overrides: Partial<Task> = {}): Task {
     parentTaskId: null,
     project: null,
     team: null,
-    assignees: [],
+    assignee: [],
+    acknowledgedAt: null,
     url: "https://notion.so/task-1",
     ...overrides,
   };

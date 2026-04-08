@@ -2,7 +2,7 @@
 name: monitoring-tasks
 description: >
   Performs a health check on tasks. Analyzes task age (stagnation),
-  field completeness by status, blocked tasks (including other assignees' blockers),
+  field completeness by status, blocked tasks (including other assignee' blockers),
   and executor ratio (human vs AI delegation).
   Supports 3 modes: specific assignee (by name), all tasks (team-wide overview),
   or defaults to current user when no target is specified.
@@ -45,7 +45,7 @@ Two queries are needed. Use the Query Path Detection from the provider SKILL.md 
 
 ### Query A: Target Tasks
 
-**mode=user** — all tasks assigned to the target user (all statuses). Filter by Assignees containing `target_id`.
+**mode=user** — all tasks assigned to the target user (all statuses). Filter by Assignee containing `target_id`.
 
 **mode=all** — all tasks (no filter).
 
@@ -80,7 +80,7 @@ If the analysis script is not available (no bash, no jq), compute the metrics ma
 1. **Age**: For each task, compute `(today - created_time)` in days. Group by status, calculate count/avg/min/max. Find the top 10 non-Done tasks by age.
 
 2. **Quality**: For each status, check field completeness:
-   - **Ready / In Progress**: Description, Acceptance Criteria, Execution Plan, Assignees, Issuer should be filled. In Progress also needs Executor.
+   - **Ready / In Progress**: Description, Acceptance Criteria, Execution Plan, Assignee, Issuer should be filled. In Progress also needs Executor.
    - **Backlog**: Description should be filled.
    - **All statuses**: Issuer should be filled (identifies task origin/owner). Flag tasks with empty Issuer.
    - Report fill rates as percentages (including `issuer_pct`). List tasks missing required fields.
@@ -89,7 +89,7 @@ If the analysis script is not available (no bash, no jq), compute the metrics ma
 
 4. **Executor Ratio**: Count tasks by executor value (human, cli, claude-desktop, cowork, unset) across three slices: all tasks, Done only, non-Done only.
 
-5. **Acknowledgment Status**: Find tasks where `Acknowledged At` is null AND `Assignees` is non-empty AND `Issuer` person IDs do not overlap with `Assignees` person IDs (i.e., assigned by someone else and not yet seen). List with title, assignee name, issuer name, and days since task creation.
+5. **Acknowledgment Status**: Find tasks where `Acknowledged At` is null AND `Assignee` is non-empty AND `Issuer` person IDs do not overlap with `Assignee` person IDs (i.e., assigned by someone else and not yet seen). List with title, assignee name, issuer name, and days since task creation.
 
 ## Step 4: Render Report
 
@@ -106,13 +106,13 @@ Table: Status | Count | Avg Days | Min | Max
 Subsection: Top 10 Stagnating Tasks (non-Done, sorted by age desc)
 
 ## 2. Task Quality
-Table: Status | Description | AC | Exec Plan | Assignees | Executor
+Table: Status | Description | AC | Exec Plan | Assignee | Executor
   (show percentages, highlight values below 50% as concerning)
 Subsection: Tasks Missing Required Fields (title, status, missing fields)
 
-## 3. Blocked Tasks (All Assignees)
+## 3. Blocked Tasks (All Assignee)
 Table: Title | Assignee | Priority | Age (days)
-  (sorted by age desc, includes tasks from other assignees)
+  (sorted by age desc, includes tasks from other assignee)
 
 ## 4. Executor Ratio
 Table: Executor | All | Done | Active (non-Done)
@@ -122,7 +122,7 @@ Table: Executor | All | Done | Active (non-Done)
 ## 5. Acknowledgment Status
 Table: Title | Assignee | Issuer | Unacknowledged Days | Status
   (tasks where Acknowledged At is null, assigned by someone else, sorted by age desc)
-  Show count: "N tasks not yet acknowledged by assignees"
+  Show count: "N tasks not yet acknowledged by assignee"
 
 ## Recommendations
 ```
@@ -146,4 +146,4 @@ Generate 3-5 actionable recommendations based on findings. Focus on:
 - **Blocked accumulation**: Blocked tasks older than 5 days, especially those blocking the target user
 - **AI delegation opportunity**: If human executor ratio is above 70%, suggest reviewing Ready tasks for AI-executable candidates
 - **Unset executors**: Tasks in Ready/In Progress without an Executor assigned
-- **Unacknowledged tasks**: Tasks not seen by assignees for 2+ days — suggest sending a reminder or Slack notification
+- **Unacknowledged tasks**: Tasks not seen by assignee for 2+ days — suggest sending a reminder or Slack notification

@@ -34,7 +34,7 @@ CREATE TABLE IF NOT EXISTS tasks (
   parent_task_id TEXT REFERENCES tasks(id),
   project TEXT,
   team TEXT,
-  assignees TEXT DEFAULT '[]',
+  assignee TEXT DEFAULT '[]',
   issuer TEXT DEFAULT '',
   complexity_score INTEGER,
   backlog_order INTEGER,

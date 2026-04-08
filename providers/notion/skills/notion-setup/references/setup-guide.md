@@ -118,7 +118,7 @@ Create with all non-relation fields:
 | Repository | url | — |
 | Due Date | date | — |
 | Tags | multi_select | — |
-| Assignees | people | — |
+| Assignee | people | — |
 | Issuer | people | Who created/initiated this task |
 | Branch | rich_text | Git branch name. Set when using git worktree with Executor=cli |
 

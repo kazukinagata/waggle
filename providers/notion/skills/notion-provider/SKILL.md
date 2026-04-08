@@ -182,7 +182,7 @@ This removes the page from views but retains it in Notion's trash (recoverable f
 | Due Date | date | `task_due_date` | ISO format |
 | Tags | multi_select | `task_tags` | Free tags |
 | Parent Task | relation | `task_parent` | Self-relation (hierarchy) |
-| Assignees | people | `task_assignees` | Human executor assignment |
+| Assignee | people | `task_assignee` | Human executor assignment |
 | Branch | rich_text | `task_branch` | Git branch name (e.g. feature/task-slug). Leave blank to work on the current branch |
 | Source Message ID | rich_text | `task_source_message_id` | Messaging tool message unique ID (e.g. Slack `channel_id:ts`). Used for cross-member dedup |
 | Acknowledged At | date | `task_acknowledged_at` | Auto-set when assignee sees the task. Reset on delegation. |
@@ -245,27 +245,27 @@ The script returns `{"results": [...]}` with full page objects including all pro
 
 **Tasks assigned to a user:**
 ```json
-{"property":"Assignees","people":{"contains":"<user_id>"}}
+{"property":"Assignee","people":{"contains":"<user_id>"}}
 ```
 
 **Ready tasks assigned to a user:**
 ```json
-{"and":[{"property":"Status","select":{"equals":"Ready"}},{"property":"Assignees","people":{"contains":"<user_id>"}}]}
+{"and":[{"property":"Status","select":{"equals":"Ready"}},{"property":"Assignee","people":{"contains":"<user_id>"}}]}
 ```
 
 **In Progress tasks (for concurrency check):**
 ```json
-{"and":[{"property":"Status","select":{"equals":"In Progress"}},{"property":"Assignees","people":{"contains":"<user_id>"}}]}
+{"and":[{"property":"Status","select":{"equals":"In Progress"}},{"property":"Assignee","people":{"contains":"<user_id>"}}]}
 ```
 
 **Ready tasks by executor and assignee (single executor):**
 ```json
-{"and":[{"property":"Status","select":{"equals":"Ready"}},{"property":"Executor","select":{"equals":"cowork"}},{"property":"Assignees","people":{"contains":"<user_id>"}}]}
+{"and":[{"property":"Status","select":{"equals":"Ready"}},{"property":"Executor","select":{"equals":"cowork"}},{"property":"Assignee","people":{"contains":"<user_id>"}}]}
 ```
 
 **Ready tasks by executor and assignee (multiple executors — for cli/claude-desktop environments):**
 ```json
-{"and":[{"property":"Status","select":{"equals":"Ready"}},{"or":[{"property":"Executor","select":{"equals":"cli"}},{"property":"Executor","select":{"equals":"claude-desktop"}},{"property":"Executor","select":{"equals":"cowork"}}]},{"property":"Assignees","people":{"contains":"<user_id>"}}]}
+{"and":[{"property":"Status","select":{"equals":"Ready"}},{"or":[{"property":"Executor","select":{"equals":"cli"}},{"property":"Executor","select":{"equals":"claude-desktop"}},{"property":"Executor","select":{"equals":"cowork"}}]},{"property":"Assignee","people":{"contains":"<user_id>"}}]}
 ```
 
 **Sort by Priority then Due Date:**
@@ -273,14 +273,14 @@ The script returns `{"results": [...]}` with full page objects including all pro
 [{"property":"Priority","direction":"ascending"},{"property":"Due Date","direction":"ascending"}]
 ```
 
-**Blocked tasks owned by user (via Assignees OR Issuer fallback):**
+**Blocked tasks owned by user (via Assignee OR Issuer fallback):**
 ```json
-{"and":[{"property":"Status","select":{"equals":"Blocked"}},{"or":[{"property":"Assignees","people":{"contains":"<user_id>"}},{"and":[{"property":"Issuer","people":{"contains":"<user_id>"}},{"property":"Assignees","people":{"is_empty":true}}]}]}]}
+{"and":[{"property":"Status","select":{"equals":"Blocked"}},{"or":[{"property":"Assignee","people":{"contains":"<user_id>"}},{"and":[{"property":"Issuer","people":{"contains":"<user_id>"}},{"property":"Assignee","people":{"is_empty":true}}]}]}]}
 ```
 
-**Ready human tasks owned by user (via Assignees OR Issuer fallback):**
+**Ready human tasks owned by user (via Assignee OR Issuer fallback):**
 ```json
-{"and":[{"property":"Status","select":{"equals":"Ready"}},{"property":"Executor","select":{"equals":"human"}},{"or":[{"property":"Assignees","people":{"contains":"<user_id>"}},{"and":[{"property":"Issuer","people":{"contains":"<user_id>"}},{"property":"Assignees","people":{"is_empty":true}}]}]}]}
+{"and":[{"property":"Status","select":{"equals":"Ready"}},{"property":"Executor","select":{"equals":"human"}},{"or":[{"property":"Assignee","people":{"contains":"<user_id>"}},{"and":[{"property":"Issuer","people":{"contains":"<user_id>"}},{"property":"Assignee","people":{"is_empty":true}}]}]}]}
 ```
 
 #### Hierarchy Queries
@@ -332,7 +332,7 @@ bash ${CLAUDE_PLUGIN_ROOT}/skills/notion-provider/scripts/query-tasks.sh \
     status: (.properties.Status.select.name // ""),
     priority: (.properties.Priority.select.name // ""),
     executor: (.properties.Executor.select.name // ""),
-    assignees: ([.properties.Assignees.people[]?.name] | join(", ")),
+    assignee: ([.properties.Assignee.people[]?.name] | join(", ")),
     due_date: (.properties["Due Date"].date.start // ""),
     blocked_by: (([.properties["Blocked By"].relation[]?.id] | length | tostring) + " deps")
   }]'
@@ -431,7 +431,7 @@ curl -s http://localhost:3456/api/health -o /dev/null 2>/dev/null && \
 | Due Date | `dueDate` |
 | Tags | `tags` |
 | Parent Task | `parentTaskId` |
-| Assignees | `assignees` |
+| Assignee | `assignee` |
 | Issuer | `issuer` |
 | Acknowledged At | `acknowledgedAt` |
 | `url` (page URL) | `url` |
@@ -485,7 +485,7 @@ Called by `resolving-identity` shared skill when `org_members` lookup is needed.
 
 To determine whether a task is assigned to the current user:
 
-- Fetch the task's `Assignees` property (people type — returns an array of person objects).
+- Fetch the task's `Assignee` property (people type — returns an array of person objects).
 - Check if any element in the array has `id === current_user.id`.
 - Use this check when filtering tasks in `managing-tasks` and `executing-tasks`.
 

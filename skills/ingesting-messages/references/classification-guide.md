@@ -4,9 +4,9 @@
 
 | Category | Criteria | Action |
 |---|---|---|
-| **A: Hearing Needed** | Insufficient info, question format, ambiguous request, seeking approval | Main task (Status=Blocked) + Blocker task (Status=Ready, executor=human, Assignees=requester) |
-| **B: Self-Action** | AI-processable implementation, research, documentation, clear work request | Task (Status=Ready, executor=claude-desktop or cli, Assignees=self) |
-| **C: Delegate** | Clearly intended for another team member (name explicitly mentioned, etc.) | Task (Status=Backlog, executor=human, Assignees=assignee) |
+| **A: Hearing Needed** | Insufficient info, question format, ambiguous request, seeking approval | Main task (Status=Blocked) + Blocker task (Status=Ready, executor=human, Assignee=requester) |
+| **B: Self-Action** | AI-processable implementation, research, documentation, clear work request | Task (Status=Ready, executor=claude-desktop or cli, Assignee=self) |
+| **C: Delegate** | Clearly intended for another team member (name explicitly mentioned, etc.) | Task (Status=Backlog, executor=human, Assignee=assignee) |
 
 **When classification is unclear**: Treat as Category A (safe default).
 

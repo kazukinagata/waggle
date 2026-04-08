@@ -32,7 +32,7 @@
 | Due Date | date | ISO format |
 | Tags | multi_select | Free tags |
 | Parent Task | relation | Self-relation (hierarchy) |
-| Assignees | people | Human executor assignment |
+| Assignee | people | Human executor assignment |
 | Branch | rich_text | Git branch name (e.g. feature/task-slug). Leave blank to work on the current branch |
 | Acknowledged At | date | ISO timestamp — when the assignee first saw this task. Auto-set by skills, reset on re-delegation. |
 

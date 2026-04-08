@@ -49,7 +49,7 @@ Providers MAY support these additional fields. Skills degrade gracefully if abse
 | Tags | multi_select | `tags` | Free-form tags (array of strings) |
 | Project | text | `project` | Project grouping |
 | Team | text | `team` | Team assignment |
-| Assignees | person[] | `assignees` | Array of `{ id, name }` objects |
+| Assignee | person[] | `assignee` | Array of `{ id, name }` objects |
 
 ## Query-Only Fields
 
@@ -86,7 +86,7 @@ The following fields are used in query results but are NOT pushed to the view se
   "parentTask": null,
   "project": "Auth System",
   "team": "Platform",
-  "assignees": [{ "id": "user-123", "name": "Alice" }]
+  "assignee": [{ "id": "user-123", "name": "Alice" }]
 }
 ```
 

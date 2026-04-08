@@ -320,7 +320,7 @@
     .badge.unack { background: rgba(255,69,58,0.15); color: var(--red); font-size: 10px; }
 
     /* Avatars */
-    .assignees {
+    .assignee {
       display: flex;
       gap: 4px;
       flex-wrap: wrap;
@@ -487,7 +487,7 @@
           <th>Title</th>
           <th>Status</th>
           <th>Priority</th>
-          <th>Assignees</th>
+          <th>Assignee</th>
           <th>Due Date</th>
           <th>Tags</th>
         </tr>
@@ -601,7 +601,7 @@
         </td>
         <td><span class="badge ${statusClass(t.status)}">${esc(t.status)}</span></td>
         <td>${t.priority ? `<span class="badge ${priorityClass(t.priority)}">${esc(t.priority)}</span>` : '<span style="color:var(--label-tertiary)">—</span>'}</td>
-        <td><div class="assignees">${(t.assignees||[]).map(a=>`<div class="avatar" title="${esc(a.name)}">${initials(a.name)}</div>`).join('')}${!t.acknowledgedAt && t.assignees?.length ? ' <span class="badge unack" title="Not yet seen by assignee">unseen</span>' : ''}</div></td>
+        <td><div class="assignee">${(t.assignee||[]).map(a=>`<div class="avatar" title="${esc(a.name)}">${initials(a.name)}</div>`).join('')}${!t.acknowledgedAt && t.assignee?.length ? ' <span class="badge unack" title="Not yet seen by assignee">unseen</span>' : ''}</div></td>
         <td>${formatDate(t.dueDate)}</td>
         <td><div class="tags">${(t.tags||[]).map(g=>`<span class="tag">${esc(g)}</span>`).join('')}</div></td>
       </tr>`;

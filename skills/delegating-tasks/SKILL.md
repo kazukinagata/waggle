@@ -1,7 +1,7 @@
 ---
 name: delegating-tasks
 description: >
-  Delegates a task to another organization member by updating Assignees,
+  Delegates a task to another organization member by updating Assignee,
   resetting executor fields, and recording delegation history in Context.
   Use this skill whenever the user wants to hand off, transfer, reassign,
   or give a task to someone else — even if they don't say "delegate" explicitly.
@@ -12,7 +12,7 @@ user-invocable: true
 
 # Waggle — Task Delegate
 
-Delegates a task to another organization member. Changes Assignees to the recipient and appends delegation history to Context.
+Delegates a task to another organization member. Changes Assignee to the recipient and appends delegation history to Context.
 
 ## Step 1: Session Bootstrap
 
@@ -34,6 +34,7 @@ If the user did not specify a task clearly:
    - 0 matches → inform the user and ask for a different name or email.
    - 1 match → confirm: "Delegate to {recipient.name}?"
    - 2–5 matches → present the list and ask the user to select one.
+   - Team name match (lookup returns `teamMatch: true`): inform "'{query}' is a team name. Assignee must be exactly 1 person. Which member of {teamName} should this be delegated to?" and present the team's member list for selection.
 
 ## Step 3b: Content Quality Check
 
@@ -49,7 +50,7 @@ These are non-blocking suggestions. Proceed with delegation if the user confirms
 Apply the following field updates (other fields remain unchanged).
 **`Issuer` is preserved** (not modified) — it tracks the original task creator, not the current assignee.
 
-1. Set `Assignees` to `[recipient]`.
+1. Set `Assignee` to `[recipient]`.
 2. Apply the field resets defined in `${CLAUDE_PLUGIN_ROOT}/skills/assigning-to-others/SKILL.md` (this clears `Acknowledged At` among other fields).
 3. **Self-delegation exception**: If `recipient.id == current_user.id`, set `Acknowledged At` to the current ISO 8601 timestamp (no acknowledgment needed for self-assigned tasks).
 4. Append delegation history to `Context` (see format below).

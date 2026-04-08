@@ -752,7 +752,7 @@
     html += `<div class="popover-row"><span class="popover-label">Status</span><span class="badge ${statusClass(t.status)}">${esc(t.status)}</span></div>`;
     if (t.priority) html += `<div class="popover-row"><span class="popover-label">Priority</span><span class="badge ${priorityClass(t.priority)}">${esc(t.priority)}</span></div>`;
     if (t.dueDate) html += `<div class="popover-row"><span class="popover-label">Due</span><span>${esc(t.dueDate)}</span></div>`;
-    if (t.assignees && t.assignees.length) html += `<div class="popover-row"><span class="popover-label">Assigned</span><span>${t.assignees.map(a=>esc(a.name)).join(', ')}</span></div>`;
+    if (t.assignee && t.assignee.length) html += `<div class="popover-row"><span class="popover-label">Assigned</span><span>${t.assignee.map(a=>esc(a.name)).join(', ')}</span></div>`;
     const popParent = hierarchy.parentOf[t.id];
     if (popParent) html += `<div class="popover-row"><span class="popover-label">Parent</span><span>${esc(popParent.title)}</span></div>`;
     const stats = hierarchy.statsOf[t.id];

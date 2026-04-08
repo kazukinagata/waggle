@@ -2,7 +2,7 @@
   "manifest_version": "0.3",
   "name": "notion-extension",
   "display_name": "Notion Extension for Waggle",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Notion database querying with people property filters and relation property updates. Designed for Waggle plugin.",
   "author": {
     "name": "Kazuki Nagata"
@@ -21,7 +21,7 @@
   "tools": [
     {
       "name": "notion-query",
-      "description": "Query a Notion database with server-side filtering, sorting, and pagination. Supports people property filters (Assignees) that the Notion hosted MCP cannot handle."
+      "description": "Query a Notion database with server-side filtering, sorting, and pagination. Supports people property filters (Assignee) that the Notion hosted MCP cannot handle."
     },
     {
       "name": "notion-update-relation",

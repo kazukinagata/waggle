@@ -23,7 +23,7 @@ export interface Task {
   parentTaskId: string | null;
   project: string | null;
   team: string | null;
-  assignees: { id: string; name: string }[];
+  assignee: { id: string; name: string }[];
   acknowledgedAt: string | null;
   url: string;
 }

@@ -34,7 +34,7 @@ The validation script is **provider-agnostic**. Before calling it, construct a f
   "acceptanceCriteria": "Verifiable completion conditions",
   "executionPlan": "Step-by-step plan",
   "issuer": true,
-  "assigneesCount": 1,
+  "assigneeCount": 1,
   "priority": "High",
   "executor": "cli",
   "workingDirectory": "/absolute/path",
@@ -52,7 +52,7 @@ description      <- .properties.Description.rich_text | map(.plain_text) | join(
 acceptanceCriteria <- .properties["Acceptance Criteria"].rich_text | map(.plain_text) | join("")
 executionPlan    <- .properties["Execution Plan"].rich_text | map(.plain_text) | join("")
 issuer           <- (.properties.Issuer.people | length) > 0
-assigneesCount   <- .properties.Assignees.people | length
+assigneeCount   <- .properties.Assignee.people | length
 priority         <- .properties.Priority.select.name
 executor         <- .properties.Executor.select.name
 workingDirectory <- .properties["Working Directory"].rich_text | map(.plain_text) | join("")
@@ -67,7 +67,7 @@ description      <- .description
 acceptanceCriteria <- .acceptance_criteria
 executionPlan    <- .execution_plan
 issuer           <- (.issuer | length) > 0
-assigneesCount   <- (.assignees | fromjson | length)
+assigneeCount   <- (.assignee | fromjson | length)
 priority         <- .priority
 executor         <- .executor
 workingDirectory <- .working_directory
@@ -97,7 +97,7 @@ errorMessage     <- .error_message
 
 | Target Status | Required (errors) | Recommended (warnings) |
 |---|---|---|
-| **Ready** | Description (non-empty, >=50 chars), AC (non-empty + semantic check), Execution Plan (non-empty) | Issuer (non-empty), Assignees (non-empty), Priority (set) |
+| **Ready** | Description (non-empty, >=50 chars), AC (non-empty + semantic check), Execution Plan (non-empty) | Issuer (non-empty), Assignee (non-empty), Priority (set) |
 | **In Progress** | All Ready requirements + Executor (set), Working Directory (non-empty for AI executors) | Issuer, Branch (for cli executor) |
 | **Blocked** | Description (non-empty), AC (non-empty) | Issuer, Error Message |
 | **Done** | Description (non-empty) | Agent Output (for AI executors) |

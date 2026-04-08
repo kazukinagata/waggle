@@ -14,6 +14,18 @@ Uses the `org_members` cache populated by `resolving-identity`.
 - `active_provider` must already be determined.
 - `org_members` must already be populated (caller must trigger resolving-identity Step 2 first).
 
+## Team Name Detection
+
+Before running the Resolution Algorithm, check if the query matches a team name rather than a person name:
+
+1. If `teamsDatabaseId` is available in `headless_config`:
+   a. Fetch team names from the Teams database (Name/title property of each row).
+   b. If the query (case-insensitive) exactly matches or is contained in any team name:
+      - Return empty array `[]` with metadata: `{ "teamMatch": true, "teamName": "<matched team name>" }`
+      - The caller MUST NOT expand this to team members.
+      - The caller should ask the user: "'{query}' is a team name. Assignee must be exactly 1 person. Which member of {team} should be assigned?"
+2. If `teamsDatabaseId` is not available, skip this check and proceed to the Resolution Algorithm.
+
 ## Resolution Algorithm
 
 Given a query string (name or email fragment):

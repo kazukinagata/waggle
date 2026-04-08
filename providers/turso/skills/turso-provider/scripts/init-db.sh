@@ -33,7 +33,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
     parent_task_id TEXT REFERENCES tasks(id),
     project TEXT,
     team TEXT,
-    assignees TEXT DEFAULT '[]',
+    assignee TEXT DEFAULT '[]',
     issuer TEXT DEFAULT '',
     complexity_score INTEGER,
     backlog_order INTEGER,

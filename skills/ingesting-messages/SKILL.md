@@ -70,6 +70,24 @@ The Intake Log is a Notion database (`Intake Log`) that tracks which messages ha
 3. Load `processed_message_ids`: query `intakeLogDatabaseId` using the provider's "Querying Any Notion Database" flow and collect all existing Message ID values.
 4. **FIFO cleanup**: If the Intake Log has more than 1000 entries, delete the oldest records (by Processed At) until the count is at or below 1000.
 
+### Active Threads Preparation
+
+Active Threads enables continuous monitoring of threads the user has participated in, even after the original messages fall outside the lookback period.
+
+1. Read the config page and check for `activeThreadsDatabaseId`.
+2. If `activeThreadsDatabaseId` is missing or the database does not exist:
+   - Create a new database named "Active Threads" under the Waggle parent page using `notion-create-database`.
+   - Schema:
+     | Property | Notion Type | Description |
+     |---|---|---|
+     | Thread ID | title | `channel_id:thread_ts` |
+     | Channel ID | rich_text | Slack channel ID |
+     | Thread TS | rich_text | thread_ts value |
+     | Last Checked | date | Timestamp of last check for new replies |
+     | Status | select | `active` / `closed` |
+   - Write the new database ID back to the config page as `activeThreadsDatabaseId`.
+3. Load `active_threads`: query `activeThreadsDatabaseId` with filter `Status = active` and collect all records.
+
 ### Custom Intake Source Loading
 
 Load custom intake instructions if configured:
@@ -99,6 +117,19 @@ Retrieve every message from the past `{lookback_period}` that is directed at or 
   2. Fetch replies for each thread
   3. Exclude own messages and already-processed messages
   4. If the MCP does not support thread-level queries, skip Query 3 and note it in the summary
+
+### 1b-2. Active Threads Check
+
+For each thread in `active_threads`, check for new replies that the lookback-period queries may have missed:
+
+1. Call `slack_read_thread` with `channel_id` and `message_ts` set to the thread's Thread TS value. Set `oldest` to the thread's `Last Checked` timestamp to retrieve only new replies since the last check.
+2. From the response, exclude:
+   - Messages sent by `current_user` (own messages)
+   - Messages whose unique ID (`channel_id:ts`) is already in `processed_message_ids`
+3. Add any remaining unprocessed messages to the message pool for classification.
+4. Update the thread's `Last Checked` to the current timestamp (even if no new messages were found).
+
+This ensures threads discovered in previous ingesting runs continue to be monitored regardless of the lookback period. Without this step, threads whose original messages and user replies have both fallen outside the lookback window would become invisible to Query 3.
 
 ### 1c. Common Filters (applied after merge)
 
@@ -227,6 +258,15 @@ Create tasks directly via `notion-create-pages` for each message (do not go thro
    - Tool Name: the messaging tool name (e.g. `slack`)
    - Processed At: current timestamp
 2. If the Intake Log DB exceeds 1000 entries, delete the oldest records (by Processed At) to bring it back to 1000.
+
+### Active Threads Update
+
+1. For each processed message that was part of a thread (has a `thread_ts` value):
+   - Construct `thread_id` = `{channel_id}:{thread_ts}`
+   - If `thread_id` is not already in `active_threads`: create a new record in Active Threads DB via `notion-create-pages` with Status=`active` and Last Checked=current timestamp.
+2. **Auto-close stale threads**: For each Active Thread where `Last Checked` is more than 7 days ago AND no new messages were found in this run: update Status to `closed`.
+3. **FIFO cleanup**: If the number of Active Threads with Status=`active` exceeds 200, close the oldest threads (by Last Checked) until the count is at or below 200.
+
 3. Push data to view server:
 ```bash
 # Silently skip if server is not running
