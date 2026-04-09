@@ -16,7 +16,7 @@
   }
 
   function statusClass(s) {
-    return { Backlog: 's-backlog', Ready: 's-ready', 'In Progress': 's-progress', 'In Review': 's-review', Done: 's-done', Blocked: 's-blocked' }[s] || 's-backlog';
+    return { Backlog: 's-backlog', Ready: 's-ready', 'In Progress': 's-progress', 'In Review': 's-review', Done: 's-done', Blocked: 's-blocked', Cancelled: 's-cancelled' }[s] || 's-backlog';
   }
 
   function priorityClass(p) {
@@ -88,7 +88,7 @@
       if (filters.priorities.length && filters.priorities.indexOf(t.priority) === -1) return false;
       if (filters.executors.length && filters.executors.indexOf(t.executor) === -1) return false;
       if (filters.assigneeIds.length) {
-        var taskAssigneeIds = (t.assignees || []).map(function (a) { return a.id; });
+        var taskAssigneeIds = (t.assignee || []).map(function (a) { return a.id; });
         if (!filters.assigneeIds.some(function (id) { return taskAssigneeIds.indexOf(id) !== -1; })) return false;
       }
       if (filters.tags.length) {

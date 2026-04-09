@@ -80,12 +80,12 @@
       html += '</div>';
     }
 
-    // Assignees
-    if (t.assignees && t.assignees.length) {
+    // Assignee
+    if (t.assignee && t.assignee.length) {
       html += '<div class="detail-prop">';
-      html += '<span class="detail-prop-label">Assignees</span>';
+      html += '<span class="detail-prop-label">Assignee</span>';
       html += '<span class="detail-prop-value">';
-      t.assignees.forEach(function (a) {
+      t.assignee.forEach(function (a) {
         html += '<div class="detail-assignee"><div class="avatar">' + W.initials(a.name) + '</div><span class="detail-assignee-name">' + W.esc(a.name) + '</span></div>';
       });
       if (!t.acknowledgedAt) {

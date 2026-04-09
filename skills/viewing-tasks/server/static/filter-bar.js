@@ -10,7 +10,7 @@
   if (!container) return;
 
   var STATIC_FILTERS = [
-    { key: 'statuses', label: 'Status', options: ['Backlog', 'Ready', 'In Progress', 'In Review', 'Blocked', 'Done'] },
+    { key: 'statuses', label: 'Status', options: ['Backlog', 'Ready', 'In Progress', 'In Review', 'Blocked', 'Done', 'Cancelled'] },
     { key: 'priorities', label: 'Priority', options: ['Urgent', 'High', 'Medium', 'Low'] },
     { key: 'executors', label: 'Executor', options: ['cli', 'claude-desktop', 'cowork', 'human'] },
     { key: 'assigneeIds', label: 'Assignee', options: [], dynamic: true },
@@ -32,7 +32,7 @@
     var assigneeMap = {};
     var tagSet = {};
     W.allTasks.forEach(function (t) {
-      (t.assignees || []).forEach(function (a) { assigneeMap[a.id] = a.name; });
+      (t.assignee || []).forEach(function (a) { assigneeMap[a.id] = a.name; });
       (t.tags || []).forEach(function (g) { tagSet[g] = true; });
     });
 

@@ -117,7 +117,7 @@
           <th data-sort="status">Status <span class="sort-arrow">&#9650;</span></th>
           <th data-sort="priority">Priority <span class="sort-arrow">&#9650;</span></th>
           <th data-sort="executor">Executor <span class="sort-arrow">&#9650;</span></th>
-          <th data-sort="assignees">Assignees <span class="sort-arrow">&#9650;</span></th>
+          <th data-sort="assignee">Assignee <span class="sort-arrow">&#9650;</span></th>
           <th data-sort="dueDate">Due Date <span class="sort-arrow">&#9650;</span></th>
           <th>Tags</th>
         </tr>
@@ -166,7 +166,7 @@
         case 'status': va = statusOrder[a.status] || 0; vb = statusOrder[b.status] || 0; break;
         case 'priority': va = priorityOrder[a.priority] !== undefined ? priorityOrder[a.priority] : 99; vb = priorityOrder[b.priority] !== undefined ? priorityOrder[b.priority] : 99; break;
         case 'executor': va = a.executor || 'zzz'; vb = b.executor || 'zzz'; break;
-        case 'assignees': va = (a.assignees && a.assignees[0]) ? a.assignees[0].name.toLowerCase() : 'zzz'; vb = (b.assignees && b.assignees[0]) ? b.assignees[0].name.toLowerCase() : 'zzz'; break;
+        case 'assignee': va = (a.assignee && a.assignee[0]) ? a.assignee[0].name.toLowerCase() : 'zzz'; vb = (b.assignee && b.assignee[0]) ? b.assignee[0].name.toLowerCase() : 'zzz'; break;
         case 'dueDate': va = a.dueDate || '9999-99-99'; vb = b.dueDate || '9999-99-99'; break;
         default: return 0;
       }
@@ -206,7 +206,7 @@
         '<td><span class="badge ' + W.statusClass(t.status) + '">' + W.esc(t.status) + '</span></td>' +
         '<td>' + (t.priority ? '<span class="badge ' + W.priorityClass(t.priority) + '">' + W.esc(t.priority) + '</span>' : '<span style="color:var(--label-tertiary)">\u2014</span>') + '</td>' +
         '<td>' + (t.executor ? '<span class="badge" style="background:var(--surface-tertiary);color:var(--label-secondary)">' + W.esc(t.executor) + '</span>' : '<span style="color:var(--label-tertiary)">\u2014</span>') + '</td>' +
-        '<td><div class="assignees">' + (t.assignees || []).map(function (a) { return '<div class="avatar" title="' + W.esc(a.name) + '">' + W.initials(a.name) + '</div>'; }).join('') + (!t.acknowledgedAt && t.assignees && t.assignees.length ? ' <span class="badge unack" title="Not yet seen by assignee">unseen</span>' : '') + '</div></td>' +
+        '<td><div class="assignee">' + (t.assignee || []).map(function (a) { return '<div class="avatar" title="' + W.esc(a.name) + '">' + W.initials(a.name) + '</div>'; }).join('') + (!t.acknowledgedAt && t.assignee && t.assignee.length ? ' <span class="badge unack" title="Not yet seen by assignee">unseen</span>' : '') + '</div></td>' +
         '<td>' + W.formatDate(t.dueDate) + '</td>' +
         '<td><div class="tags">' + (t.tags || []).map(function (g) { return '<span class="tag">' + W.esc(g) + '</span>'; }).join('') + '</div></td>' +
       '</tr>';
