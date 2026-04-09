@@ -217,6 +217,15 @@
     };
   }
 
+  function refreshTasks() {
+    var btn = document.getElementById('refresh-btn');
+    if (btn) btn.classList.add('loading');
+    fetchTasks().then(function () {
+      if (btn) btn.classList.remove('loading');
+      showToast('Refreshed');
+    });
+  }
+
   function initData() {
     if (window.__STATIC_DATA__) {
       updateData(window.__STATIC_DATA__);
@@ -360,6 +369,7 @@
     onDataUpdate: null,
     onFilterBarUpdate: null,
     fetchTasks: fetchTasks,
+    refreshTasks: refreshTasks,
     connectSSE: connectSSE,
     initData: initData,
 
