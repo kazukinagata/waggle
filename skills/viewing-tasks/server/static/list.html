@@ -4,235 +4,12 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Tasks — List View</title>
+  <link rel="stylesheet" href="shared.css">
+  <link rel="stylesheet" href="filter-bar.css">
+  <link rel="stylesheet" href="detail-panel.css">
   <style>
-    :root {
-      --bg: #000000;
-      --surface-primary: rgba(28, 28, 30, 0.8);
-      --surface-secondary: rgba(44, 44, 46, 0.6);
-      --surface-tertiary: rgba(58, 58, 60, 0.4);
-      --separator: rgba(84, 84, 88, 0.35);
-      --label-primary: #ffffff;
-      --label-secondary: rgba(235, 235, 245, 0.6);
-      --label-tertiary: rgba(235, 235, 245, 0.3);
-      --blue: #0a84ff;
-      --green: #30d158;
-      --orange: #ff9f0a;
-      --red: #ff453a;
-      --purple: #bf5af2;
-      --indigo: #5e5ce6;
-      --gray: #98989d;
-      --font: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Helvetica Neue', sans-serif;
-      --radius-card: 12px;
-      --radius-badge: 8px;
-      --radius-pill: 20px;
-      --shadow: 0 0 0 0.5px rgba(0,0,0,0.3), 0 2px 12px rgba(0,0,0,0.3);
-      --transition: cubic-bezier(0.25, 0.46, 0.45, 0.94) 250ms;
-    }
-
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-    body {
-      background: var(--bg);
-      color: var(--label-primary);
-      font-family: var(--font);
-      font-size: 14px;
-      min-height: 100vh;
-      -webkit-font-smoothing: antialiased;
-      -moz-osx-font-smoothing: grayscale;
-    }
-
-    /* Header */
-    header {
-      position: sticky;
-      top: 0;
-      z-index: 100;
-      background: var(--surface-primary);
-      backdrop-filter: saturate(180%) blur(20px);
-      -webkit-backdrop-filter: saturate(180%) blur(20px);
-      border-bottom: 0.5px solid var(--separator);
-      padding: 14px 24px;
-      display: flex;
-      align-items: center;
-      gap: 16px;
-      flex-wrap: wrap;
-    }
-
-    .header-title-group {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      flex: 1;
-      min-width: 200px;
-    }
-
-    header h1 {
-      font-size: 18px;
-      font-weight: 600;
-      color: var(--label-primary);
-      letter-spacing: -0.01em;
-    }
-
-    .header-meta {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
-
-    .sse-indicator {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      font-size: 12px;
-      color: var(--label-secondary);
-    }
-
-    .sse-dot {
-      width: 7px;
-      height: 7px;
-      border-radius: 50%;
-      background: var(--green);
-      display: inline-block;
-      flex-shrink: 0;
-    }
-
-    .sse-dot.disconnected {
-      background: var(--red);
-    }
-
-    .header-stats {
-      font-size: 12px;
-      color: var(--label-tertiary);
-      display: flex;
-      gap: 10px;
-    }
-
-    /* Back link */
-    .back-link {
-      display: inline-flex;
-      align-items: center;
-      gap: 4px;
-      padding: 6px 14px;
-      border-radius: var(--radius-pill);
-      background: var(--surface-secondary);
-      color: var(--label-secondary);
-      text-decoration: none;
-      font-size: 13px;
-      font-weight: 500;
-      transition: background var(--transition), color var(--transition);
-    }
-
-    .back-link:hover {
-      background: var(--surface-tertiary);
-      color: var(--label-primary);
-    }
-
-    /* Controls bar */
-    .controls-bar {
-      padding: 12px 24px;
-      display: flex;
-      gap: 14px;
-      align-items: flex-start;
-      flex-wrap: wrap;
-    }
-
-    /* Search */
-    .search-wrap {
-      position: relative;
-      flex-shrink: 0;
-    }
-
-    .search-wrap::before {
-      content: '';
-      position: absolute;
-      left: 14px;
-      top: 50%;
-      transform: translateY(-50%);
-      width: 14px;
-      height: 14px;
-      background: none;
-      border: 1.5px solid var(--label-tertiary);
-      border-radius: 50%;
-      box-sizing: border-box;
-    }
-
-    .search-wrap::after {
-      content: '';
-      position: absolute;
-      left: 25px;
-      top: 50%;
-      transform: translateY(-10%) rotate(-45deg);
-      width: 1.5px;
-      height: 6px;
-      background: var(--label-tertiary);
-      border-radius: 1px;
-    }
-
-    .search-input {
-      background: var(--surface-secondary);
-      border: none;
-      color: var(--label-primary);
-      padding: 8px 14px 8px 36px;
-      border-radius: var(--radius-pill);
-      font-size: 13px;
-      font-family: var(--font);
-      width: 220px;
-      outline: none;
-      transition: background var(--transition);
-    }
-
-    .search-input::placeholder {
-      color: var(--label-tertiary);
-    }
-
-    .search-input:focus {
-      background: var(--surface-tertiary);
-    }
-
-    /* Segmented Controls */
-    .segmented-control {
-      display: inline-flex;
-      align-items: center;
-      background: var(--surface-tertiary);
-      border-radius: var(--radius-badge);
-      padding: 2px;
-      gap: 0;
-      flex-wrap: wrap;
-    }
-
-    .segment {
-      padding: 6px 12px;
-      border-radius: 6px;
-      font-size: 12px;
-      font-weight: 500;
-      color: var(--label-secondary);
-      background: transparent;
-      border: none;
-      cursor: pointer;
-      font-family: var(--font);
-      white-space: nowrap;
-      transition: background var(--transition), color var(--transition), box-shadow var(--transition);
-      user-select: none;
-    }
-
-    .segment:hover {
-      color: var(--label-primary);
-    }
-
-    .segment.active {
-      background: var(--surface-primary);
-      color: var(--label-primary);
-      box-shadow: 0 1px 4px rgba(0,0,0,0.3);
-    }
-
-    /* Main */
-    main {
-      padding: 0 24px 24px;
-    }
-
     /* Table */
-    .table-wrap {
-      overflow-x: auto;
-    }
+    .table-wrap { overflow-x: auto; }
 
     table {
       width: 100%;
@@ -250,7 +27,22 @@
       color: var(--label-tertiary);
       border-bottom: 0.5px solid var(--separator);
       white-space: nowrap;
+      cursor: pointer;
+      user-select: none;
+      transition: color var(--transition);
     }
+
+    thead th:hover { color: var(--label-secondary); }
+
+    thead th .sort-arrow {
+      display: inline-block;
+      margin-left: 4px;
+      font-size: 10px;
+      opacity: 0.4;
+    }
+
+    thead th.sorted .sort-arrow { opacity: 1; color: var(--blue); }
+    thead th.sorted { color: var(--label-secondary); }
 
     tbody tr {
       border-bottom: 0.5px solid var(--separator);
@@ -258,22 +50,15 @@
       cursor: pointer;
     }
 
-    tbody tr:last-child {
-      border-bottom: none;
-    }
-
-    tbody tr:hover {
-      background: var(--surface-tertiary);
-    }
+    tbody tr:last-child { border-bottom: none; }
+    tbody tr:hover { background: var(--surface-tertiary); }
 
     td {
       padding: 13px 16px;
       vertical-align: top;
     }
 
-    .title-cell {
-      max-width: 280px;
-    }
+    .title-cell { max-width: 280px; }
 
     .title-text {
       font-weight: 500;
@@ -291,151 +76,16 @@
       transition: max-height 0.3s var(--transition);
     }
 
-    tr.expanded .title-desc {
-      max-height: 200px;
-    }
+    tr.expanded .title-desc { max-height: 200px; }
 
-    /* Badges */
-    .badge {
-      display: inline-flex;
-      align-items: center;
-      padding: 3px 10px;
-      border-radius: var(--radius-pill);
-      font-size: 11px;
-      font-weight: 600;
-      white-space: nowrap;
-    }
-
-    .s-backlog  { background: rgba(152,152,157,0.15); color: var(--gray); }
-    .s-ready    { background: rgba(94,92,230,0.15);   color: var(--indigo); }
-    .s-progress { background: rgba(255,159,10,0.15);  color: var(--orange); }
-    .s-review   { background: rgba(191,90,242,0.15);  color: var(--purple); }
-    .s-done     { background: rgba(48,209,88,0.15);   color: var(--green); }
-    .s-blocked  { background: rgba(255,69,58,0.15);  color: var(--red); }
-    .s-cancelled { background: rgba(142,142,147,0.15); color: var(--gray); text-decoration: line-through; }
-
-    .p-urgent { background: rgba(255,69,58,0.15);  color: var(--red); }
-    .p-high   { background: rgba(255,159,10,0.15); color: var(--orange); }
-    .p-medium { background: rgba(10,132,255,0.15); color: var(--blue); }
-    .p-low    { background: rgba(152,152,157,0.15); color: var(--gray); }
-
-    .badge.unack { background: rgba(255,69,58,0.15); color: var(--red); font-size: 10px; }
-
-    /* Avatars */
-    .assignee {
-      display: flex;
-      gap: 4px;
-      flex-wrap: wrap;
-    }
-
-    .avatar {
-      width: 26px;
-      height: 26px;
-      border-radius: 50%;
-      background: var(--surface-secondary);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 10px;
-      font-weight: 700;
-      color: var(--label-primary);
-      flex-shrink: 0;
-      box-shadow: 0 0 0 1.5px var(--separator);
-    }
-
-    /* Tags */
-    .tags {
-      display: flex;
-      gap: 4px;
-      flex-wrap: wrap;
-    }
-
-    .tag {
-      background: var(--surface-tertiary);
-      color: var(--label-secondary);
-      padding: 2px 9px;
-      border-radius: var(--radius-pill);
-      font-size: 11px;
-    }
-
-    /* Due date */
-    .due-date {
-      white-space: nowrap;
-      font-size: 13px;
-      color: var(--label-secondary);
-    }
-
-    .due-date.overdue {
-      color: var(--red);
-      font-weight: 600;
-    }
-
-    /* Empty state */
-    .empty-state {
-      text-align: center;
-      padding: 60px 24px;
-      color: var(--label-tertiary);
-    }
-
-    .empty-state p {
-      font-size: 16px;
-      margin-bottom: 8px;
-      color: var(--label-secondary);
-    }
-
-    /* Toast */
-    .toast {
-      position: fixed;
-      bottom: 20px;
-      right: 20px;
-      background: var(--surface-primary);
-      backdrop-filter: saturate(180%) blur(20px);
-      -webkit-backdrop-filter: saturate(180%) blur(20px);
-      color: var(--label-primary);
-      padding: 10px 18px;
-      border-radius: var(--radius-card);
-      font-size: 13px;
-      opacity: 0;
-      transition: opacity 0.3s;
-      pointer-events: none;
-      z-index: 999;
-      box-shadow: var(--shadow);
-    }
-
-    .toast.show {
-      opacity: 1;
-    }
-
-    tr.subtask-row .title-cell {
-      padding-left: 40px;
-    }
+    tr.subtask-row .title-cell { padding-left: 40px; }
     tr.subtask-row .title-text::before {
-      content: '└ ';
+      content: '\2514 ';
       color: var(--label-tertiary);
       font-family: monospace;
     }
-    .subtask-progress {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      margin-left: 8px;
-      font-size: 11px;
-      color: var(--label-tertiary);
-      font-weight: 500;
-    }
-    .subtask-progress-bar {
-      width: 48px;
-      height: 4px;
-      border-radius: 2px;
-      background: var(--surface-tertiary);
-      overflow: hidden;
-    }
-    .subtask-progress-bar-fill {
-      height: 100%;
-      border-radius: 2px;
-      background: var(--green);
-      transition: width 0.3s;
-    }
+
+    main { padding: 0 24px 24px; }
   </style>
 </head>
 <body>
@@ -456,43 +106,19 @@
   <a href="/selector.html" class="back-link">&#8592; Views</a>
 </header>
 
-<div class="controls-bar">
-  <div class="search-wrap">
-    <input type="text" id="search" class="search-input" placeholder="Search tasks...">
-  </div>
-
-  <input type="hidden" id="filter-status" value="">
-  <div class="segmented-control" id="seg-status">
-    <button class="segment active" data-value="">All</button>
-    <button class="segment" data-value="Backlog">Backlog</button>
-    <button class="segment" data-value="Ready">Ready</button>
-    <button class="segment" data-value="In Progress">In Progress</button>
-    <button class="segment" data-value="In Review">In Review</button>
-    <button class="segment" data-value="Done">Done</button>
-    <button class="segment" data-value="Blocked">Blocked</button>
-    <button class="segment" data-value="Cancelled">Cancelled</button>
-  </div>
-
-  <input type="hidden" id="filter-priority" value="">
-  <div class="segmented-control" id="seg-priority">
-    <button class="segment active" data-value="">All</button>
-    <button class="segment" data-value="Urgent">Urgent</button>
-    <button class="segment" data-value="High">High</button>
-    <button class="segment" data-value="Medium">Medium</button>
-    <button class="segment" data-value="Low">Low</button>
-  </div>
-</div>
+<div id="filter-bar"></div>
 
 <main>
   <div class="table-wrap">
     <table>
       <thead>
         <tr>
-          <th>Title</th>
-          <th>Status</th>
-          <th>Priority</th>
-          <th>Assignee</th>
-          <th>Due Date</th>
+          <th data-sort="title">Title <span class="sort-arrow">&#9650;</span></th>
+          <th data-sort="status">Status <span class="sort-arrow">&#9650;</span></th>
+          <th data-sort="priority">Priority <span class="sort-arrow">&#9650;</span></th>
+          <th data-sort="executor">Executor <span class="sort-arrow">&#9650;</span></th>
+          <th data-sort="assignee">Assignee <span class="sort-arrow">&#9650;</span></th>
+          <th data-sort="dueDate">Due Date <span class="sort-arrow">&#9650;</span></th>
           <th>Tags</th>
         </tr>
       </thead>
@@ -501,190 +127,149 @@
   </div>
   <div class="empty-state" id="empty" style="display:none">
     <p>No tasks found</p>
-    <small>Adjust filters or check your Notion connection</small>
+    <small>Adjust filters or check your data source connection</small>
   </div>
 </main>
 <div class="toast" id="toast"></div>
 
+<script src="shared.js"></script>
+<script src="filter-bar.js"></script>
+<script src="detail-panel.js"></script>
 <script>
-  // Segmented control wiring
-  document.querySelectorAll('.segmented-control').forEach(control => {
-    const hiddenInput = control.previousElementSibling;
-    control.querySelectorAll('.segment').forEach(btn => {
-      btn.addEventListener('click', () => {
-        control.querySelectorAll('.segment').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        hiddenInput.value = btn.dataset.value;
-        render();
-      });
-    });
-  });
+  var W = Waggle;
+  var sortState = { column: '', direction: 'asc' };
 
-  let allTasks = [];
-  const today = new Date().toISOString().split('T')[0];
-
-  function statusClass(s) {
-    return { Backlog:'s-backlog', Ready:'s-ready', 'In Progress':'s-progress', 'In Review':'s-review', Done:'s-done', Blocked:'s-blocked', Cancelled:'s-cancelled' }[s] || 's-backlog';
-  }
-  function priorityClass(p) {
-    return { Urgent:'p-urgent', High:'p-high', Medium:'p-medium', Low:'p-low' }[p] || '';
-  }
-  function initials(name) {
-    return name.split(' ').map(n=>n[0]).join('').slice(0,2).toUpperCase();
-  }
-  function formatDate(d) {
-    if (!d) return '';
-    const overdue = d < today;
-    return `<span class="due-date${overdue?' overdue':''}">${d}${overdue?' ⚠':''}`;
-  }
-
-  function buildHierarchy(tasks) {
-    const byId = {};
-    tasks.forEach(t => byId[t.id] = t);
-    const childrenOf = {};
-    const parentOf = {};
-    tasks.forEach(t => {
-      if (t.parentTaskId && byId[t.parentTaskId]) {
-        if (!childrenOf[t.parentTaskId]) childrenOf[t.parentTaskId] = [];
-        childrenOf[t.parentTaskId].push(t);
-        parentOf[t.id] = byId[t.parentTaskId];
-      }
-    });
-    const statsOf = {};
-    Object.keys(childrenOf).forEach(pid => {
-      const children = childrenOf[pid];
-      statsOf[pid] = { total: children.length, done: children.filter(c => c.status === 'Done').length };
-    });
-    return { childrenOf, parentOf, statsOf };
-  }
+  var statusOrder = { Backlog: 0, Ready: 1, 'In Progress': 2, 'In Review': 3, Blocked: 4, Done: 5 };
+  var priorityOrder = { Urgent: 0, High: 1, Medium: 2, Low: 3 };
 
   function getOrderedTasks(tasks, childrenOf) {
-    const childIds = new Set();
-    Object.values(childrenOf).forEach(arr => arr.forEach(c => childIds.add(c.id)));
-    const ordered = [];
-    tasks.forEach(t => {
-      if (childIds.has(t.id)) return; // skip children, they'll be added after their parent
+    var childIds = new Set();
+    Object.values(childrenOf).forEach(function (arr) { arr.forEach(function (c) { childIds.add(c.id); }); });
+    var ordered = [];
+    tasks.forEach(function (t) {
+      if (childIds.has(t.id)) return;
       ordered.push(t);
       if (childrenOf[t.id]) {
-        childrenOf[t.id].forEach(c => ordered.push(c));
+        childrenOf[t.id].forEach(function (c) { ordered.push(c); });
       }
     });
     return ordered;
   }
 
+  function applySorting(tasks) {
+    if (!sortState.column) return tasks;
+    var dir = sortState.direction === 'asc' ? 1 : -1;
+    return tasks.slice().sort(function (a, b) {
+      var va, vb;
+      switch (sortState.column) {
+        case 'title': va = a.title.toLowerCase(); vb = b.title.toLowerCase(); break;
+        case 'status': va = statusOrder[a.status] || 0; vb = statusOrder[b.status] || 0; break;
+        case 'priority': va = priorityOrder[a.priority] !== undefined ? priorityOrder[a.priority] : 99; vb = priorityOrder[b.priority] !== undefined ? priorityOrder[b.priority] : 99; break;
+        case 'executor': va = a.executor || 'zzz'; vb = b.executor || 'zzz'; break;
+        case 'assignee': va = (a.assignee && a.assignee[0]) ? a.assignee[0].name.toLowerCase() : 'zzz'; vb = (b.assignee && b.assignee[0]) ? b.assignee[0].name.toLowerCase() : 'zzz'; break;
+        case 'dueDate': va = a.dueDate || '9999-99-99'; vb = b.dueDate || '9999-99-99'; break;
+        default: return 0;
+      }
+      if (va < vb) return -1 * dir;
+      if (va > vb) return 1 * dir;
+      return 0;
+    });
+  }
+
   function render() {
-    const search = document.getElementById('search').value.toLowerCase();
-    const status = document.getElementById('filter-status').value;
-    const priority = document.getElementById('filter-priority').value;
-    const filtered = allTasks.filter(t =>
-      (!search || t.title.toLowerCase().includes(search) || (t.description||'').toLowerCase().includes(search)) &&
-      (!status || t.status === status) &&
-      (!priority || t.priority === priority)
-    );
-    const tbody = document.getElementById('tbody');
-    const empty = document.getElementById('empty');
+    var filtered = W.getFiltered();
+    var tbody = document.getElementById('tbody');
+    var empty = document.getElementById('empty');
+
     if (filtered.length === 0) {
       tbody.innerHTML = '';
       empty.style.display = '';
       return;
     }
     empty.style.display = 'none';
-    const hierarchy = buildHierarchy(filtered);
-    const ordered = getOrderedTasks(filtered, hierarchy.childrenOf);
-    tbody.innerHTML = ordered.map(t => {
-      const isSubtask = !!hierarchy.parentOf[t.id];
-      const stats = hierarchy.statsOf[t.id];
-      const progressBadge = stats
-        ? `<span class="subtask-progress">${stats.done}/${stats.total}<span class="subtask-progress-bar"><span class="subtask-progress-bar-fill" style="width:${Math.round(stats.done/stats.total*100)}%"></span></span></span>`
+
+    var sorted = applySorting(filtered);
+    var hierarchy = W.buildHierarchy(sorted);
+    var ordered = sortState.column ? sorted : getOrderedTasks(sorted, hierarchy.childrenOf);
+
+    tbody.innerHTML = ordered.map(function (t) {
+      var isSubtask = !!hierarchy.parentOf[t.id];
+      var stats = hierarchy.statsOf[t.id];
+      var progressBadge = stats
+        ? '<span class="subtask-progress">' + stats.done + '/' + stats.total + '<span class="subtask-progress-bar"><span class="subtask-progress-bar-fill" style="width:' + Math.round(stats.done / stats.total * 100) + '%"></span></span></span>'
         : '';
-      return `
-      <tr class="${isSubtask ? 'subtask-row' : ''}" onclick="copyId('${t.id}',this)" title="Click to copy ID">
-        <td class="title-cell">
-          <div class="title-text">${esc(t.title)}${progressBadge}</div>
-          ${t.description ? `<div class="title-desc">${esc(t.description)}</div>` : ''}
-        </td>
-        <td><span class="badge ${statusClass(t.status)}">${esc(t.status)}</span></td>
-        <td>${t.priority ? `<span class="badge ${priorityClass(t.priority)}">${esc(t.priority)}</span>` : '<span style="color:var(--label-tertiary)">—</span>'}</td>
-        <td><div class="assignee">${(t.assignee||[]).map(a=>`<div class="avatar" title="${esc(a.name)}">${initials(a.name)}</div>`).join('')}${!t.acknowledgedAt && t.assignee?.length ? ' <span class="badge unack" title="Not yet seen by assignee">unseen</span>' : ''}</div></td>
-        <td>${formatDate(t.dueDate)}</td>
-        <td><div class="tags">${(t.tags||[]).map(g=>`<span class="tag">${esc(g)}</span>`).join('')}</div></td>
-      </tr>`;
+      return '<tr class="' + (isSubtask ? 'subtask-row' : '') + '" onclick="onRowClick(event,\'' + t.id + '\')" data-task-id="' + t.id + '">' +
+        '<td class="title-cell">' +
+          '<div class="title-text">' + W.esc(t.title) + progressBadge + '</div>' +
+          (t.description ? '<div class="title-desc">' + W.esc(t.description) + '</div>' : '') +
+        '</td>' +
+        '<td><span class="badge ' + W.statusClass(t.status) + '">' + W.esc(t.status) + '</span></td>' +
+        '<td>' + (t.priority ? '<span class="badge ' + W.priorityClass(t.priority) + '">' + W.esc(t.priority) + '</span>' : '<span style="color:var(--label-tertiary)">\u2014</span>') + '</td>' +
+        '<td>' + (t.executor ? '<span class="badge" style="background:var(--surface-tertiary);color:var(--label-secondary)">' + W.esc(t.executor) + '</span>' : '<span style="color:var(--label-tertiary)">\u2014</span>') + '</td>' +
+        '<td><div class="assignee">' + (t.assignee || []).map(function (a) { return '<div class="avatar" title="' + W.esc(a.name) + '">' + W.initials(a.name) + '</div>'; }).join('') + (!t.acknowledgedAt && t.assignee && t.assignee.length ? ' <span class="badge unack" title="Not yet seen by assignee">unseen</span>' : '') + '</div></td>' +
+        '<td>' + W.formatDate(t.dueDate) + '</td>' +
+        '<td><div class="tags">' + (t.tags || []).map(function (g) { return '<span class="tag">' + W.esc(g) + '</span>'; }).join('') + '</div></td>' +
+      '</tr>';
     }).join('');
   }
 
-  function esc(s) {
-    return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-  }
-
-  function copyId(id, row) {
-    navigator.clipboard.writeText(id).catch(()=>{});
-    const was = row.classList.contains('expanded');
-    row.classList.toggle('expanded', !was);
-    showToast('ID copied: ' + id.slice(0,8) + '...');
-  }
-
-  function showToast(msg) {
-    const t = document.getElementById('toast');
-    t.textContent = msg;
-    t.classList.add('show');
-    clearTimeout(t._timer);
-    t._timer = setTimeout(() => t.classList.remove('show'), 2000);
-  }
-
-  async function fetchTasks() {
-    try {
-      const res = await fetch('/api/tasks');
-      if (!res.ok) throw new Error(res.statusText);
-      const data = await res.json();
-      allTasks = data.tasks || [];
-      document.getElementById('task-count').textContent = `${allTasks.length} tasks`;
-      document.getElementById('updated-at').textContent = data.updatedAt ? `Updated: ${new Date(data.updatedAt).toLocaleTimeString()}` : '';
-      render();
-    } catch(e) {
-      document.getElementById('sse-status').textContent = 'Error: ' + e.message;
+  function onRowClick(event, taskId) {
+    if (W.openDetail) {
+      W.openDetail(taskId);
+    } else {
+      W.copyId(taskId);
     }
   }
 
-  document.getElementById('search').addEventListener('input', render);
+  // Column sorting
+  document.querySelectorAll('thead th[data-sort]').forEach(function (th) {
+    th.addEventListener('click', function () {
+      var col = th.dataset.sort;
+      if (sortState.column === col) {
+        sortState.direction = sortState.direction === 'asc' ? 'desc' : 'asc';
+      } else {
+        sortState.column = col;
+        sortState.direction = 'asc';
+      }
+      // Update UI
+      document.querySelectorAll('thead th').forEach(function (h) {
+        h.classList.remove('sorted');
+        var arrow = h.querySelector('.sort-arrow');
+        if (arrow) arrow.innerHTML = '&#9650;';
+      });
+      th.classList.add('sorted');
+      var arrow = th.querySelector('.sort-arrow');
+      if (arrow) arrow.innerHTML = sortState.direction === 'asc' ? '&#9650;' : '&#9660;';
+      W.saveFiltersToURL({ sort: sortState.column, dir: sortState.direction });
+      render();
+    });
+  });
 
-  // SSE
-  function connectSSE() {
-    const dot = document.getElementById('sse-dot');
-    const status = document.getElementById('sse-status');
-    const es = new EventSource('/api/events');
-    es.addEventListener('connected', () => {
-      dot.classList.remove('disconnected');
-      status.textContent = 'Live';
-    });
-    es.addEventListener('refresh', (e) => {
-      try {
-        const data = JSON.parse(e.data);
-        allTasks = data.tasks || [];
-        document.getElementById('task-count').textContent = `${allTasks.length} tasks`;
-        document.getElementById('updated-at').textContent = data.updatedAt ? `Updated: ${new Date(data.updatedAt).toLocaleTimeString()}` : '';
-        render();
-      } catch(err) { fetchTasks(); }
-    });
-    es.onerror = () => {
-      dot.classList.add('disconnected');
-      status.textContent = 'Reconnecting...';
-      es.close();
-      setTimeout(connectSSE, 3000);
-    };
+  // Keyboard navigation config
+  W.initKeyboard({
+    getNavigableTasks: function () {
+      return W.getFiltered().map(function (t) { return t.id; });
+    },
+    getTaskElement: function (taskId) {
+      return document.querySelector('tr[data-task-id="' + taskId + '"]');
+    }
+  });
+
+  // Load URL state
+  var extra = W.loadFiltersFromURL();
+  if (extra.sort) {
+    sortState.column = extra.sort;
+    sortState.direction = extra.dir || 'asc';
+    var th = document.querySelector('th[data-sort="' + sortState.column + '"]');
+    if (th) {
+      th.classList.add('sorted');
+      var arrow = th.querySelector('.sort-arrow');
+      if (arrow) arrow.innerHTML = sortState.direction === 'asc' ? '&#9650;' : '&#9660;';
+    }
   }
 
-  // Static mode: if data is embedded, use it directly (no server needed)
-  if (window.__STATIC_DATA__) {
-    allTasks = window.__STATIC_DATA__.tasks || [];
-    document.getElementById('task-count').textContent = `${allTasks.length} tasks`;
-    document.getElementById('updated-at').textContent = window.__STATIC_DATA__.updatedAt ? `Generated: ${new Date(window.__STATIC_DATA__.updatedAt).toLocaleTimeString()}` : '';
-    document.getElementById('sse-dot').style.display = 'none';
-    document.getElementById('sse-status').textContent = 'Static';
-    render();
-  } else {
-    fetchTasks();
-    connectSSE();
-  }
+  W.onDataUpdate = render;
+  W.initData();
 </script>
 </body>
 </html>

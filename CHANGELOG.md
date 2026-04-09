@@ -4,6 +4,23 @@ All notable changes to the Waggle project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [2.1.0] - 2026-04-09
+
+### Added
+- **Task detail panel** (all views): Linear-style slide-out panel showing all task fields — status, priority, executor, assignees, due date, tags, project, team, blocked-by links, parent/subtask navigation, description, acceptance criteria, execution plan, agent output, error message, artifacts, and metadata. Includes "Open in source" link.
+- **Advanced multi-field filtering** (all views): 7 filter types (Status, Priority, Executor, Assignee, Tags, Due Date presets) with multi-select dropdown checkboxes, active filter pills, dynamic option population, and "Clear all" support.
+- **URL state persistence**: Filter and sort state serialized to URL hash — bookmarkable and shareable.
+- **Column sorting** (List view): Click column headers to sort by title, status, priority, executor, assignees, or due date.
+- **Blocked column** (Kanban view): 6th column for Blocked tasks with error message preview.
+- **Blocked status styling** (Gantt view): Red-tinted bars for Blocked tasks.
+- **Keyboard navigation** (all views): J/K to move between tasks, Enter to open detail panel, Escape to close, `/` to focus search, C to copy task ID.
+- **Executor column** (List view): New column showing task executor type.
+- **Shared module architecture**: Extracted duplicated CSS/JS into `shared.css`, `shared.js`, `detail-panel.css/js`, `filter-bar.css/js` — reducing per-view file size by ~60%.
+
+### Changed
+- View server static HTML export (`generate-static-html.sh`) now supports calendar and gantt views and inlines shared resources for standalone output.
+- Task click behavior changed from copy-ID-only to opening the detail panel (ID is still copied automatically).
+
 ## [2.0.0] - 2026-04-09
 
 ### Breaking Changes
