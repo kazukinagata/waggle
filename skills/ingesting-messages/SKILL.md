@@ -359,7 +359,7 @@ Processed: N / Skipped (already processed): K / Skipped (already exists as task)
   C (Delegate):       Z → Backlog tasks created
 Custom sources: {list of sources processed, or "none configured"}
 Thread context: {T} messages enriched with thread history
-Attachments: {I} images detected, {S} read successfully, {F} unreadable
+Attachments: {I} images detected, {S} read successfully, {F} unread or skipped
 ```
 
 ---
