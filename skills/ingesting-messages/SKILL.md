@@ -224,7 +224,7 @@ For each image attachment detected:
 
 ### Message Permalink
 
-For each message that has at least one image with `read_status = "unread"`, construct (or extract from the API response) the message permalink so it can be shown to the user:
+For each message that has at least one image with `read_status = "unread"` or `"skipped"`, construct (or extract from the API response) the message permalink so it can be shown to the user:
 - **Slack**: If the message payload includes a `permalink` field, use it directly. Otherwise construct: `https://{workspace}.slack.com/archives/{channel_id}/p{ts_without_dot}` where `ts_without_dot` is the message `ts` with the dot removed.
 - **Teams / Discord**: Use the message URL/link from the API response if available.
 
