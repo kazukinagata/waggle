@@ -47,17 +47,36 @@ When `thread_context` is available for a message, use the full thread conversati
 | "Done" | A (what is done?) | Parent: "@you Please review PR #42" → earlier reply: "Looking at it now" | A (Hearing — need to confirm what action, if any, remains) |
 | "Can you take a look?" | A (ambiguous) | Parent: "@alice Deploy fix for #123" → "@you Can you take a look?" | B (Self-Action — code review request with clear PR reference) |
 
+## Using Attachment Info for Classification
+
+When `attachment_info` is available for a message and images were successfully read (`read_status = "success"`), incorporate the image descriptions into classification:
+
+1. **Image descriptions expand message context**: A terse message like "fix this" paired with a successfully-read screenshot description of "a 500 error on the login page with stack trace showing NullPointerException in AuthService.java line 42" transforms an ambiguous message into a clear, actionable request (Category B).
+2. **Unread images increase ambiguity**: If a message has image attachments that could NOT be read, treat the message as having incomplete context. This makes Category A (Hearing Needed) more likely, since the image might contain critical information for understanding the request.
+3. **Multiple images**: When a message has several images, consider all successfully-read descriptions together to understand the full picture.
+
+### Attachment-Aware Examples
+
+| Message text | Image status | Without image | With image context | Classification |
+|---|---|---|---|---|
+| "fix this" | read: "500 error on /login with stack trace" | A (unclear what "this" is) | B (clear bug with location) | B |
+| "fix this" | unread | A (unclear) | A (still unclear, image might clarify) | A |
+| "thoughts?" | read: "architecture diagram showing microservice layout" | A (no context) | A (diagram helps, but still a question needing human judgment) | A |
+| "deploy this to prod" | read: "screenshot of a config.yaml file" | B (clear action) | B (action is clear, config visible) | B |
+
 ## Classification Confirmation
 
 After classifying all messages, display the results and ask the user to confirm:
 
-| # | Category | Sender | Summary | Thread |
-|---|----------|--------|---------|--------|
-| 1 | B: Self-Action | @alice | Update README with new endpoints | |
-| 2 | A: Hearing Needed | @bob | Design doc review request | yes |
-| 3 | C: Delegate | @alice → @charlie | Deployment script update | |
+| # | Category | Sender | Summary | Thread | Attachments |
+|---|----------|--------|---------|--------|-------------|
+| 1 | B: Self-Action | @alice | Update README with new endpoints | | |
+| 2 | A: Hearing Needed | @bob | Design doc review request | yes | |
+| 3 | B: Self-Action | @charlie | Fix checkout bug | | 1 img (read) |
+| 4 | A: Hearing Needed | @dave | Fix this | | 1 img (unread) |
+| 5 | C: Delegate | @alice → @charlie | Deployment script update | | |
 
-The Thread column shows "yes" if thread context was used for classification, blank otherwise.
+The Thread column shows "yes" if thread context was used for classification, blank otherwise. The Attachments column shows: blank if no images, `{N} img (read)` if all images were read successfully, `{N} img (unread)` if any image failed to read, `{N} img ({S} read, {F} unread)` for mixed results.
 
 Use `AskUserQuestion`: "Review the classification. Change any categories?"
 - **"Looks good"** — proceed to Step 2.5 with current categories

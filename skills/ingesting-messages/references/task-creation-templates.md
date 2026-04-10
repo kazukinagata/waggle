@@ -13,7 +13,7 @@ Before creating each task:
 | Field | Value |
 |---|---|
 | Title | `From @{sender}: {message summary (50 chars max)}` |
-| Description | If `thread_context` is available: include thread context followed by a `---` separator, then the full original message. If no thread context: full original message only. Always append `Source: {tool_name} DM from @{sender} at {datetime}` at the end. |
+| Description | If `thread_context` is available: include thread context followed by a `---` separator, then the full original message. If `attachment_info` is available and has images: include an `[Attachments]` section after the message text (see "Attachment Info in Descriptions" below). If no thread context: full original message only. Always append `Source: {tool_name} DM from @{sender} at {datetime}` at the end. |
 | Tags | `["ingesting-messages"]` |
 | Context | `Received via {tool_name} on {date}` |
 | Issuer | `[current_user]` |
@@ -35,6 +35,49 @@ Source: {tool_name} DM from @{sender} at {datetime}
 ```
 
 This gives the task executor full conversational context without needing to open the messaging tool.
+
+### Attachment Info in Descriptions
+
+When a message has `attachment_info` with images, include an `[Attachments]` section in the Description field after the message text and before the `Source:` line.
+
+**When images were successfully read:**
+
+```
+[Attachments — {N} image(s)]
+- {filename}: {AI-generated description}
+```
+
+**When images could not be read:**
+
+```
+[Attachments — {N} image(s), could not be read automatically]
+- {filename}: (image not readable — view original message)
+- Message link: {message_permalink}
+```
+
+**Mixed (some read, some not):**
+
+```
+[Attachments — {N} image(s)]
+- {filename}: {AI-generated description}
+- {filename}: (image not readable — view original message)
+- Message link: {message_permalink}
+```
+
+**Full Description example with thread context and attachments:**
+
+```
+[Thread Context — 3 messages in #engineering]
+@alice: Can someone look at the checkout page? It's broken for mobile users.
+@bob: I think it's the CSS grid layout.
+---
+@alice: Here's what I'm seeing on my phone
+
+[Attachments — 1 image(s)]
+- screenshot_mobile.png: Mobile view of checkout page showing overlapping elements in the payment form section. The "Submit" button is hidden behind the address fields. Viewport appears to be approximately 375px wide.
+
+Source: slack DM from @alice at 2026-04-10 09:15
+```
 
 ## Category-Specific Fields
 
