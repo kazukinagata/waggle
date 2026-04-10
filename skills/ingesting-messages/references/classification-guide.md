@@ -76,7 +76,7 @@ After classifying all messages, display the results and ask the user to confirm:
 | 4 | A: Hearing Needed | @dave | Fix this | | 1 image (unread) |
 | 5 | C: Delegate | @alice → @charlie | Deployment script update | | |
 
-The Thread column shows "yes" if thread context was used for classification, blank otherwise. The Attachments column shows: blank if no images, `{N} image (read)` if all images were read successfully, `{N} image (unread)` if any image could not be read, `{N} image ({S} read, {F} unread)` for mixed results.
+The Thread column shows "yes" if thread context was used for classification, blank otherwise. The Attachments column shows: blank if no images, `{N} image (read)` if all images were read successfully, `{N} image (unread)` if any image could not be read or was skipped (global cap), `{N} image ({S} read, {F} unread)` for mixed results.
 
 Use `AskUserQuestion`: "Review the classification. Change any categories?"
 - **"Looks good"** — proceed to Step 2.5 with current categories
