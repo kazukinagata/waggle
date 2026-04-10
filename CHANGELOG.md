@@ -4,6 +4,15 @@ All notable changes to the Waggle project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [2.3.0] - 2026-04-10
+
+### Added
+- **Image attachment handling** in `ingesting-messages`: Detects image attachments in messages, attempts best-effort reading via `permalink_public` + `WebFetch`, and surfaces unreadable images with message permalinks for manual review before task creation.
+- Attachment-aware classification heuristics in `classification-guide.md`: Successfully-read image descriptions expand message context for classification; unread images bias toward Category A (Hearing Needed).
+- `[Attachments]` section in task descriptions (`task-creation-templates.md`) with per-image read status and AI-generated descriptions.
+- Attachments column in Step 2.7 creation confirmation and classification confirmation tables.
+- Per-message (3) and global (10) image processing caps with `read_status = "skipped"` for cap-exceeded images.
+
 ## [2.1.0] - 2026-04-09
 
 ### Added
