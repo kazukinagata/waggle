@@ -223,10 +223,11 @@ attachment_info:
       permalink: "{file_permalink}"
       description: "{AI description}" or null
       read_status: "success" or "failed"
-  message_permalink: "{constructed_or_extracted_permalink}"
+  message_permalink: "{constructed_or_extracted_permalink}" or null
 ```
 
-Messages with no image attachments: `attachment_info = null`.
+- `message_permalink`: Only set when at least one image has `read_status = "failed"`. Set to `null` if all images were read successfully.
+- Messages with no image attachments: `attachment_info = null`.
 
 ### Limits
 
@@ -291,11 +292,11 @@ Display the final task list to be created:
 | # | Category | Sender | Summary | Status | Executor | Attachments |
 |---|----------|--------|---------|--------|----------|-------------|
 | 1 | B: Self | @alice | Update README with new endpoints | Ready | claude-desktop | |
-| 2 | A: Hearing | @bob | Fix this layout issue | Blocked | human | 1 image (read) |
-| 3 | B: Self | @charlie | Bug in checkout flow | Ready | cli | 1 image (UNREAD) |
+| 2 | A: Hearing | @bob | Fix this layout issue | Blocked | human | 1 img (read) |
+| 3 | B: Self | @charlie | Bug in checkout flow | Ready | cli | 1 img (unread) |
 | 4 | C: Delegate | @alice | @charlie deployment script | Backlog | human | |
 
-The Attachments column shows: blank if no images, `{N} image (read)` if all images were read successfully, `{N} image (UNREAD)` if any image failed to read.
+The Attachments column shows: blank if no images, `{N} img (read)` if all images were read successfully, `{N} img (unread)` if any image failed to read, `{N} img ({S} read, {F} unread)` for mixed results.
 
 **Unread image attachments**: If any messages have images with `read_status = "failed"`, display them below the table:
 
