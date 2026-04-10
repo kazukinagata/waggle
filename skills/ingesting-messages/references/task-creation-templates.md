@@ -13,7 +13,7 @@ Before creating each task:
 | Field | Value |
 |---|---|
 | Title | `From @{sender}: {message summary (50 chars max)}` |
-| Description | If `thread_context` is available: include thread context followed by a `---` separator, then the full original message. If `attachment_info` is available and has images: include an `[Attachments]` section after the message text (see "Attachment Info in Descriptions" below). If no thread context: full original message only. Always append `Source: {tool_name} DM from @{sender} at {datetime}` at the end. |
+| Description | Build the description in order: (1) If `thread_context` is available, include thread context followed by a `---` separator. (2) Include the full original message text. (3) If `attachment_info` is available and has images, include an `[Attachments]` section (see "Attachment Info in Descriptions" below). (4) Append `Source: {tool_name} DM from @{sender} at {datetime}` at the end. Steps 3 and 4 apply regardless of whether thread context is present. |
 | Tags | `["ingesting-messages"]` |
 | Context | `Received via {tool_name} on {date}` |
 | Issuer | `[current_user]` |
