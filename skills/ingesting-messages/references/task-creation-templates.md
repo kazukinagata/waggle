@@ -55,12 +55,13 @@ When a message has `attachment_info` with images, include an `[Attachments]` sec
 - Message link: {message_permalink}
 ```
 
-**Mixed (some read, some not):**
+**Mixed (some read, some not — includes skipped images from global cap):**
 
 ```
 [Attachments — {N} image(s)]
 - {filename}: {AI-generated description}
 - {filename}: (image not readable — view original message)
+- {filename}: (image skipped — global processing cap reached)
 - Message link: {message_permalink}
 ```
 

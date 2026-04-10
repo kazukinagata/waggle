@@ -244,7 +244,7 @@ attachment_info:
   message_permalink: "{constructed_or_extracted_permalink}" or null
 ```
 
-- `message_permalink`: Only set when at least one image has `read_status = "unread"`. Set to `null` if all images were read successfully.
+- `message_permalink`: Only set when at least one image has `read_status = "unread"` or `"skipped"`. Set to `null` if all images were read successfully.
 - Messages with no image attachments: `attachment_info = null`.
 
 ### Limits
