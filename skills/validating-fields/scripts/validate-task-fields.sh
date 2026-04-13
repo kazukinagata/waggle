@@ -31,7 +31,7 @@ fi
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CODE_KEYWORDS_FILE="${SCRIPT_DIR}/../config/code-task-keywords.txt"
 if [ -f "$CODE_KEYWORDS_FILE" ]; then
-  CODE_KEYWORDS_PATTERN="$(grep -v '^#' "$CODE_KEYWORDS_FILE" | grep -v '^$' | sed 's/ /\\\\s\*/g' | paste -sd'|' -)"
+  CODE_KEYWORDS_PATTERN="$(grep -v '^#' "$CODE_KEYWORDS_FILE" | grep -v '^$' | sed 's/ /\\s*/g' | paste -sd'|' -)"
 else
   CODE_KEYWORDS_PATTERN=""
 fi
@@ -112,7 +112,7 @@ RESULT=$(jq --arg target "$TARGET_STATUS" --arg code_keywords "$CODE_KEYWORDS_PA
        then $errors + [{"field":"Executor","rule":"required_set","message":"Executor must be set before dispatch."}]
        else $errors end) as $errors |
       # Working Directory for AI executors
-      (if ($executor == "cli" or $executor == "claude-desktop" or $executor == "cowork") and ($workdir | length) == 0
+      (if ($executor == "cli" or $executor == "claude-code" or $executor == "claude-desktop" or $executor == "cowork") and ($workdir | length) == 0
        then $errors + [{"field":"Working Directory","rule":"required_for_ai","message":"Working Directory is required for AI executor (\($executor))."}]
        else $errors end) as $errors |
       $errors

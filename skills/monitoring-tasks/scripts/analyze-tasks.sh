@@ -182,6 +182,7 @@ def executor_counts:
   {
     human: map(select(.executor == "human")) | length,
     cli: map(select(.executor == "cli")) | length,
+    "claude-code": map(select(.executor == "claude-code")) | length,
     "claude-desktop": map(select(.executor == "claude-desktop")) | length,
     cowork: map(select(.executor == "cowork")) | length,
     unset: map(select(.executor == "N/A")) | length

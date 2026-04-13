@@ -71,7 +71,7 @@ bash "${CLAUDE_SKILL_DIR}/scripts/analyze-tasks.sh" \
   /tmp/monitor_tasks.json /tmp/monitor_blocked.json
 ```
 
-The script outputs a JSON object with 5 sections: `age`, `quality`, `blocked`, `executor_ratio`, `acknowledgment`. Parse this output and render the report as described in Step 4.
+The script outputs a JSON object with 6 sections: `age`, `quality`, `blocked`, `executor_ratio`, `acknowledgment`, and `quality_debt`. Parse this output and render the report as described in Step 4.
 
 ### Inline analysis (fallback)
 
@@ -122,7 +122,7 @@ Table: Title | Assignee | Priority | Age (days)
 ## 4. Executor Ratio
 Table: Executor | All | Done | Active (non-Done)
   (show both counts and percentages)
-  Compute AI ratio = (cli + claude-desktop + cowork) / total
+  Compute AI ratio = (cli + claude-code + claude-desktop + cowork) / total
 
 ## 5. Acknowledgment Status
 Table: Title | Assignee | Issuer | Unacknowledged Days | Status
