@@ -16,7 +16,7 @@ You manage the local view server that renders task data as interactive HTML page
 
 ## Session Bootstrap
 
-Load `${CLAUDE_PLUGIN_ROOT}/skills/bootstrap-session/SKILL.md` and follow its instructions.
+Invoke the `bootstrap-session` skill to establish the active provider and current user.
 Skip if `active_provider` and `current_user` are already set in this conversation.
 
 ## Environment Detection
@@ -40,7 +40,7 @@ If `STATIC_MODE=true`, skip "Starting the Server" and go directly to **Static HT
 The view server runs at `http://localhost:3456`. To start it:
 
 ```bash
-cd ${CLAUDE_PLUGIN_ROOT}/skills/viewing-tasks/server && npm ci --silent && npx tsx src/index.ts &
+cd "${CLAUDE_SKILL_DIR}/server" && npm ci --silent && npx tsx src/index.ts &
 ```
 
 Before starting, check if it's already running:
@@ -112,7 +112,7 @@ ls ~/.waggle/views/*.html
 ### Static Export for Custom Views
 
 ```bash
-${CLAUDE_PLUGIN_ROOT}/skills/viewing-tasks/scripts/generate-static-html.sh custom:<slug> /tmp/tasks.json > /tmp/<slug>.html
+"${CLAUDE_SKILL_DIR}/scripts/generate-static-html.sh" custom:<slug> /tmp/tasks.json > /tmp/<slug>.html
 ```
 
 To create, delete, or regenerate custom views, use the `managing-views` skill.
@@ -143,7 +143,7 @@ TASKEOF
 3. Generate the standalone HTML:
 
 ```bash
-${CLAUDE_PLUGIN_ROOT}/skills/viewing-tasks/scripts/generate-static-html.sh <view> /tmp/tasks.json > /tmp/<view>.html
+"${CLAUDE_SKILL_DIR}/scripts/generate-static-html.sh" <view> /tmp/tasks.json > /tmp/<view>.html
 ```
 
 Supported views: `kanban`, `list`

@@ -26,7 +26,17 @@ if ! command -v jq &>/dev/null; then
   exit 1
 fi
 
-RESULT=$(jq --arg target "$TARGET_STATUS" '
+# Load code-task keywords from the sibling config file. We pipe-join them
+# into a single alternation so jq can match them in a word-boundary regex.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+CODE_KEYWORDS_FILE="${SCRIPT_DIR}/../config/code-task-keywords.txt"
+if [ -f "$CODE_KEYWORDS_FILE" ]; then
+  CODE_KEYWORDS_PATTERN="$(grep -v '^#' "$CODE_KEYWORDS_FILE" | grep -v '^$' | sed 's/ /\\s*/g' | paste -sd'|' -)"
+else
+  CODE_KEYWORDS_PATTERN=""
+fi
+
+RESULT=$(jq --arg target "$TARGET_STATUS" --arg code_keywords "$CODE_KEYWORDS_PATTERN" '
   # Helper: check semantic AC quality (contains verifiable conditions)
   def has_verifiable_conditions:
     # Command patterns
@@ -52,6 +62,15 @@ RESULT=$(jq --arg target "$TARGET_STATUS" '
   (.errorMessage // "") as $error_msg |
   (.parentTaskId // null) as $parent_task_id |
   (.hasChildren // false) as $has_children |
+  (.createdAt // null) as $created_at |
+  (.repository // "") as $repository |
+
+  # Agent Output on Done becomes a hard error for tasks created on or after
+  # this date. Tasks created before this date are grandfathered: empty Agent
+  # Output remains a warning for them so we do not retroactively invalidate
+  # historical Done tasks.
+  "2026-04-14" as $agent_output_required_from |
+  ($created_at != null and ($created_at | split("T")[0]) < $agent_output_required_from) as $is_legacy_task |
 
   # Collect errors and warnings
   [] as $errors | [] as $warnings |
@@ -93,7 +112,7 @@ RESULT=$(jq --arg target "$TARGET_STATUS" '
        then $errors + [{"field":"Executor","rule":"required_set","message":"Executor must be set before dispatch."}]
        else $errors end) as $errors |
       # Working Directory for AI executors
-      (if ($executor == "cli" or $executor == "claude-desktop" or $executor == "cowork") and ($workdir | length) == 0
+      (if ($executor == "cli" or $executor == "claude-code" or $executor == "claude-desktop" or $executor == "cowork") and ($workdir | length) == 0
        then $errors + [{"field":"Working Directory","rule":"required_for_ai","message":"Working Directory is required for AI executor (\($executor))."}]
        else $errors end) as $errors |
       $errors
@@ -111,6 +130,25 @@ RESULT=$(jq --arg target "$TARGET_STATUS" '
     (if $target == "In Progress" and $executor == "cli" and ($branch | length) == 0
      then $warnings + [{"field":"Branch","rule":"recommended","message":"Branch is not set. Task will run on current branch."}]
      else $warnings end) as $warnings |
+    # Working Directory warning for AI code tasks at Ready.
+    # We heuristically check whether description, AC, or plan mention any
+    # code-related keyword from config/code-task-keywords.txt. This is a
+    # best-effort early signal — it becomes a hard error on In Progress.
+    (if $target == "Ready"
+        and ($executor == "cli" or $executor == "claude-desktop" or $executor == "claude-code" or $executor == "cowork")
+        and ($workdir | length) == 0
+        and ($code_keywords | length) > 0
+        and (($desc + " " + $ac + " " + $plan) | test("\\b(" + $code_keywords + ")\\b"; "i"))
+     then $warnings + [{"field":"Working Directory","rule":"recommended_code_task","message":"Working Directory is not set. AI code tasks need a working directory before dispatch — consider setting it now."}]
+     else $warnings end) as $warnings |
+    # Repository recommendation for AI code tasks at Ready.
+    (if $target == "Ready"
+        and ($executor == "cli" or $executor == "claude-desktop" or $executor == "claude-code" or $executor == "cowork")
+        and ($repository | length) == 0
+        and ($code_keywords | length) > 0
+        and (($desc + " " + $ac + " " + $plan) | test("\\b(" + $code_keywords + ")\\b"; "i"))
+     then $warnings + [{"field":"Repository","rule":"recommended_code_task","message":"Repository is not set. Consider adding the source repository URL for code tasks."}]
+     else $warnings end) as $warnings |
     {"errors": $errors, "warnings": $warnings}
 
   elif $target == "Blocked" then
@@ -126,9 +164,15 @@ RESULT=$(jq --arg target "$TARGET_STATUS" '
     {"errors": $errors, "warnings": $warnings}
 
   elif $target == "Done" then
-    (if ($executor == "cli" or $executor == "claude-desktop" or $executor == "cowork") and ($agent_output | length) == 0
-     then $warnings + [{"field":"Agent Output","rule":"recommended","message":"Agent Output is empty for AI executor. Record execution results."}]
+    # Helper: is this an AI executor task with empty Agent Output?
+    (($executor == "cli" or $executor == "claude-desktop" or $executor == "claude-code" or $executor == "cowork") and ($agent_output | length) == 0) as $ai_missing_output |
+    # Legacy tasks keep it as a warning; new tasks get a hard error.
+    (if $ai_missing_output and $is_legacy_task
+     then $warnings + [{"field":"Agent Output","rule":"legacy_recommended","message":"Agent Output is empty for AI executor (legacy task — created before \($agent_output_required_from), not enforced)."}]
      else $warnings end) as $warnings |
+    (if $ai_missing_output and ($is_legacy_task | not)
+     then $errors + [{"field":"Agent Output","rule":"required_for_ai_done","message":"Agent Output is required for AI executor tasks transitioning to Done. Record execution results before completing."}]
+     else $errors end) as $errors |
     {"errors": $errors, "warnings": $warnings}
 
   elif $target == "Cancelled" then

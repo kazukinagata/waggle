@@ -84,11 +84,13 @@ Source: slack DM from @alice at 2026-04-10 09:15
 
 ### Category A (Hearing Needed)
 
+> **Note**: The Category A flow below only runs when Step 2.3 (Slack clarification) is unavailable or the user declined the clarification path for this specific message. In interactive runs with Slack MCP available, most ambiguous messages are resolved by sending a clarification reply in-thread rather than creating a hearing-task pair.
+
 1. Create the blocker task first:
    - Title: `[Hearing] Confirm with {requester_name}: {question summary}`
    - Status: `Ready`
    - Executor: If messaging MCP available (e.g. Slack tools) → `cowork` (agent can send follow-up messages). If no messaging MCP → `human` (requires manual contact).
-   - Assignee: `[requester]` (Load `${CLAUDE_PLUGIN_ROOT}/skills/looking-up-members/SKILL.md` to resolve).
+   - Assignee: `[requester]` (invoke the `looking-up-members` skill to resolve).
      If requester cannot be identified: `[current_user]` (fallback, not empty). Record "Original sender: {sender}" in Context.
    - Acceptance Criteria: `"Confirm with {requester_name} about {topic_summary}. Record response in Agent Output. Update Status to Done when confirmed."`
    - Execution Plan: `"1. Contact {requester_name} via {tool_name}\n2. Ask about: {question_summary}\n3. Record response in Agent Output\n4. Update Status to Done"`
@@ -112,6 +114,6 @@ Source: slack DM from @alice at 2026-04-10 09:15
 ### Category C (Delegate)
 
 - Status: `Backlog`
-- Assignee: Load `${CLAUDE_PLUGIN_ROOT}/skills/looking-up-members/SKILL.md` to resolve assignee
+- Assignee: invoke the `looking-up-members` skill to resolve assignee
   - If assignee cannot be identified: `[current_user]` (fallback, not empty). Record "Expected assignee: {name or hint}" in Context
-- Apply the field resets defined in `${CLAUDE_PLUGIN_ROOT}/skills/assigning-to-others/SKILL.md`.
+- Invoke the `assigning-to-others` skill and apply the field resets it defines.

@@ -1,0 +1,38 @@
+# Keywords that indicate a task involves code work.
+#
+# Used by validate-task-fields.sh to detect whether an AI executor task
+# at Ready transition is a code task, so we can emit a warning if the
+# Working Directory is not set yet (it becomes a hard error on In Progress
+# transition, so this is a helpful early signal rather than a gate).
+#
+# One keyword per line. Lines starting with # and blank lines are ignored.
+# Matching is case-insensitive and anchored at word boundaries.
+
+code
+implement
+fix
+refactor
+deploy
+build
+endpoint
+function
+module
+component
+migration
+schema
+pull request
+commit
+branch
+merge
+rebase
+liquid
+css
+javascript
+typescript
+python
+ruby
+shopify
+react
+vue
+worker
+webhook

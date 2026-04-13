@@ -12,17 +12,42 @@ user-invocable: false
 This shared skill provides a deterministic bash+jq validation script for task status transitions.
 It enforces required fields as hard-block errors and recommends optional fields as warnings.
 
-## Usage
+## How to Invoke This Skill
 
-```bash
-# Write the canonical task JSON to a temp file
-echo '<canonical_json>' > /tmp/task_validate.json
-bash ${CLAUDE_PLUGIN_ROOT}/skills/validating-fields/scripts/validate-task-fields.sh \
-  <target_status> /tmp/task_validate.json
-```
+Other skills invoke this one via natural language — e.g., "Invoke the `validating-fields` skill to validate the task fields for target status Ready". When the agent receives that instruction, it loads this SKILL.md and follows the steps below.
 
-- `target_status`: The status being transitioned TO (e.g., `Ready`, `In Progress`, `Blocked`, `Done`, `Cancelled`)
-- `task_json_file`: Path to a JSON file in the **canonical flat format** (see below)
+### Steps
+
+1. Obtain the following from the invoking context:
+   - The task data (a Notion page object, a SQLite row, or an already-flat JSON)
+   - The target status the task is transitioning TO: `Ready`, `In Progress`, `Blocked`, `Done`, or `Cancelled`
+
+2. Construct a canonical flat JSON from the task data using the **Construction Guide** below. This normalizes provider differences (Notion rich_text arrays vs. SQLite strings) into a single shape the validator understands.
+
+3. Write the canonical JSON to a writable temp file. `/tmp/validate_task.json` is the default; callers on read-only filesystems should pass a writable path instead (e.g., under `${TMPDIR}`).
+
+4. Run the validation script:
+   ```bash
+   bash ${CLAUDE_SKILL_DIR}/scripts/validate-task-fields.sh <target_status> /tmp/validate_task.json
+   ```
+
+5. Parse the JSON output. It always has this shape:
+   ```json
+   { "valid": true|false, "target_status": "<X>", "errors": [...], "warnings": [...] }
+   ```
+
+6. Return the result to the invoking skill's context. The invoking skill decides how to proceed:
+   - `valid: false` → do NOT transition status; surface the errors to the user or abort
+   - `valid: true` with warnings → transition is allowed; surface the warnings as advisory
+
+### Error handling
+
+- **Script exit code ≠ 0**: Should not happen by design (the script always exits 0 and signals via `valid`), but if it does, treat as a fatal environment error and report it to the caller.
+- **`jq` not installed**: The script prints "Error: jq is required" to stderr and exits 1. Treat as an environment setup problem and surface it to the user.
+- **Malformed canonical JSON**: The script returns `valid: false` with an `input` field error. Treat as a caller bug — re-check the construction step.
+- **`/tmp` not writable**: Pass a writable path instead. The caller owns the temp file location.
+
+This skill is `user-invocable: false` — users do not trigger it directly via slash command. It is invoked by other skills (via natural language) and by developers when running the script manually during testing.
 
 ## Canonical Input Format
 
@@ -40,9 +65,13 @@ The validation script is **provider-agnostic**. Before calling it, construct a f
   "workingDirectory": "/absolute/path",
   "branch": "feature-x",
   "agentOutput": "Execution result",
-  "errorMessage": "Error details"
+  "errorMessage": "Error details",
+  "createdAt": "2026-04-15T10:00:00.000Z",
+  "repository": "https://github.com/org/repo"
 }
 ```
+
+`createdAt` is used for legacy grandfathering of the Agent Output rule on Done transitions. `repository` is optional and enables repository-aware warnings when code tasks reach Ready without a working directory.
 
 ### Construction Guide
 
@@ -59,6 +88,8 @@ workingDirectory <- .properties["Working Directory"].rich_text | map(.plain_text
 branch           <- .properties.Branch.rich_text | map(.plain_text) | join("")
 agentOutput      <- .properties["Agent Output"].rich_text | map(.plain_text) | join("")
 errorMessage     <- .properties["Error Message"].rich_text | map(.plain_text) | join("")
+createdAt        <- .created_time
+repository       <- .properties.Repository.url // ""
 ```
 
 **From SQLite/Turso row:**
@@ -74,6 +105,8 @@ workingDirectory <- .working_directory
 branch           <- .branch
 agentOutput      <- .agent_output
 errorMessage     <- .error_message
+createdAt        <- .created_at
+repository       <- .repository
 ```
 
 ## Output
@@ -97,13 +130,24 @@ errorMessage     <- .error_message
 
 | Target Status | Required (errors) | Recommended (warnings) |
 |---|---|---|
-| **Ready** | Description (non-empty, >=50 chars), AC (non-empty + semantic check), Execution Plan (non-empty) | Issuer (non-empty), Assignee (non-empty), Priority (set) |
+| **Ready** | Description (non-empty, >=50 chars), AC (non-empty + semantic check), Execution Plan (non-empty) | Issuer (non-empty), Assignee (non-empty), Priority (set), Working Directory & Repository (for AI code tasks — detected via keyword match) |
 | **In Progress** | All Ready requirements + Executor (set), Working Directory (non-empty for AI executors) | Issuer, Branch (for cli executor) |
 | **Blocked** | Description (non-empty), AC (non-empty) | Issuer, Error Message |
-| **Done** | Description (non-empty) | Agent Output (for AI executors) |
+| **Done** | Description (non-empty), Agent Output (non-empty for AI executors on new tasks) | Agent Output (legacy tasks — created before the enforcement date — keep warning-only) |
 | **Cancelled** | Description (non-empty) | — |
 
 **Issuer is always a warning**, never an error -- ensures backward compatibility with pre-migration tasks.
+
+### Agent Output on Done (Legacy Grandfathering)
+
+Agent Output is required for AI executor tasks (cli / claude-code / claude-desktop / cowork) transitioning to Done. The requirement is enforced via a `createdAt` cutoff:
+
+- Tasks with `createdAt` on or after the cutoff date: empty Agent Output → hard error (blocks the transition)
+- Tasks with `createdAt` before the cutoff date: empty Agent Output → warning only (does not block)
+
+This prevents retroactive invalidation of historical Done tasks while still enforcing the rule going forward. Human-executor tasks are never required to have Agent Output.
+
+The cutoff date is hardcoded in `scripts/validate-task-fields.sh` as `$agent_output_required_from`. Update it only when introducing a similar migration — otherwise keep it stable.
 
 ## Semantic AC Check
 
@@ -116,6 +160,19 @@ AC text is scanned for at least one verifiable condition indicator:
 If none found -> error: "AC lacks verifiable conditions. Include commands, file paths, metrics, or observable outcomes."
 
 This is a heuristic backstop, not a perfect quality gate. It catches worst-case garbage but not subtle gaps.
+
+## Code Task Detection
+
+For AI-executor tasks transitioning to Ready, the script emits two warnings if the task looks like code work but has no Working Directory / Repository set:
+
+- The keyword list lives in `config/code-task-keywords.txt` (one keyword per line, `#` for comments)
+- Keywords are joined into a single word-boundary regex at load time
+- If any of description / AC / execution plan contains a keyword AND the executor is an AI agent AND Working Directory is empty → warn
+- Same logic for Repository
+
+These remain warnings (not errors) at Ready; Working Directory becomes a hard error on In Progress. The warning gives the user an earlier nudge.
+
+To adjust what counts as "code work", edit `config/code-task-keywords.txt` without touching the script.
 
 ## Hierarchy Validation
 

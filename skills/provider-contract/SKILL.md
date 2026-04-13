@@ -162,11 +162,11 @@ Bash scripts in the provider plugin MUST follow these rules:
 
 2. MUST NOT use `${CLAUDE_PLUGIN_ROOT}` in bash scripts. This variable is only available in the SKILL.md instruction context, not in shell execution.
 
-3. SKILL.md instructions MUST reference scripts using `${CLAUDE_PLUGIN_ROOT}`:
+3. SKILL.md instructions MUST reference their own scripts using `${CLAUDE_SKILL_DIR}`:
    ```
-   bash ${CLAUDE_PLUGIN_ROOT}/skills/{provider}-provider/scripts/query-tasks.sh ...
+   bash ${CLAUDE_SKILL_DIR}/scripts/query-tasks.sh ...
    ```
-   Provider SKILL.md is loaded via the Skill tool, which automatically resolves `${CLAUDE_PLUGIN_ROOT}` to the provider plugin's absolute path.
+   `${CLAUDE_SKILL_DIR}` is the official Claude Code runtime variable for the current skill's own directory; it resolves correctly regardless of working directory and is robust to skill rename/relocation. Never hardcode `${CLAUDE_PLUGIN_ROOT}/skills/<this-skill-name>/...` — that pattern silently breaks on rename.
 
 4. Scripts that call other scripts within the plugin MUST use `SCRIPT_DIR`-relative paths:
    ```bash

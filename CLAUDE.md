@@ -34,13 +34,31 @@ skills/
 
 ### Skill Dependency Flow
 
-All user-invocable skills start by loading `detecting-provider` (shared) to determine the active data source and retrieve config. Skills that need user identity also load `resolving-identity`. Skills never cross-reference each other directly — shared logic lives in shared skills (`user-invocable: false`).
+All user-invocable skills start by invoking `detecting-provider` (shared) to determine the active data source and retrieve config. Skills that need user identity also invoke `resolving-identity`.
+
+Skills interact with each other only through natural language invocation. A skill's SKILL.md or reference files may instruct the agent to "invoke the `<other-skill>` skill" in plain English, and the agent (which has all skill frontmatters indexed via Claude Code's skill discovery mechanism) will load the target skill's SKILL.md and follow its instructions. Invocation is permitted across any two skills regardless of `user-invocable` value (though shared skills are preferred for logic reuse).
+
+A skill must NOT know anything about another skill beyond the name and description in the target's frontmatter. The following patterns are forbidden in any skill file (SKILL.md, references/*, scripts/*):
+
+- Hardcoded paths to another skill's files: `bash ${CLAUDE_PLUGIN_ROOT}/skills/other-skill/scripts/foo.sh`
+- Hardcoded paths to another skill's SKILL.md: `Load ${CLAUDE_PLUGIN_ROOT}/skills/other-skill/SKILL.md`
+- References to another skill's internal structure: line number citations, internal function or predicate names, internal reference file names, internal step number references
+
+The only stable public contract is the frontmatter (name + description); agents resolve invocations through skill discovery. The target skill's internal structure (script layout, function names, step numbers, reference file names) must be free to evolve without breaking dependents.
+
+A skill is always free to reference its own files. For self-references, use the official Claude Code runtime variable `${CLAUDE_SKILL_DIR}`, which the runtime automatically resolves to the directory containing the current skill's SKILL.md:
+
+```bash
+bash ${CLAUDE_SKILL_DIR}/scripts/my-script.sh
+```
+
+Avoid `${CLAUDE_PLUGIN_ROOT}/skills/<self-name>/scripts/...` for self-references — it hardcodes the skill name and breaks silently on rename or relocation.
 
 ```
 User-invocable skill
-  → detecting-provider (provider + config)
-  → resolving-identity (current_user)
-  → providers/{active_provider}/SKILL.md (provider-specific operations)
+  → invoke detecting-provider (provider + config)
+  → invoke resolving-identity (current_user)
+  → invoke providers/{active_provider} (provider-specific operations)
 ```
 
 ### Provider Abstraction
@@ -60,7 +78,7 @@ Tasks can be executed in three modes based on execution environment:
 
 ### Task Schema
 
-Tasks have 15 Core fields (auto-repaired if missing) and 9 Extended fields (graceful degradation). Key fields: Status (Backlog/Ready/In Progress/In Review/Done/Blocked/Cancelled), Executor (cli/claude-desktop/cowork/human), Priority, Blocked By (dependency relation), Issuer (task creator/owner). CLI and Claude Desktop environments can execute tasks for any AI executor type (cli/claude-desktop/cowork), while Cowork can only execute cowork tasks due to VM constraints.
+Tasks have 15 Core fields (auto-repaired if missing) and 9 Extended fields (graceful degradation). Key fields: Status (Backlog/Ready/In Progress/In Review/Done/Blocked/Cancelled), Executor (cli/claude-code/claude-desktop/cowork/human), Priority, Blocked By (dependency relation), Issuer (task creator/owner). CLI and Claude Desktop environments can execute tasks for any AI executor type (cli/claude-code/claude-desktop/cowork), while Cowork can only execute cowork tasks due to VM constraints.
 
 ## Development Commands
 
@@ -97,9 +115,10 @@ user-invocable: true|false
 - All natural language in the project (SKILL.md, comments, scripts, docs) must be in English
   - Exception: skill description front-matter may include non-English trigger phrases
 - Each skill must be self-contained: scripts and resources live within the skill's own directory
-- No cross-references between skills — shared logic is extracted into shared skills
+- Cross-skill interaction is natural-language-only: "Invoke the `<skill>` skill" is the single allowed pattern. Hardcoded file paths, line numbers, internal function names, and internal reference files of other skills are forbidden. Shared logic that is reused across 2+ skills should live in a `user-invocable: false` shared skill, invoked via natural language. For smaller duplication (a few lines of regex or configuration), prefer inline duplication over cross-skill coupling.
+- For self-references within a skill, use `${CLAUDE_SKILL_DIR}` (the official Claude Code runtime variable for the current skill's directory) — not hardcoded `${CLAUDE_PLUGIN_ROOT}/skills/<self>/...` paths.
 - Provider-specific logic belongs in `skills/providers/{name}/`
-- The `CLAUDE_PLUGIN_ROOT` variable points to this repository root at runtime
+- The `CLAUDE_PLUGIN_ROOT` variable points to the plugin root at runtime; `${CLAUDE_SKILL_DIR}` points to the current skill's own directory
 
 ## Semantic Versioning
 

@@ -43,9 +43,12 @@ jq -n \
 '
 # Helper: extract flat task record from a Notion page object
 def extract_task:
+  (.properties["Acceptance Criteria"].rich_text // [] | map(.plain_text) | join("")) as $ac_text |
+  (.properties.Title.title[0].plain_text // "Untitled") as $title_text |
   {
     id: .id,
-    title: (.properties.Title.title[0].plain_text // "Untitled"),
+    url: .url,
+    title: $title_text,
     status: (.properties.Status.select.name // "N/A"),
     priority: (.properties.Priority.select.name // "N/A"),
     executor: (.properties.Executor.select.name // "N/A"),
@@ -58,9 +61,20 @@ def extract_task:
     has_assignee: ((.properties.Assignee.people | length) > 0),
     has_executor: ((.properties.Executor.select.name // null) != null),
     has_issuer: ((.properties.Issuer.people // [] | length) > 0),
+    has_priority: ((.properties.Priority.select.name // null) != null),
     has_acknowledged_at: ((.properties["Acknowledged At"].date.start // null) != null),
     issuer_ids: [.properties.Issuer.people[]? | .id],
-    assignee_ids: [.properties.Assignee.people[]? | .id]
+    assignee_ids: [.properties.Assignee.people[]? | .id],
+    ac_text: $ac_text,
+    # Quality debt signals:
+    # - DRAFT AC: AC text contains "[DRAFT" (case-insensitive), indicating a
+    #   placeholder left after an ingest flow that was never filled in.
+    has_draft_ac: (($ac_text // "") | test("\\[DRAFT"; "i")),
+    # - Test task: title matches common patterns for scratch/test placeholders
+    #   ("Test task — delete me", "delete me", "WIP delete", bare "Test task").
+    #   Anchored so legitimate titles like "Unit test for DELETE endpoint" do
+    #   not match.
+    is_test_task: ($title_text | test("^(test\\s*task\\s*[—\\-–]\\s*(delete\\s*me|wip)|delete\\s*me$|wip\\s*delete|test\\s*task$)"; "i"))
   };
 
 # Helper: compute age in days from ISO timestamp (handles .000Z milliseconds)
@@ -168,6 +182,7 @@ def executor_counts:
   {
     human: map(select(.executor == "human")) | length,
     cli: map(select(.executor == "cli")) | length,
+    "claude-code": map(select(.executor == "claude-code")) | length,
     "claude-desktop": map(select(.executor == "claude-desktop")) | length,
     cowork: map(select(.executor == "cowork")) | length,
     unset: map(select(.executor == "N/A")) | length
@@ -192,6 +207,50 @@ def executor_counts:
     })
 ) as $unacknowledged |
 
+# === Dimension 6: Quality Debt ===
+# Debt signals that highlight tasks needing retroactive quality improvement.
+
+# DRAFT AC: AC text contains "[DRAFT" and status is not Blocked (Blocked is
+# expected to have DRAFT AC while waiting on hearing; once unblocked, the AC
+# should have been refined).
+($tasks_aged
+  | map(select(.has_draft_ac and (.status != "Blocked") and (.status != "Done") and (.status != "Cancelled")))
+  | sort_by(-.age_days)
+  | map({
+      id: .id,
+      url: .url,
+      title: .title,
+      status: .status,
+      age_days: .age_days,
+      ac_preview: (.ac_text // "" | .[:80])
+    })
+) as $draft_ac_tasks |
+
+# Priority missing: non-Done/Cancelled tasks without Priority set.
+($tasks_aged
+  | map(select((.has_priority | not) and (.status != "Done") and (.status != "Cancelled")))
+  | sort_by(-.age_days)
+  | map({
+      id: .id,
+      url: .url,
+      title: .title,
+      status: .status,
+      age_days: .age_days
+    })
+) as $priority_missing |
+
+# Test tasks: titles matching test-task placeholder patterns. Surfaced so the
+# user can clean them up (they should not linger in a real task list).
+($tasks_aged
+  | map(select(.is_test_task and (.status != "Cancelled")))
+  | map({
+      id: .id,
+      url: .url,
+      title: .title,
+      status: .status
+    })
+) as $test_tasks |
+
 {
   target: { mode: $mode, id: $target_id, name: $target_name },
   generated_at: (now | strftime("%Y-%m-%dT%H:%M:%SZ")),
@@ -213,6 +272,20 @@ def executor_counts:
   acknowledgment: {
     unacknowledged_count: ($unacknowledged | length),
     unacknowledged_tasks: $unacknowledged
+  },
+  quality_debt: {
+    draft_ac: {
+      count: ($draft_ac_tasks | length),
+      tasks: $draft_ac_tasks
+    },
+    priority_missing: {
+      count: ($priority_missing | length),
+      tasks: $priority_missing
+    },
+    test_tasks: {
+      count: ($test_tasks | length),
+      tasks: $test_tasks
+    }
   }
 }
 '
