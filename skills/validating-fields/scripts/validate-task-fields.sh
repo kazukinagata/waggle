@@ -52,6 +52,15 @@ RESULT=$(jq --arg target "$TARGET_STATUS" '
   (.errorMessage // "") as $error_msg |
   (.parentTaskId // null) as $parent_task_id |
   (.hasChildren // false) as $has_children |
+  (.createdAt // null) as $created_at |
+  (.repository // "") as $repository |
+
+  # Agent Output on Done becomes a hard error for tasks created on or after
+  # this date. Tasks created before this date are grandfathered: empty Agent
+  # Output remains a warning for them so we do not retroactively invalidate
+  # historical Done tasks.
+  "2026-04-14" as $agent_output_required_from |
+  ($created_at != null and ($created_at | split("T")[0]) < $agent_output_required_from) as $is_legacy_task |
 
   # Collect errors and warnings
   [] as $errors | [] as $warnings |
@@ -126,9 +135,15 @@ RESULT=$(jq --arg target "$TARGET_STATUS" '
     {"errors": $errors, "warnings": $warnings}
 
   elif $target == "Done" then
-    (if ($executor == "cli" or $executor == "claude-desktop" or $executor == "cowork") and ($agent_output | length) == 0
-     then $warnings + [{"field":"Agent Output","rule":"recommended","message":"Agent Output is empty for AI executor. Record execution results."}]
+    # Helper: is this an AI executor task with empty Agent Output?
+    (($executor == "cli" or $executor == "claude-desktop" or $executor == "claude-code" or $executor == "cowork") and ($agent_output | length) == 0) as $ai_missing_output |
+    # Legacy tasks keep it as a warning; new tasks get a hard error.
+    (if $ai_missing_output and $is_legacy_task
+     then $warnings + [{"field":"Agent Output","rule":"legacy_recommended","message":"Agent Output is empty for AI executor (legacy task — created before \($agent_output_required_from), not enforced)."}]
      else $warnings end) as $warnings |
+    (if $ai_missing_output and ($is_legacy_task | not)
+     then $errors + [{"field":"Agent Output","rule":"required_for_ai_done","message":"Agent Output is required for AI executor tasks transitioning to Done. Record execution results before completing."}]
+     else $errors end) as $errors |
     {"errors": $errors, "warnings": $warnings}
 
   elif $target == "Cancelled" then

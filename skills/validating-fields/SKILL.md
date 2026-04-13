@@ -40,9 +40,13 @@ The validation script is **provider-agnostic**. Before calling it, construct a f
   "workingDirectory": "/absolute/path",
   "branch": "feature-x",
   "agentOutput": "Execution result",
-  "errorMessage": "Error details"
+  "errorMessage": "Error details",
+  "createdAt": "2026-04-15T10:00:00.000Z",
+  "repository": "https://github.com/org/repo"
 }
 ```
+
+`createdAt` is used for legacy grandfathering of the Agent Output rule on Done transitions. `repository` is optional and enables repository-aware warnings when code tasks reach Ready without a working directory.
 
 ### Construction Guide
 
@@ -59,6 +63,8 @@ workingDirectory <- .properties["Working Directory"].rich_text | map(.plain_text
 branch           <- .properties.Branch.rich_text | map(.plain_text) | join("")
 agentOutput      <- .properties["Agent Output"].rich_text | map(.plain_text) | join("")
 errorMessage     <- .properties["Error Message"].rich_text | map(.plain_text) | join("")
+createdAt        <- .created_time
+repository       <- .properties.Repository.url // ""
 ```
 
 **From SQLite/Turso row:**
@@ -74,6 +80,8 @@ workingDirectory <- .working_directory
 branch           <- .branch
 agentOutput      <- .agent_output
 errorMessage     <- .error_message
+createdAt        <- .created_at
+repository       <- .repository
 ```
 
 ## Output
@@ -100,10 +108,21 @@ errorMessage     <- .error_message
 | **Ready** | Description (non-empty, >=50 chars), AC (non-empty + semantic check), Execution Plan (non-empty) | Issuer (non-empty), Assignee (non-empty), Priority (set) |
 | **In Progress** | All Ready requirements + Executor (set), Working Directory (non-empty for AI executors) | Issuer, Branch (for cli executor) |
 | **Blocked** | Description (non-empty), AC (non-empty) | Issuer, Error Message |
-| **Done** | Description (non-empty) | Agent Output (for AI executors) |
+| **Done** | Description (non-empty), Agent Output (non-empty for AI executors on new tasks) | Agent Output (legacy tasks — created before the enforcement date — keep warning-only) |
 | **Cancelled** | Description (non-empty) | — |
 
 **Issuer is always a warning**, never an error -- ensures backward compatibility with pre-migration tasks.
+
+### Agent Output on Done (Legacy Grandfathering)
+
+Agent Output is required for AI executor tasks (cli / claude-code / claude-desktop / cowork) transitioning to Done. The requirement is enforced via a `createdAt` cutoff:
+
+- Tasks with `createdAt` on or after the cutoff date: empty Agent Output → hard error (blocks the transition)
+- Tasks with `createdAt` before the cutoff date: empty Agent Output → warning only (does not block)
+
+This prevents retroactive invalidation of historical Done tasks while still enforcing the rule going forward. Human-executor tasks are never required to have Agent Output.
+
+The cutoff date is hardcoded in `scripts/validate-task-fields.sh` as `$agent_output_required_from`. Update it only when introducing a similar migration — otherwise keep it stable.
 
 ## Semantic AC Check
 
