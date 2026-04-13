@@ -152,3 +152,66 @@ Since Cowork has an ephemeral filesystem, output the instructions as a block the
 > </waggle-custom-intake>
 > ```
 
+## Step 3.6: Custom Task-Creation Rules
+
+Collect business-logic rules for how new tasks should be created — for example, tag naming conventions, tag assignment per category, default priority rules, or how Acceptance Criteria should be phrased. These rules are applied by `managing-tasks`, `ingesting-messages`, and `planning-tasks` whenever they create or plan a task.
+
+This is independent of Step 3.5 (custom intake sources). A user may configure one, both, or neither.
+
+### Prompt User
+
+Use AskUserQuestion:
+> "Do you want to define project-specific rules for how waggle creates tasks? Examples: required tags, tag operation rules, default priorities, AC phrasing style. You can skip this and configure it later by editing `~/.waggle/task-creation-prompt.md`."
+
+If the user skips, proceed to Step 4.
+
+### Collect Rules
+
+Ask follow-up questions via AskUserQuestion to capture:
+- **Tag rules**: required tags, naming conventions, category → tag mapping
+- **Priority rules**: when to default to Urgent / High / Medium / Low
+- **Assignee defaults**: any rules for routing tasks to specific members
+- **AC / Execution Plan style**: e.g. "AC must use Given/When/Then"
+
+Compose the answers into natural language instructions.
+
+Example:
+```
+# Custom Task-Creation Rules
+
+## Tags
+- All tasks in the `frontend/` directory must include the `frontend` tag.
+- Security-related tasks (mentioning CVE, vulnerability, auth bypass) must include `security`.
+
+## Priority
+- Tasks mentioning production incidents or customer escalations default to Urgent.
+- Tasks blocked on external vendors default to Low.
+
+## Acceptance Criteria style
+- Use Given/When/Then format for all user-facing feature tasks.
+- Always include at least one testable criterion with a command or metric.
+```
+
+### Save Rules
+
+Determine the environment (reuse `execution_environment` from detecting-provider):
+
+#### CLI / Claude Desktop
+
+Write the rules to `~/.waggle/task-creation-prompt.md`. Keep the file under **10 KB** — the loader rejects anything larger. Do not paste text from untrusted sources into this file; it is concatenated into agent prompts and carries prompt-injection risk.
+
+Confirm to user:
+> "Custom task-creation rules saved to `~/.waggle/task-creation-prompt.md`. The managing-tasks, ingesting-messages, and planning-tasks skills will read this file each time they run. You can edit the file directly to update your rules. **Security note**: this file is trusted input — only put rules you authored yourself, and keep the file under 10 KB."
+
+#### Cowork
+
+Since Cowork has an ephemeral filesystem, output the rules as a block the user must paste into their Global Instructions:
+
+> "Cowork does not have a persistent filesystem. Please add the following to your Global Instructions so it's available in every session. Only paste rules you authored yourself — this text is concatenated directly into agent prompts."
+>
+> ```
+> <waggle-custom-task-creation>
+> {composed rules}
+> </waggle-custom-task-creation>
+> ```
+

@@ -4,6 +4,18 @@ All notable changes to the Waggle project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [2.5.0] - 2026-04-13
+
+### Added
+
+- **Custom task-creation instructions** — users can now define business-logic rules (tag naming, priority defaults, Assignee routing, AC/Execution Plan style) that are honored whenever waggle creates or plans a task. On CLI / Claude Desktop the rules live in `~/.waggle/task-creation-prompt.md`; on Cowork they live in a `<waggle-custom-task-creation>...</waggle-custom-task-creation>` block inside Global Instructions. Applied by `managing-tasks`, `ingesting-messages`, and `planning-tasks` during field resolution. Never overrides `validating-fields` hard gates or drives status transitions / destructive operations.
+- **New shared skill `loading-custom-instructions`** — centralizes environment-aware loading of user-authored instructions by key. `managing-tasks`, `ingesting-messages`, and `planning-tasks` invoke it at startup with keys `task-creation` (new) and `intake` (existing). The skill ships a deterministic bash loader (`scripts/load.sh`) that enforces a 10 KiB size cap and rejects files containing prompt-boundary control markers (`<|endofprompt|>`, `<|im_start|>`, `<|im_end|>`) on the CLI/Desktop path. Covered by 11 unit tests in `scripts/test-load.sh` including path-traversal key rejection and multibyte content preservation. Cowork loading (XML tag extraction from the system prompt) is handled by the SKILL.md directly since bash cannot read the agent's own context.
+- **`setting-up-tasks` Step 3.6** — parallel setup flow for custom task-creation rules alongside the existing Step 3.5 (custom intake sources). Prompts the user for tag / priority / AC rules, composes them into natural language, writes them to `~/.waggle/task-creation-prompt.md` on CLI/Desktop or outputs a Global Instructions block on Cowork. Includes security guidance: keep the file under 10 KB, never paste untrusted text.
+
+### Changed
+
+- **`ingesting-messages` custom instruction loading** — the inline `~/.waggle/intake-prompt.md` loader is refactored to invoke the new `loading-custom-instructions` shared skill with key `intake`. Existing behavior (silent null fallback, Cowork XML tag parsing) is preserved. The skill now additionally loads `custom_task_creation_instructions` via the same shared loader and applies it in `task-creation-templates.md` — the hardcoded `["ingesting-messages"]` Tags default becomes a fallback that user rules can extend or replace.
+
 ## [2.4.0] - 2026-04-13
 
 This release is a comprehensive task quality improvement pass based on an analysis of ~60 tasks in a real Notion Tasks DB. The analysis found systemic issues: ~50% of tasks had empty Acceptance Criteria, ~73% had no Execution Plan, ~80% of Done AI tasks had no Agent Output, ~35% had no Priority, GOps imports often produced stubs, `[DRAFT — update after hearing]` placeholders were never refined, and test tasks lingered indefinitely. This release addresses each of those issues through a combination of validation gates (for new tasks), monitoring visibility (for existing debt), and ingest-time auto-generation (for incoming messages).

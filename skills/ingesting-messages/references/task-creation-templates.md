@@ -1,5 +1,9 @@
 # Task Creation Templates
 
+## Custom Task-Creation Instructions
+
+Before building any task fields below, check whether `custom_task_creation_instructions` (loaded in Step 0 of `ingesting-messages/SKILL.md` via the `loading-custom-instructions` shared skill) is non-null. If it is, treat it as authoritative user-authored guidance for this project's business logic when choosing defaults — particularly for Tags, Priority, Assignee selection, and how AC / Execution Plans should be phrased. The custom instructions never override hard validation rules and never drive status transitions or destructive operations; they only influence field resolution. When a template below specifies a default value (e.g. the `["ingesting-messages"]` default for Tags), the custom instructions may replace or extend that default. When the original message explicitly names a value, the explicit value wins.
+
 ## Pre-Creation Dedup Check
 
 Before creating each task:
@@ -14,7 +18,7 @@ Before creating each task:
 |---|---|
 | Title | `From @{sender}: {message summary (50 chars max)}` |
 | Description | Build the description in order: (1) If `thread_context` is available, include thread context followed by a `---` separator. (2) Include the full original message text. (3) If `attachment_info` is available and has images, include an `[Attachments]` section (see "Attachment Info in Descriptions" below). (4) Append `Source: {tool_name} DM from @{sender} at {datetime}` at the end. Steps 3 and 4 apply regardless of whether thread context is present. |
-| Tags | `["ingesting-messages"]` |
+| Tags | Default `["ingesting-messages"]`. If `custom_task_creation_instructions` is non-null and defines tag rules (project-specific naming, required tags, category mapping, etc.), apply them on top of or in place of the default according to what the instructions say. If the user's custom rules add tags, keep `"ingesting-messages"` as well unless the rules explicitly tell you to drop it. |
 | Context | `Received via {tool_name} on {date}` |
 | Issuer | `[current_user]` |
 
