@@ -16,7 +16,7 @@ Diagnoses common issues and guides the user through resolution.
 
 ## Step 1: Session Bootstrap
 
-Load `${CLAUDE_PLUGIN_ROOT}/skills/bootstrap-session/SKILL.md` and follow its instructions.
+Invoke the `bootstrap-session` skill to establish the active provider and current user.
 Skip if `active_provider` and `current_user` are already set in this conversation.
 
 ## Step 2: Changelog Reference
@@ -67,7 +67,7 @@ Run through these checks based on the user's reported symptom:
 3. Verify the user ID in `Assignee` matches `current_user.id`
 
 ### Validation errors on status transition
-1. Run `validate-task-fields.sh` manually with the task's canonical JSON
+1. Invoke the `validating-fields` skill with the task data and target status to get the full list of errors and warnings
 2. Check which fields are missing or invalid
 3. Guide the user to fill in required fields before retrying
 
