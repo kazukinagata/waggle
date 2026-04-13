@@ -198,9 +198,69 @@ Follow the instructions in `custom_intake_instructions` to fetch items from each
 
 ---
 
+## Step 1.8: Attachment Processing
+
+For each message in the deduplicated pool, detect and attempt to read image attachments.
+
+### Detection
+
+Check each message for a `files` array (Slack) or equivalent attachment field (Teams/Discord). Filter for image file types only:
+- **Slack**: entries where `mimetype` starts with `image/` (e.g., `image/png`, `image/jpeg`, `image/gif`)
+- **Teams / Discord**: equivalent image attachment fields
+
+If a message has no image attachments, set `attachment_info = null` and move on.
+
+### Image Reading (best-effort)
+
+For each image attachment detected:
+
+1. Check the file object for a `permalink_public` field.
+2. If `permalink_public` exists and is non-null: attempt to read the image using `WebFetch` with the `permalink_public` URL.
+   - If `WebFetch` succeeds and returns image content: describe the image in detail, focusing on text content, UI elements, error messages, diagrams, or any actionable information visible. Store the description. Set `read_status = "success"`.
+   - If `WebFetch` fails (timeout, empty result, or HTML returned): set `read_status = "unread"` and `description = null`.
+3. If `permalink_public` is not available (file not publicly shared): set `read_status = "unread"` and `description = null`. Do not attempt `WebFetch` with `permalink` or `url_private` as these require authentication that `WebFetch` cannot provide.
+
+> **Limitation**: Most Slack files are not publicly shared, so `permalink_public` will often be absent. In practice, the majority of images will follow the "unread" path. This is by design — the user is prompted to review unread images via message permalinks in Step 2.7.
+
+### Message Permalink
+
+For each message that has at least one image with `read_status = "unread"` or `"skipped"`, construct (or extract from the API response) the message permalink so it can be shown to the user:
+- **Slack**: If the message payload includes a `permalink` field, use it directly. Otherwise construct: `https://{workspace}.slack.com/archives/{channel_id}/p{ts_without_dot}` where `ts_without_dot` is the message `ts` with the dot removed.
+- **Teams / Discord**: Use the message URL/link from the API response if available.
+
+### Output
+
+Attach `attachment_info` to each message object:
+
+```
+attachment_info:
+  has_images: true
+  images:
+    - filename: "{name}"
+      mimetype: "{mimetype}"
+      permalink: "{file_permalink}"
+      description: "{AI description}" or null
+      read_status: "success" or "unread" or "skipped"
+  message_permalink: "{constructed_or_extracted_permalink}" or null
+```
+
+- `message_permalink`: Only set when at least one image has `read_status = "unread"` or `"skipped"`. Set to `null` if all images were read successfully.
+- Messages with no image attachments: `attachment_info = null`.
+
+### Limits
+
+- Process a maximum of **3 images per message**. If a message has more than 3 images, process the first 3. Calculate `remaining_count = total_images - 3` and note: `"({remaining_count} additional images not processed)"`.
+- If the total number of images across all messages exceeds **10**, process only the first 10 (in message order) and log: `"Image processing capped at 10. {remaining} images skipped."` When the cap is reached mid-message, include all remaining images from that message in `attachment_info.images` with `read_status = "skipped"` and `description = "(global cap reached)"`. For subsequent messages that have not been processed at all, set `attachment_info = null`.
+
+### Teams / Discord
+
+Apply the same detection and reading pattern using equivalent attachment/file APIs. If the platform's MCP does not support file metadata, set `attachment_info = null` and note: `(attachment processing: unavailable — platform MCP does not support file metadata)`.
+
+---
+
 ## Step 2: Classify Messages (3 Categories)
 
-Classify each message into A (Hearing Needed), B (Self-Action), or C (Delegate). When `thread_context` is available, use it alongside the message text to improve classification accuracy. For the full classification heuristics, examples, and confirmation flow, follow `references/classification-guide.md` in this directory.
+Classify each message into A (Hearing Needed), B (Self-Action), or C (Delegate). When `thread_context` is available, use it alongside the message text to improve classification accuracy. When `attachment_info` is available and contains successfully read image descriptions, treat those descriptions as part of the message content for classification purposes. For example, a message saying "fix this" with an attached screenshot of a bug (successfully described) should be classified as Category B if the description provides enough context to act on. For the full classification heuristics, examples, and confirmation flow, follow `references/classification-guide.md` in this directory.
 
 When classification is unclear, treat as Category A (safe default).
 
@@ -232,16 +292,28 @@ Before creating tasks, enrich Category B and C messages with additional details 
 
 Display the final task list to be created:
 
-| # | Category | Sender | Summary | Status | Executor |
-|---|----------|--------|---------|--------|----------|
-| 1 | B: Self | @alice | Update README with new endpoints | Ready | claude-desktop |
-| 2 | A: Hearing | @bob | Design doc review request | Blocked | human |
-| 3 | C: Delegate | @alice | @charlie deployment script | Backlog | human |
+| # | Category | Sender | Summary | Status | Executor | Attachments |
+|---|----------|--------|---------|--------|----------|-------------|
+| 1 | B: Self | @alice | Update README with new endpoints | Ready | claude-desktop | |
+| 2 | A: Hearing | @bob | Fix this layout issue | Blocked | human | 1 image (read) |
+| 3 | B: Self | @charlie | Bug in checkout flow | Ready | cli | 1 image (unread) |
+| 4 | C: Delegate | @alice | @charlie deployment script | Backlog | human | |
 
-Use `AskUserQuestion`: "Create these N tasks?"
+The Attachments column shows: blank if no images, `{N} image (read)` if all images were read successfully, `{N} image (unread)` if any image could not be read, `{N} image ({S} read, {F} unread)` for mixed results. Images with `read_status = "skipped"` (global cap) are counted as unread for display purposes.
+
+**Unread image attachments**: If any messages have images with `read_status = "unread"` or `"skipped"`, display them below the table:
+
+> The following messages have image attachments that could not be read automatically. Please review them before confirming task creation:
+> - **#3** (@charlie): [View message in Slack]({message_permalink})
+
+The user can then open the links, review the images, and optionally update the task summary or category before confirming.
+
+Use `AskUserQuestion`: "Create these N tasks? (Please review unread image links above first)"
 - **"Create all"** — proceed to Step 3
 - **"Select individually"** — for each task, ask create / skip
 - **"Cancel"** — abort task creation, output summary of what would have been created
+
+If no messages have unread images, use the standard prompt: "Create these N tasks?"
 
 ---
 
@@ -287,6 +359,7 @@ Processed: N / Skipped (already processed): K / Skipped (already exists as task)
   C (Delegate):       Z → Backlog tasks created
 Custom sources: {list of sources processed, or "none configured"}
 Thread context: {T} messages enriched with thread history
+Attachments: {I} images detected, {S} read successfully, {F} unread or skipped
 ```
 
 ---

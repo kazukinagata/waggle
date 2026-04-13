@@ -4,7 +4,7 @@ All notable changes to the Waggle project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
-## [2.3.0] - 2026-04-13
+## [2.4.0] - 2026-04-13
 
 ### Added
 - **Agent Output required on Done** (`validating-fields`): AI executor tasks (cli / claude-code / claude-desktop / cowork) transitioning to Done now fail validation if Agent Output is empty. Legacy tasks created before the 2026-04-14 enforcement cutoff remain a warning only, so historical Done tasks are not retroactively invalidated. The canonical input format gains `createdAt` (used for the legacy cutoff) and `repository` fields.
@@ -13,6 +13,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Changed
 - **Cross-skill interaction rules** (`CLAUDE.md`): Clarified that cross-skill interaction is natural-language-only. Skills may now say "invoke the X skill" without hardcoding paths to other skills' scripts or SKILL.md files. References to another skill's internal structure (line numbers, function names, reference files, step IDs) are explicitly forbidden. For self-references within a skill, use the official Claude Code runtime variable `${CLAUDE_SKILL_DIR}` instead of `${CLAUDE_PLUGIN_ROOT}/skills/<self>/...` paths, which silently break on rename.
+
+## [2.3.0] - 2026-04-10
+
+### Added
+- **Image attachment handling** in `ingesting-messages`: Detects image attachments in messages, attempts best-effort reading via `permalink_public` + `WebFetch`, and surfaces unreadable images with message permalinks for manual review before task creation.
+- Attachment-aware classification heuristics in `classification-guide.md`: Successfully-read image descriptions expand message context for classification; unread images bias toward Category A (Hearing Needed).
+- `[Attachments]` section in task descriptions (`task-creation-templates.md`) with per-image read status and AI-generated descriptions.
+- Attachments column in Step 2.7 creation confirmation and classification confirmation tables.
+- Per-message (3) and global (10) image processing caps with `read_status = "skipped"` for cap-exceeded images.
 
 ## [2.2.0] - 2026-04-09
 
