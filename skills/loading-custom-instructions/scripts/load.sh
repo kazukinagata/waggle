@@ -7,10 +7,12 @@
 # file passes all safety checks. Warnings go to stderr. Always exits 0.
 #
 # Safety checks:
+#   - Key must match strict kebab-case (^[a-z][a-z0-9]*(-[a-z0-9]+)*$)
 #   - File must exist (otherwise silent empty output)
 #   - File size must be <= 10 KiB (10240 bytes)
 #   - File must not contain prompt-boundary control markers
-#     (<|endofprompt|>, <|im_start|>, <|im_end|>)
+#     (<|endofprompt|>, <|im_start|>, <|im_end|>,
+#      \n\nHuman:, \n\nAssistant:)
 #
 # This script handles the CLI / Claude Desktop path only. The Cowork path
 # (Global Instructions → XML tags in system prompt) is handled in SKILL.md
