@@ -309,23 +309,76 @@ When classification is unclear, treat as Category A (safe default).
 
 ## Step 2.5: Enrich Task Details (Category B/C)
 
-Before creating tasks, enrich Category B and C messages with additional details via `AskUserQuestion`.
+Category B messages go through a three-phase enrichment: auto-generation, validation, and user confirmation. Category C messages use the manual-ask path because the delegating user — not the LLM — should be the one defining expectations for the recipient.
 
-**Category B (Self-Action) — ask:**
-- Acceptance Criteria: What are the completion conditions?
-- Working Directory: Which repository / directory to work in?
-- Execution Plan: Any specific approach or constraints?
-- Context: Additional background information?
+### Phase A: Auto-Generation (Category B only)
 
-**Category C (Delegate) — ask:**
-- Acceptance Criteria: What is the expected deliverable?
-- Context: Background info for the assignee (or their agent)
-- Due Date: Any deadline?
+For each Category B message, the orchestrating LLM generates a draft task inline using the message content, `thread_context`, and any successfully-read `attachment_info` image descriptions as input. No separate agent is spawned; the generation happens in the orchestration context directly.
 
-**How to ask:**
-- If there are multiple B/C messages, batch them into a single `AskUserQuestion` call (do not ask per-message)
-- If the user replies "as-is" or equivalent, proceed with only the information from the original message
-- Incorporate answers into the task fields when creating tasks in Step 3
+Generate the following draft fields:
+
+1. **Acceptance Criteria** — 2 to 5 verifiable criteria. Each criterion must include at least one of: a specific command (e.g. `npm test`, `curl ...`), a file path, a numeric threshold with unit (`<2s`, `200 OK`), or an observable state verb (returns, displays, creates, passes, fails, contains, ...). The list of valid state verbs matches the semantic check that `validating-fields` applies in Phase A.5 below — produce AC that will pass that check.
+
+2. **Hallucination guard (grounding)**: Every criterion must reference a specific keyword, entity, file path, URL, or metric that appears in the original message text or thread context. If the LLM is inclined to add a criterion that is not grounded in the source text, it must prefix that criterion with `[INFERRED] ` in the AC text. This prefix is persisted in the Notion task (not stripped before save) so that:
+   - The user sees it during the Phase B review and can confirm or remove it.
+   - If the user accepts as-is without removing the prefix, the `[INFERRED]` tag remains visible in the Notion page as an audit trail — whoever executes or reviews the task later knows that particular criterion was inferred, not explicitly stated.
+   - If the user edits the line and removes the prefix, that manual edit is treated as confirmation that the criterion is now grounded.
+
+3. **Execution Plan** — 3 to 7 numbered steps. Each step is an action verb + target + expected outcome. Same grounding rule: steps should reference entities present in the message.
+
+4. **Working Directory inference** — if the message (or attachments) mentions a repository name, project name, or file path, suggest the matching absolute working directory. If no repo signal is present, leave empty — the user will decide in Phase B.
+
+5. **Priority inference** — determine priority from the message context using natural language understanding, paying attention to negation:
+   - Positive urgency signals ("urgent", "asap", "急いで", "至急", "immediately", "ブロッカー") → Urgent
+   - Deadline signals ("by tomorrow", "明日まで", "today", "今日中", "this week", "今週中") → High
+   - Gentle requests with no time signal → Medium
+   - Explicit low urgency ("whenever", "no rush", "余裕があるとき", "low priority") → Low
+   - **Negation-aware**: "this is **not** urgent", "**not** a blocker", "急ぎではない", "I **don't** think this is urgent" must NOT match Urgent. The LLM must read the surrounding 1-2 clauses before classifying, not pattern-match on the keyword in isolation.
+   - If no clear signal in either direction → leave Priority unset; the Ready validator will warn but not block.
+
+### Phase A.5: Validate Generated Fields (deterministic gate)
+
+Before showing the auto-generated draft to the user, invoke the `validating-fields` skill with the generated task data and target status `"Ready"`. It will return `{valid, errors, warnings}`.
+
+No auto-retry. If validation fails:
+- Mark the draft as `[LOW CONFIDENCE]` in the Phase B display
+- Surface the specific errors alongside the draft so the user understands why it is flagged
+- Offer the user a fast path to provide manual AC/EP in Phase B
+
+Auto-retry with a "stricter prompt" is intentionally avoided because it introduces non-determinism, cost inflation, and potential infinite loops when the underlying message genuinely lacks enough information. It is cheaper and more honest to show the low-confidence draft to the user and let them correct it.
+
+### Phase B: User Confirmation (paginated batch)
+
+Present Category B messages in pages of up to **5 messages per `AskUserQuestion` call**. If more than 5 messages exist, split into multiple pages.
+
+Within each page, **rank messages** so the ones most likely to need the user's attention appear first:
+1. Drafts marked `[LOW CONFIDENCE]` (Phase A.5 validation failed)
+2. Drafts whose AC contains any `[INFERRED]` prefixes
+3. Longer / more complex messages (more entities referenced)
+4. Higher inferred priority (Urgent → High → Medium → Low → unset)
+
+For each page, present the following top-level options:
+
+- **[Accept all high-confidence]** — auto-accept every message in the page that is not LOW CONFIDENCE and has no `[INFERRED]` criteria. Single click, whole batch moves.
+- **[Review individually]** — walk through each message with per-message options.
+- **[Skip batch]** — create every message in the page with the original message text only, no auto-generated AC/EP/Priority.
+
+When the user chooses "Review individually", each message gets these per-message options:
+
+- **[Accept]** — use the auto-generated draft exactly as shown. `[INFERRED]` prefixes remain in the saved AC as an audit trail.
+- **[Edit]** — user rewrites the AC/EP/Priority inline. The edited result is NOT re-run through Phase A.5 (the user's manual input is treated as authoritative).
+- **[Manual]** — discard the auto-generated draft and capture manual AC/EP/Priority from scratch via `AskUserQuestion` sub-prompts.
+- **[Skip]** — create with message content only (no AC/EP/Priority). Useful when the task is genuinely trivial or the user wants to plan it later via `planning-tasks`.
+
+### Phase C: Category C — Manual Ask Only
+
+Category C tasks are delegations. The delegating user knows what they want from the recipient; the LLM should not guess. Use the existing manual-ask flow via `AskUserQuestion`:
+
+- **Acceptance Criteria**: What is the expected deliverable?
+- **Context**: Background info for the assignee (or their agent)
+- **Due Date**: Any deadline?
+
+If there are multiple Category C messages, batch them into a single `AskUserQuestion` call. If the user replies "as-is" or equivalent, proceed with only the information from the original message. Incorporate answers into the task fields when creating tasks in Step 3.
 
 ---
 
