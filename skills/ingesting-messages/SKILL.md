@@ -3,19 +3,25 @@ name: ingesting-messages
 description: >
   Reads incoming messages (Slack, Teams, Discord) and custom intake sources
   addressed to the current user and auto-converts them into categorized tasks
-  (hearing-needed, self-action, or delegate). Supports per-user custom source
-  configuration via ~/.waggle/intake-prompt.md or Global Instructions.
+  (hearing-needed, self-action, or delegate). For ambiguous Slack messages
+  in an explicitly interactive session, can optionally send a user-approved
+  clarification reply in-thread instead of creating a hearing-task pair.
+  Supports per-user custom source configuration via ~/.waggle/intake-prompt.md
+  or Global Instructions.
   Use this skill whenever the user wants to process incoming messages, check
   their inbox, or convert messages into tasks — even if they don't say "intake".
   Triggers on: "message intake", "intake", "process messages",
-  "convert messages to tasks", "check slack", "check teams", "inbox processing".
+  "convert messages to tasks", "check slack", "check teams", "inbox processing",
+  "clarify slack message".
 user-invocable: true
 ---
 
 # Waggle — Message Intake
 
 Reads incoming messages from messaging tools addressed to the current user and auto-converts them into Notion tasks.
-**read-only**: Does not send any messages. Only creates tasks.
+
+**Primary mode**: creates tasks from messages.
+**Opt-in mode**: can send Slack thread replies to ask for clarification on ambiguous messages. This mode is strictly user-approved and is disabled by default in any non-interactive run (see `WAGGLE_EXECUTION_MODE` in Step 2.3).
 
 ## Scheduled Task Setup (Claude Desktop)
 
@@ -85,8 +91,13 @@ Active Threads enables continuous monitoring of threads the user has participate
      | Thread TS | rich_text | thread_ts value |
      | Last Checked | date | Timestamp of last check for new replies |
      | Status | select | `active` / `closed` |
+     | Clarification Sent At | date | When a Slack clarification reply was last sent to this thread (optional, used by Step 2.3 idempotency) |
    - Write the new database ID back to the config page as `activeThreadsDatabaseId`.
-3. Load `active_threads`: query `activeThreadsDatabaseId` with filter `Status = active` and collect all records.
+3. **Schema auto-repair** (for databases created before the `Clarification Sent At` field was introduced):
+   - Fetch the database schema via `notion-fetch`
+   - If the `Clarification Sent At` property is missing, add it via `notion-update-data-source` with `ADD COLUMN "Clarification Sent At" DATE`
+   - Existing records will have `null` for this field; no data migration is needed
+4. Load `active_threads`: query `activeThreadsDatabaseId` with filter `Status = active` and collect all records.
 
 ### Custom Intake Source Loading
 
@@ -307,6 +318,120 @@ When classification is unclear, treat as Category A (safe default).
 
 ---
 
+## Step 2.3: Slack Clarification for Category A Messages (opt-in)
+
+For each Category A message, before falling through to the `[Hearing]` task creation in Step 3, evaluate whether the ambiguity can be resolved with a short Slack reply to the sender. A well-placed clarification reply often unblocks a message faster than creating a separate hearing task, and it keeps the conversation in the natural Slack thread where the sender is already engaged.
+
+This entire step is **opt-in and gated**. If any of the prerequisites below fail, fall through to the existing Category A flow in Step 3 — the clarification logic never runs silently.
+
+### Prerequisites (all must pass, else fall through to [Hearing] task)
+
+1. **`slack_send_message` MCP tool is available** (auto-detect). Teams / Discord clarification is not implemented yet.
+
+2. **The message has a `thread_ts` or is repliable** (has both `channel_id` and `ts`). If the message is a DM without a thread, use `ts` as the thread root for the reply.
+
+3. **The current run is explicitly interactive** — gated by the `WAGGLE_EXECUTION_MODE` environment variable:
+   - `WAGGLE_EXECUTION_MODE=interactive` → clarification is allowed (still subject to user approval in Step 2.3d)
+   - `WAGGLE_EXECUTION_MODE=scheduled` or `unattended` → **never send Slack messages**, always fall through to `[Hearing]` task creation
+   - **Unset → treat as scheduled** (safe default). Users running ingest interactively must explicitly set `WAGGLE_EXECUTION_MODE=interactive` in their shell profile. Claude Desktop Scheduled Tasks and cron jobs must NOT set it. The `setting-up-tasks` skill documents this during initial setup.
+
+   Why this is a hard gate: inference-based detection ("are we inside a Claude Desktop Scheduled Task?") is unreliable because a user can SSH into the same machine and manually run ingest. An explicit env var avoids that class of bypass entirely.
+
+4. **The sender is not a bot or system account**. Skip clarification if the message has `bot_id`, `subtype: bot_message`, or if the sender's display name contains obvious bot indicators (`bot`, `-bot`, `app`, `notification`). Bots do not read Slack replies — sending them a clarification is spam. Fall through to a `[Hearing]` task instead.
+
+5. **No clarification has been sent to this thread in the last 24 hours**. This is the idempotency check: query the Active Threads record for the matching `{channel_id}:{thread_root_ts}` and check its `Clarification Sent At` field. If the timestamp is within the past 24 hours, skip this message (do not re-send, do not create a duplicate hearing task — the user is already waiting on the previous clarification).
+
+6. **Concurrency lock**. Before composing the reply, create a lock file at `~/.waggle/locks/clarification-{channel_id}-{thread_root_ts}.lock` with the current timestamp. If the lock file already exists and its mtime is within the last 60 seconds, another ingest run is racing on the same thread — skip this message and let the other run finish. Stale locks (mtime > 60 seconds) are treated as abandoned and overwritten. The lock is released after Step 2.3e completes (success or fallback). On Cowork, the filesystem is ephemeral and runs are single-tenant, so the lock is effectively a no-op there; it remains useful for CLI and Claude Desktop runs that may race.
+
+If **all six prerequisites pass**, proceed to Step 2.3a. Otherwise fall through to Step 3 Category A flow.
+
+### Step 2.3a: Reason about missing information (LLM-driven)
+
+Load `${CLAUDE_SKILL_DIR}/references/clarification-heuristics.md` as reference context. For each eligible Category A message, reason through the three dimensions defined there (Action / Target / Completion condition) using semantic understanding, not regex. Produce a structured verdict per message:
+
+```
+{
+  "missing": ["action", "target", "completion"],  // subset, may be empty
+  "can_clarify": bool,
+  "questions": [
+    { "dimension": "action", "text": "<question in sender's language>" },
+    ...
+  ]
+}
+```
+
+Apply the decision rule from the heuristics file:
+- 0 missing → reclassify as Category B (skip Step 2.3 entirely for this message)
+- 1-2 missing → `can_clarify = true`, prepare that many questions
+- 3 missing → present user choice in Step 2.3d (clarification OR hearing task)
+
+### Step 2.3b: Compose the reply (LLM-driven language detection)
+
+For each message where `can_clarify = true`, compose the full reply in the sender's language. Determine the language from the message prose using the LLM's native multilingual understanding. Do not use char-class ratios; the LLM can reliably distinguish "Japanese prose with English file paths" from "English prose with a Japanese proper noun". If the prose is truly ambiguous (e.g. the message is only a code block), fall back to the `defaultLanguage` field on the Waggle Config page, or English if that field is unset.
+
+Follow the question templates in `clarification-heuristics.md` and wrap them in a short friendly framing — the goal is a reply that feels natural in the thread, not a robotic checklist.
+
+### Step 2.3c: Preview to the user
+
+Present all eligible Category A messages in a single `AskUserQuestion` call, paginated 5 per batch. For each message, show:
+
+- The original message preview (from, first line)
+- The ambiguous dimensions detected
+- The composed reply text (so the user sees exactly what will go out)
+- Per-message action: `[Send reply]` / `[Create hearing task instead]` / `[Skip]`
+
+Batch-level actions:
+- `[Send all drafted replies]` — fast path if the user trusts the drafts
+- `[Review individually]` — per-message decision
+- `[Create hearing tasks for all]` — fall through to Step 3 for every eligible message
+
+### Step 2.3d: Execute the chosen action
+
+For each message, based on the user's choice:
+
+**Send reply**:
+1. Re-check the idempotency prerequisites (Active Threads `Clarification Sent At` within 24h, lock file) because the user may have spent time on the preview screen.
+2. Call `slack_send_message` with `channel_id`, `thread_ts = thread_ts || ts`, and the composed reply text.
+3. On success:
+   - Create an Intake Log entry with `Tool Name = "slack (clarification-sent)"` so the original message is marked processed and does not re-surface on the next run.
+   - Create or update the Active Threads record for `{channel_id}:{thread_root_ts}`, setting `Status = active`, `Last Checked = now`, and `Clarification Sent At = now`. This registers the thread for continuous monitoring so the sender's follow-up reply is picked up in the next ingest run.
+   - Release the concurrency lock.
+4. On failure (network, rate limit, permission): proceed to the fallback chain in Step 2.3e.
+
+**Create hearing task instead**: Fall through to the existing Step 3 Category A flow. The `[Hearing]` task template is defined in `task-creation-templates.md`.
+
+**Skip**: Do NOT create an Intake Log entry. The message will re-surface in the next ingest run so the user can reconsider.
+
+### Step 2.3e: Fallback chain on failure
+
+Clarification must never dead-end on the user. The fallback chain is:
+
+```
+Primary: Slack clarification reply
+  │
+  ├─ slack_send_message fails (network, rate limit, permission denied)
+  │    └─> Fallback 1: Create a [Hearing] task via the Step 3 Category A flow
+  │          ├─ [Hearing] task creation fails (Notion API error, assignee
+  │          │   resolution fails, schema error)
+  │          │    └─> Fallback 2: Log to Intake Log with
+  │          │         Tool Name = "slack (intake-failed)",
+  │          │         do NOT mark the message as processed, do NOT create
+  │          │         a partial task. Surface the failure in the Step 5
+  │          │         summary so the user can investigate. The message
+  │          │         will re-surface on the next ingest run.
+  │          └─ [Hearing] task creation succeeds
+  │               └─> Proceed, but note the downgrade in the summary
+  └─ Success → Update Active Threads + Intake Log as in Step 2.3d
+```
+
+No auto-retry at any level. Retries are the next ingest run's job, mediated by the Intake Log dedup check.
+
+### Active Threads registration for sent clarifications
+
+After a successful clarification send, the Active Threads DB is the only place waggle remembers that it asked a question. The record `clarification_sent_at` timestamp is the 24h idempotency key. The existing Active Threads auto-close logic (7-day staleness → `Status = closed`) applies unchanged — if the sender never answers, the thread closes on its own and the user can decide whether to follow up manually.
+
+---
+
 ## Step 2.5: Enrich Task Details (Category B/C)
 
 Category B messages go through a three-phase enrichment: auto-generation, validation, and user confirmation. Category C messages use the manual-ask path because the delegating user — not the LLM — should be the one defining expectations for the recipient.
@@ -384,14 +509,16 @@ If there are multiple Category C messages, batch them into a single `AskUserQues
 
 ## Step 2.7: Creation Confirmation
 
-Display the final task list to be created:
+Display the final task list to be created (messages handled via Step 2.3 clarification replies are NOT listed here — they were processed in Step 2.3 and do not produce tasks on this run):
 
-| # | Category | Sender | Summary | Status | Executor | Attachments |
-|---|----------|--------|---------|--------|----------|-------------|
-| 1 | B: Self | @alice | Update README with new endpoints | Ready | claude-desktop | |
-| 2 | A: Hearing | @bob | Fix this layout issue | Blocked | human | 1 image (read) |
-| 3 | B: Self | @charlie | Bug in checkout flow | Ready | cli | 1 image (unread) |
-| 4 | C: Delegate | @alice | @charlie deployment script | Backlog | human | |
+| # | Category | Sender | Summary | Disposition | Status | Executor | Attachments |
+|---|----------|--------|---------|-------------|--------|----------|-------------|
+| 1 | B: Self | @alice | Update README with new endpoints | Creating Ready task | Ready | claude-desktop | |
+| 2 | A: Hearing | @bob | Fix this layout issue | [Hearing] task (user declined clarification) | Blocked | human | 1 image (read) |
+| 3 | B: Self | @charlie | Bug in checkout flow | Creating Ready task | Ready | cli | 1 image (unread) |
+| 4 | C: Delegate | @alice | @charlie deployment script | Delegating to @charlie | Backlog | human | |
+
+The Disposition column is a transient display field (computed per run) that tells the user why each message is being handled this way. For Category A messages it records whether a clarification was sent, a hearing task was created, or the message was skipped. For Category B/C it shows the standard disposition.
 
 The Attachments column shows: blank if no images, `{N} image (read)` if all images were read successfully, `{N} image (unread)` if any image could not be read, `{N} image ({S} read, {F} unread)` for mixed results. Images with `read_status = "skipped"` (global cap) are counted as unread for display purposes.
 
@@ -448,12 +575,25 @@ curl -s http://localhost:3456/api/health -o /dev/null 2>/dev/null && \
 ```
 [Message Intake Complete] via {tool_name}
 Processed: N / Skipped (already processed): K / Skipped (already exists as task): J
-  A (Hearing Needed): X → Blocked tasks + Blocker tasks created
-  B (Self-Action):    Y → Ready tasks created
+  A (Hearing Needed): X total
+    → Clarification replies sent in-thread:  X1
+    → [Hearing] task pairs created:          X2
+    → Skipped (user chose to defer):         X3
+  B (Self-Action):    Y → Ready tasks created (auto-generated AC/EP for {y_gen} of them)
   C (Delegate):       Z → Backlog tasks created
 Custom sources: {list of sources processed, or "none configured"}
+  → {stub_count} stub items detected, {stub_enriched} enriched successfully
 Thread context: {T} messages enriched with thread history
 Attachments: {I} images detected, {S} read successfully, {F} unread or skipped
+Execution mode: {"interactive" | "scheduled"} (from WAGGLE_EXECUTION_MODE)
+```
+
+If any Step 2.3 fallbacks fired (Slack send failed, hearing-task creation failed), list them below the summary so the user can investigate:
+
+```
+⚠️ Fallback events:
+  - Clarification to #channel thread {ts} failed (rate limit) → fell back to [Hearing] task
+  - Hearing task creation for message {id} failed (Notion schema error) → marked intake-failed, will retry next run
 ```
 
 ---

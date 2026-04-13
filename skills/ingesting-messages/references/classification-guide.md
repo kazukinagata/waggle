@@ -64,6 +64,12 @@ When `attachment_info` is available for a message and images were successfully r
 | "thoughts?" | read: "architecture diagram showing microservice layout" | A (no context) | A (diagram helps, but still a question needing human judgment) | A |
 | "deploy this to prod" | read: "screenshot of a config.yaml file" | B (clear action) | B (action is clear, config visible) | B |
 
+## Category A Disposition
+
+Category A messages are not always turned directly into `[Hearing]` task pairs. When the current run is interactive (`WAGGLE_EXECUTION_MODE=interactive`) and the messaging MCP is Slack, the ingesting-messages skill can instead send a short clarification reply to the sender in the same Slack thread — see Step 2.3 in `SKILL.md`. Only when the clarification path is not viable (non-interactive run, bot sender, non-Slack MCP, missing thread info, or explicit user decline) does the flow fall through to the `[Hearing]` task template defined in `task-creation-templates.md`.
+
+This matters for classification: feel free to classify ambiguous messages as Category A liberally — the clarification path gives the sender a quick way to unblock the task without paying the `[Hearing]` task overhead.
+
 ## Classification Confirmation
 
 After classifying all messages, display the results and ask the user to confirm:

@@ -84,6 +84,8 @@ Source: slack DM from @alice at 2026-04-10 09:15
 
 ### Category A (Hearing Needed)
 
+> **Note**: The Category A flow below only runs when Step 2.3 (Slack clarification) is unavailable or the user declined the clarification path for this specific message. In interactive runs with Slack MCP available, most ambiguous messages are resolved by sending a clarification reply in-thread rather than creating a hearing-task pair.
+
 1. Create the blocker task first:
    - Title: `[Hearing] Confirm with {requester_name}: {question summary}`
    - Status: `Ready`
