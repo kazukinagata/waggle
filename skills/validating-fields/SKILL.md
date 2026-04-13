@@ -105,7 +105,7 @@ repository       <- .repository
 
 | Target Status | Required (errors) | Recommended (warnings) |
 |---|---|---|
-| **Ready** | Description (non-empty, >=50 chars), AC (non-empty + semantic check), Execution Plan (non-empty) | Issuer (non-empty), Assignee (non-empty), Priority (set) |
+| **Ready** | Description (non-empty, >=50 chars), AC (non-empty + semantic check), Execution Plan (non-empty) | Issuer (non-empty), Assignee (non-empty), Priority (set), Working Directory & Repository (for AI code tasks — detected via keyword match) |
 | **In Progress** | All Ready requirements + Executor (set), Working Directory (non-empty for AI executors) | Issuer, Branch (for cli executor) |
 | **Blocked** | Description (non-empty), AC (non-empty) | Issuer, Error Message |
 | **Done** | Description (non-empty), Agent Output (non-empty for AI executors on new tasks) | Agent Output (legacy tasks — created before the enforcement date — keep warning-only) |
@@ -135,6 +135,19 @@ AC text is scanned for at least one verifiable condition indicator:
 If none found -> error: "AC lacks verifiable conditions. Include commands, file paths, metrics, or observable outcomes."
 
 This is a heuristic backstop, not a perfect quality gate. It catches worst-case garbage but not subtle gaps.
+
+## Code Task Detection
+
+For AI-executor tasks transitioning to Ready, the script emits two warnings if the task looks like code work but has no Working Directory / Repository set:
+
+- The keyword list lives in `config/code-task-keywords.txt` (one keyword per line, `#` for comments)
+- Keywords are joined into a single word-boundary regex at load time
+- If any of description / AC / execution plan contains a keyword AND the executor is an AI agent AND Working Directory is empty → warn
+- Same logic for Repository
+
+These remain warnings (not errors) at Ready; Working Directory becomes a hard error on In Progress. The warning gives the user an earlier nudge.
+
+To adjust what counts as "code work", edit `config/code-task-keywords.txt` without touching the script.
 
 ## Hierarchy Validation
 

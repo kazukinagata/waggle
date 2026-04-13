@@ -26,7 +26,17 @@ if ! command -v jq &>/dev/null; then
   exit 1
 fi
 
-RESULT=$(jq --arg target "$TARGET_STATUS" '
+# Load code-task keywords from the sibling config file. We pipe-join them
+# into a single alternation so jq can match them in a word-boundary regex.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+CODE_KEYWORDS_FILE="${SCRIPT_DIR}/../config/code-task-keywords.txt"
+if [ -f "$CODE_KEYWORDS_FILE" ]; then
+  CODE_KEYWORDS_PATTERN="$(grep -v '^#' "$CODE_KEYWORDS_FILE" | grep -v '^$' | sed 's/ /\\\\s\*/g' | paste -sd'|' -)"
+else
+  CODE_KEYWORDS_PATTERN=""
+fi
+
+RESULT=$(jq --arg target "$TARGET_STATUS" --arg code_keywords "$CODE_KEYWORDS_PATTERN" '
   # Helper: check semantic AC quality (contains verifiable conditions)
   def has_verifiable_conditions:
     # Command patterns
@@ -119,6 +129,25 @@ RESULT=$(jq --arg target "$TARGET_STATUS" '
      else $warnings end) as $warnings |
     (if $target == "In Progress" and $executor == "cli" and ($branch | length) == 0
      then $warnings + [{"field":"Branch","rule":"recommended","message":"Branch is not set. Task will run on current branch."}]
+     else $warnings end) as $warnings |
+    # Working Directory warning for AI code tasks at Ready.
+    # We heuristically check whether description, AC, or plan mention any
+    # code-related keyword from config/code-task-keywords.txt. This is a
+    # best-effort early signal — it becomes a hard error on In Progress.
+    (if $target == "Ready"
+        and ($executor == "cli" or $executor == "claude-desktop" or $executor == "claude-code" or $executor == "cowork")
+        and ($workdir | length) == 0
+        and ($code_keywords | length) > 0
+        and (($desc + " " + $ac + " " + $plan) | test("\\b(" + $code_keywords + ")\\b"; "i"))
+     then $warnings + [{"field":"Working Directory","rule":"recommended_code_task","message":"Working Directory is not set. AI code tasks need a working directory before dispatch — consider setting it now."}]
+     else $warnings end) as $warnings |
+    # Repository recommendation for AI code tasks at Ready.
+    (if $target == "Ready"
+        and ($executor == "cli" or $executor == "claude-desktop" or $executor == "claude-code" or $executor == "cowork")
+        and ($repository | length) == 0
+        and ($code_keywords | length) > 0
+        and (($desc + " " + $ac + " " + $plan) | test("\\b(" + $code_keywords + ")\\b"; "i"))
+     then $warnings + [{"field":"Repository","rule":"recommended_code_task","message":"Repository is not set. Consider adding the source repository URL for code tasks."}]
      else $warnings end) as $warnings |
     {"errors": $errors, "warnings": $warnings}
 
