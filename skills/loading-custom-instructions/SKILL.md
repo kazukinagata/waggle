@@ -19,13 +19,22 @@ environment branch.
 
 **Input**: an instruction `key` (kebab-case; e.g. `task-creation`, `intake`).
 
-**Output**: a string variable named `custom_<key>_instructions` holding the
-loaded instructions, or `null` if none are configured. Callers should use
-`null` to mean "no custom rules, apply defaults".
+**Output**: a string variable named `custom_<normalized_key>_instructions`
+holding the loaded instructions, or `null` if none are configured. The
+`<normalized_key>` is the `key` with hyphens replaced by underscores so the
+resulting variable name is a valid identifier. Callers should use `null` to
+mean "no custom rules, apply defaults".
 
-The key is used to derive:
+Examples:
+- key `task-creation` → `custom_task_creation_instructions`
+- key `intake`        → `custom_intake_instructions`
+
+The raw key (with hyphens) is used to derive:
 - File path: `~/.waggle/<key>-prompt.md`
 - XML tag:   `<waggle-custom-<key>>...</waggle-custom-<key>>`
+
+Only the resulting variable name applies the underscore normalization; the
+file path and XML tag keep the kebab-case key as-is.
 
 ## How to Invoke This Skill
 
@@ -102,15 +111,21 @@ prompts, so they carry prompt-injection risk. The mitigation is split across
 the two environments:
 
 **CLI / Claude Desktop** (deterministic, enforced by `load.sh`):
-- **Size limit**: files larger than 10 KB are rejected with a warning. This
+- **Size limit**: files larger than 10 KiB are rejected with a warning. This
   bounds how much user-supplied text can enter the prompt.
 - **Dangerous token rejection**: files containing any of the following
   substrings are rejected entirely:
-  - `<|endofprompt|>`
-  - `<|im_start|>`
-  - `<|im_end|>`
+  - `<|endofprompt|>`, `<|im_start|>`, `<|im_end|>` (ChatML / OpenAI family)
+  - `\n\nHuman:` and `\n\nAssistant:` (Claude's legacy text-completion
+    prompt boundaries)
   These are common model control markers that, if accepted, could confuse
-  prompt boundaries.
+  prompt boundaries. Note: Claude's tool-use XML tags (`<function_calls>`,
+  `<invoke>`, etc.) are **not** blocked — they can legitimately appear in
+  markdown rules files, so the 10 KiB cap and the "only author your own
+  rules" trust reminder remain the primary defences for that surface.
+- **TOCTOU reduction**: the file is read once into memory and every
+  subsequent check (size, dangerous tokens, content emit) operates on
+  that snapshot.
 - **Trust boundary reminder**: `setting-up-tasks` instructs users never to
   paste instructions they received from an untrusted party into
   `~/.waggle/*.md`. The same reminder appears in this skill's warning
