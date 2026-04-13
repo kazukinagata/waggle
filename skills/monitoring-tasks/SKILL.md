@@ -91,6 +91,11 @@ If the analysis script is not available (no bash, no jq), compute the metrics ma
 
 5. **Acknowledgment Status**: Find tasks where `Acknowledged At` is null AND `Assignee` is non-empty AND `Issuer` person IDs do not overlap with `Assignee` person IDs (i.e., assigned by someone else and not yet seen). List with title, assignee name, issuer name, and days since task creation.
 
+6. **Quality Debt**: Three sub-dimensions surface retroactive improvement targets:
+   - **DRAFT AC**: Tasks whose Acceptance Criteria contains `[DRAFT` (case-insensitive) and status is not Blocked / Done / Cancelled. These are placeholders from ingest flows that were never refined.
+   - **Priority missing**: Non-Done / non-Cancelled tasks without a Priority set.
+   - **Test tasks**: Titles matching placeholder patterns (`test task — delete me`, `delete me`, `wip delete`, bare `test task`). These should be cleaned up.
+
 ## Step 4: Render Report
 
 Format the analysis results as a markdown report. Respond in the user's language.
@@ -124,6 +129,35 @@ Table: Title | Assignee | Issuer | Unacknowledged Days | Status
   (tasks where Acknowledged At is null, assigned by someone else, sorted by age desc)
   Show count: "N tasks not yet acknowledged by their assignee"
 
+## 6. Quality Debt
+### DRAFT AC ({count})
+Table: Title | Status | Age (days) | AC Preview
+  (tasks where AC contains "[DRAFT" and status is not Blocked / Done / Cancelled)
+
+### Priority Missing ({count})
+Table: Title | Status | Age (days)
+  (non-Done / non-Cancelled tasks without a Priority set)
+
+### Test Tasks ({count})
+Table: Title | Status | ID
+  (titles matching test-task placeholder patterns — suggest cleanup)
+
+### 🚀 Quick Action
+If any of the above counts are > 0, include a copy-paste ready command that
+invokes planning-tasks on the DRAFT AC task IDs, so the user can refine them
+in bulk without having to figure out the invocation syntax themselves:
+
+    Invoke the `planning-tasks` skill in batch mode for: <task_id_1>, <task_id_2>, ...
+
+Also emit an emphasized banner when DRAFT AC count has remained stagnant
+for 2+ weeks:
+
+    ⚠️ Quality debt has been stagnant for 2+ weeks. Consider running the
+    batch planning command above.
+
+(Historical comparison is a future enhancement; for now the banner is
+based on the caller's judgment.)
+
 ## Recommendations
 ```
 
@@ -147,3 +181,5 @@ Generate 3-5 actionable recommendations based on findings. Focus on:
 - **AI delegation opportunity**: If human executor ratio is above 70%, suggest reviewing Ready tasks for AI-executable candidates
 - **Unset executors**: Tasks in Ready/In Progress without an Executor assigned
 - **Unacknowledged tasks**: Tasks not seen by assignee for 2+ days — suggest sending a reminder or Slack notification
+- **Quality debt (retroactive)**: If the DRAFT AC count or Priority missing count is non-zero, surface the copy-paste command shown in section 6 so the user can run `planning-tasks` in batch. Keep this a user-initiated suggestion — do not auto-dispatch, to avoid bulk side-effects.
+- **Test task cleanup**: If test tasks are detected, list them and ask the user to cancel or delete them.
