@@ -4,6 +4,21 @@ All notable changes to the Waggle project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [2.3.0] - 2026-04-13
+
+### Added
+- **Agent Output required on Done** (`validating-fields`): AI executor tasks (cli / claude-code / claude-desktop / cowork) transitioning to Done now fail validation if Agent Output is empty. Legacy tasks created before the 2026-04-14 enforcement cutoff remain a warning only, so historical Done tasks are not retroactively invalidated. The canonical input format gains `createdAt` (used for the legacy cutoff) and `repository` fields.
+- **Code task Working Directory / Repository warnings** (`validating-fields`): AI-executor tasks at Ready transition emit recommended warnings when their description / AC / plan contains code-related keywords but Working Directory or Repository is unset. The keyword list lives in the new `skills/validating-fields/config/code-task-keywords.txt` and is tunable without touching the jq pipeline. Working Directory still becomes a hard error at In Progress transition — this is the earlier signal.
+- **Quality Debt tracking** (`monitoring-tasks`): Task health reports gain a new Dimension 6 with three sub-dimensions. DRAFT AC (tasks whose AC still contains `[DRAFT` and are no longer Blocked), Priority missing (non-Done / non-Cancelled tasks without Priority), and Test tasks (placeholder titles matching an anchored pattern that deliberately does not match legitimate titles like "Unit test task for DELETE endpoint"). The report section suggests a copy-paste-ready `planning-tasks` batch invocation so users can refine debt without figuring out the invocation syntax.
+
+### Changed
+- **Cross-skill interaction rules** (`CLAUDE.md`): Clarified that cross-skill interaction is natural-language-only. Skills may now say "invoke the X skill" without hardcoding paths to other skills' scripts or SKILL.md files. References to another skill's internal structure (line numbers, function names, reference files, step IDs) are explicitly forbidden. For self-references within a skill, use the official Claude Code runtime variable `${CLAUDE_SKILL_DIR}` instead of `${CLAUDE_PLUGIN_ROOT}/skills/<self>/...` paths, which silently break on rename.
+
+## [2.2.0] - 2026-04-09
+
+### Changed
+- Bumped waggle to 2.2.0 and waggle-server to 0.5.0 for the next release cycle (no functional changes beyond version bump).
+
 ## [2.1.0] - 2026-04-09
 
 ### Added
