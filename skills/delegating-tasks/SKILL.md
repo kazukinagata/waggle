@@ -16,9 +16,9 @@ Delegates a task to another organization member. Changes Assignee to the recipie
 
 ## Step 1: Session Bootstrap
 
-Load `${CLAUDE_PLUGIN_ROOT}/skills/bootstrap-session/SKILL.md` and follow its instructions.
+Invoke the `bootstrap-session` skill to establish the active provider and current user.
 Skip if `active_provider` and `current_user` are already set in this conversation.
-Also resolve `org_members` via `${CLAUDE_PLUGIN_ROOT}/skills/looking-up-members/SKILL.md` (needed for recipient lookup).
+Also invoke the `looking-up-members` skill to resolve `org_members` (needed for recipient lookup).
 
 ## Step 2: Identify the Task
 
@@ -28,7 +28,7 @@ If the user did not specify a task clearly:
 
 ## Step 3: Identify the Recipient
 
-1. Load `${CLAUDE_PLUGIN_ROOT}/skills/looking-up-members/SKILL.md`.
+1. Invoke the `looking-up-members` skill.
 2. Run member lookup with the recipient name/email the user provided.
 3. Handle results:
    - 0 matches → inform the user and ask for a different name or email.
@@ -51,7 +51,7 @@ Apply the following field updates (other fields remain unchanged).
 **`Issuer` is preserved** (not modified) — it tracks the original task creator, not the current assignee.
 
 1. Set `Assignee` to `[recipient]`.
-2. Apply the field resets defined in `${CLAUDE_PLUGIN_ROOT}/skills/assigning-to-others/SKILL.md` (this clears `Acknowledged At` among other fields).
+2. Invoke the `assigning-to-others` skill and apply the field resets it defines (this clears `Acknowledged At` among other fields).
 3. **Self-delegation exception**: If `recipient.id == current_user.id`, set `Acknowledged At` to the current ISO 8601 timestamp (no acknowledgment needed for self-assigned tasks).
 4. Append delegation history to `Context` (see format below).
 
@@ -98,4 +98,4 @@ The recipient will see this task when they run managing-tasks (my tasks).
 
 ## Field Constraints for Delegated Tasks
 
-See `${CLAUDE_PLUGIN_ROOT}/skills/assigning-to-others/SKILL.md` for the canonical field reset rules applied when assigning to another person.
+Invoke the `assigning-to-others` skill for the canonical field reset rules applied when assigning to another person.

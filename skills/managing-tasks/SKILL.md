@@ -21,7 +21,7 @@ You are managing tasks in the configured data source. Use the provider-specific 
 
 ## Session Bootstrap
 
-Load `${CLAUDE_PLUGIN_ROOT}/skills/bootstrap-session/SKILL.md` and follow its instructions.
+Invoke the `bootstrap-session` skill to establish the active provider and current user.
 Skip if `active_provider` and `current_user` are already set in this conversation.
 
 ## Schema and State Transitions

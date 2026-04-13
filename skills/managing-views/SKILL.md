@@ -16,7 +16,7 @@ You manage custom task visualizations that users can create via natural language
 
 ## Session Bootstrap
 
-Load `${CLAUDE_PLUGIN_ROOT}/skills/bootstrap-session/SKILL.md` and follow its instructions.
+Invoke the `bootstrap-session` skill to establish the active provider and current user.
 Skip if `active_provider` and `current_user` are already set in this conversation.
 
 ## Directory Setup

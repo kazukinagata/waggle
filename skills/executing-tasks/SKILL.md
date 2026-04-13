@@ -18,7 +18,7 @@ You orchestrate the execution of tasks. Tasks can be executed one at a time in t
 
 ## Session Bootstrap
 
-Load `${CLAUDE_PLUGIN_ROOT}/skills/bootstrap-session/SKILL.md` and follow its instructions.
+Invoke the `bootstrap-session` skill to establish the active provider and current user.
 Skip if `active_provider` and `current_user` are already set in this conversation.
 
 ## Schema Validation
@@ -59,17 +59,10 @@ For each fetched task:
 
 ### Dispatch Readiness Check (hard gate)
 
-For each task that passed Working Directory validation, run the deterministic validation script:
+For each task that passed Working Directory validation, invoke the `validating-fields` skill to check that all required fields are in place for the `In Progress` transition. Pass the task data and target status `"In Progress"` to the skill; it will construct the canonical JSON, run its validator, and return `{valid, errors, warnings}`.
 
-```bash
-# Construct canonical JSON from task data (see validating-fields SKILL.md for format)
-echo '<canonical_json>' > /tmp/dispatch_validate.json
-bash ${CLAUDE_PLUGIN_ROOT}/skills/validating-fields/scripts/validate-task-fields.sh \
-  "In Progress" /tmp/dispatch_validate.json
-```
-
-Parse the output JSON:
-- If `valid: false`: present each error to the user and ask them to fill the gaps via AskUserQuestion. After filling, update the task and re-run validation.
+Parse the result:
+- If `valid: false`: present each error to the user and ask them to fill the gaps via AskUserQuestion. After filling, update the task and invoke `validating-fields` again.
 - If `valid: true` with warnings: present warnings but proceed with dispatch.
 
 Only dispatch when validation passes (`valid: true`).
@@ -144,9 +137,9 @@ When generating the dispatch prompt for each task, replace the `<ON_COMPLETION_B
 2. Replace placeholders in the template with actual values:
    - `<task_id>` → the actual task page ID / row ID
    - `<db_path>` → the actual database path (SQLite/Turso providers)
-   - `<absolute_path_to_turso_exec_sh>` → resolved absolute path of `${CLAUDE_PLUGIN_ROOT}/skills/turso-provider/scripts/turso-exec.sh` (Turso provider only)
+   - Provider-specific script paths (e.g. Turso's exec helper) are the provider's responsibility: the provider's On Completion Template documents any `${CLAUDE_SKILL_DIR}` substitutions the dispatcher must resolve. The dispatcher resolves those paths to absolute paths before injection.
 3. Inject the rendered block into the dispatch prompt, replacing `<ON_COMPLETION_BLOCK>`
-4. **All paths MUST be absolute** — no `${CLAUDE_PLUGIN_ROOT}` should remain in the final dispatch prompt
+4. **All paths MUST be absolute** — no `${CLAUDE_SKILL_DIR}` or `${CLAUDE_PLUGIN_ROOT}` should remain in the final dispatch prompt
 
 ## Fallback: Sequential Execution
 

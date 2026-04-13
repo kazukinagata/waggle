@@ -19,7 +19,7 @@ You are performing a health check on tasks in the configured data source. This s
 
 ## Step 0: Session Bootstrap
 
-Load `${CLAUDE_PLUGIN_ROOT}/skills/bootstrap-session/SKILL.md` and follow its instructions.
+Invoke the `bootstrap-session` skill to establish the active provider and current user.
 Skip if `active_provider` and `current_user` are already set in this conversation.
 
 ## Step 1: Determine Monitoring Scope
@@ -32,7 +32,7 @@ Determine the target based on the user's request:
 | Says "all tasks", "team", "overall" | `all` | No assignee filter |
 | No target specified | `user` | `current_user` |
 
-For **mode=user** with a name, load `${CLAUDE_PLUGIN_ROOT}/skills/looking-up-members/SKILL.md` to resolve the name to a user ID. If ambiguous, ask the user to clarify.
+For **mode=user** with a name, invoke the `looking-up-members` skill to resolve the name to a user ID. If ambiguous, ask the user to clarify.
 
 Store the result as:
 - `target_mode`: "user" or "all"
@@ -66,7 +66,7 @@ Both files should be in the provider's native format (e.g., `{"results": [...]}`
 ### Script-based analysis (preferred)
 
 ```bash
-bash ${CLAUDE_PLUGIN_ROOT}/skills/monitoring-tasks/scripts/analyze-tasks.sh \
+bash "${CLAUDE_SKILL_DIR}/scripts/analyze-tasks.sh" \
   "<target_mode>" "<target_id>" "<target_name>" \
   /tmp/monitor_tasks.json /tmp/monitor_blocked.json
 ```

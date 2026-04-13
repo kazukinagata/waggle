@@ -18,7 +18,7 @@ You generate and refine Acceptance Criteria (AC) and Execution Plans for tasks. 
 
 ## Session Bootstrap
 
-Load `${CLAUDE_PLUGIN_ROOT}/skills/bootstrap-session/SKILL.md` and follow its instructions.
+Invoke the `bootstrap-session` skill to establish the active provider and current user.
 Skip if `active_provider` and `current_user` are already set in this conversation.
 
 ## Target Selection
@@ -70,12 +70,7 @@ If the task title starts with `[Hearing]`:
    - If Edit: let user modify, then update
    - If Skip: leave task unchanged
 
-5. **Validation gate**: Run the validation script on each updated task:
-   ```bash
-   bash ${CLAUDE_PLUGIN_ROOT}/skills/validating-fields/scripts/validate-task-fields.sh \
-     "Ready" /tmp/planned_task.json
-   ```
-   Report which tasks are now Ready-eligible.
+5. **Validation gate**: For each updated task, invoke the `validating-fields` skill with the task data and target status `"Ready"`. It will return `{valid, errors, warnings}`. Report which tasks are now Ready-eligible based on the `valid: true` results.
 
 ### Batch Execution
 

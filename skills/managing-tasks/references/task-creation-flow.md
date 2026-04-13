@@ -10,10 +10,10 @@
 
 **When assigning to another member:**
 - When the user specifies another member's name:
-  1. Load `${CLAUDE_PLUGIN_ROOT}/skills/looking-up-members/SKILL.md` to resolve the member ID (this will also resolve `org_members` if not yet set).
+  1. Invoke the `looking-up-members` skill to resolve the member ID (this will also resolve `org_members` if not yet set).
   3. If multiple candidates match, confirm with AskUserQuestion.
   4. Only ask via AskUserQuestion if the member cannot be found.
-  5. Apply the field resets defined in `${CLAUDE_PLUGIN_ROOT}/skills/assigning-to-others/SKILL.md`.
+  5. Invoke the `assigning-to-others` skill and apply the field resets it defines.
 
 ## Issuer (auto-populated, write-once)
 

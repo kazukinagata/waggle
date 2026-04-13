@@ -14,7 +14,7 @@ You are performing a configuration health check for waggle. This skill verifies 
 
 ## Step 0: Session Bootstrap
 
-Load `${CLAUDE_PLUGIN_ROOT}/skills/bootstrap-session/SKILL.md` and follow its instructions.
+Invoke the `bootstrap-session` skill to establish the active provider and current user.
 Skip if `active_provider` and `current_user` are already set in this conversation.
 
 ## Step 1: Run Checks

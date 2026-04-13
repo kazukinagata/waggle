@@ -66,18 +66,11 @@ Auto-cascading appends a log entry to the parent's Context field (e.g., `[Auto] 
 
 ### Deterministic Validation (hard gate)
 
-Before executing any status transition, run the validation script:
+Before executing any status transition, invoke the `validating-fields` skill. Pass the full task object and the target status (e.g., `"Ready"`, `"In Progress"`, `"Done"`). The skill handles canonical JSON construction internally and returns `{valid, errors, warnings}`.
 
-```bash
-# Write the canonical task JSON to a temp file (see validating-fields SKILL.md for format)
-echo '<canonical_json>' > /tmp/task_validate.json
-bash ${CLAUDE_PLUGIN_ROOT}/skills/validating-fields/scripts/validate-task-fields.sh \
-  "<target_status>" /tmp/task_validate.json
-```
-
-1. Fetch the full task object and construct the canonical validation JSON (see `${CLAUDE_PLUGIN_ROOT}/skills/validating-fields/SKILL.md` for the Construction Guide)
-2. Run the script with the target status
-3. Parse the JSON output:
+1. Fetch the full task object from the active provider
+2. Invoke the `validating-fields` skill with the task and the target status
+3. Parse the result:
    - If `valid: false`: present each error to the user and **block the transition**
    - If warnings exist: present them but allow the user to proceed
 4. Only execute the status update after validation passes

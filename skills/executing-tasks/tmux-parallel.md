@@ -80,7 +80,7 @@ Session Reference is written in Phase 5 after pane creation succeeds.
 Launch tmux using the script:
 
 ```bash
-bash ${CLAUDE_PLUGIN_ROOT}/skills/executing-tasks/scripts/launch-tmux.sh "$SDIR" "$SESSION" "$N"
+bash "${CLAUDE_SKILL_DIR}/scripts/launch-tmux.sh" "$SDIR" "$SESSION" "$N"
 ```
 
 If the script exits with code 1 (tmux not installed), fall back to sequential Agent tool execution.
@@ -90,7 +90,7 @@ After pane creation, if running outside tmux, try to auto-open a terminal window
 ```bash
 # Auto-open terminal only when running outside tmux
 if [ -z "${TMUX:-}" ]; then
-  bash ${CLAUDE_PLUGIN_ROOT}/skills/executing-tasks/scripts/open-terminal.sh "$SESSION" || true
+  bash "${CLAUDE_SKILL_DIR}/scripts/open-terminal.sh" "$SESSION" || true
 fi
 ```
 

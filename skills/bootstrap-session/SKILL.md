@@ -13,7 +13,7 @@ One-time session setup that all user-invocable skills run before their main logi
 
 ## Step 1: Provider Detection
 
-Load `${CLAUDE_PLUGIN_ROOT}/skills/detecting-provider/SKILL.md` and follow its instructions.
+Invoke the `detecting-provider` skill.
 
 This produces:
 - `active_provider` — the detected provider name (notion, sqlite, turso)
@@ -22,10 +22,10 @@ This produces:
 
 ## Step 2: Identity Resolution
 
-Load `${CLAUDE_PLUGIN_ROOT}/skills/resolving-identity/SKILL.md` and follow its instructions.
+Invoke the `resolving-identity` skill.
 
 This produces:
 - `current_user` — `{ id, name, email }` of the authenticated user
 - `current_team` — the user's active team (if teams are configured)
 
-Note: `org_members` is resolved on demand (not by default). Skills that need member lookup should explicitly request it via resolving-identity Step 2 or by loading `${CLAUDE_PLUGIN_ROOT}/skills/looking-up-members/SKILL.md`.
+Note: `org_members` is resolved on demand (not by default). Skills that need member lookup should explicitly invoke the `looking-up-members` skill when they need it.
