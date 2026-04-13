@@ -12,17 +12,42 @@ user-invocable: false
 This shared skill provides a deterministic bash+jq validation script for task status transitions.
 It enforces required fields as hard-block errors and recommends optional fields as warnings.
 
-## Usage
+## How to Invoke This Skill
 
-```bash
-# Write the canonical task JSON to a temp file
-echo '<canonical_json>' > /tmp/task_validate.json
-bash ${CLAUDE_PLUGIN_ROOT}/skills/validating-fields/scripts/validate-task-fields.sh \
-  <target_status> /tmp/task_validate.json
-```
+Other skills invoke this one via natural language — e.g., "Invoke the `validating-fields` skill to validate the task fields for target status Ready". When the agent receives that instruction, it loads this SKILL.md and follows the steps below.
 
-- `target_status`: The status being transitioned TO (e.g., `Ready`, `In Progress`, `Blocked`, `Done`, `Cancelled`)
-- `task_json_file`: Path to a JSON file in the **canonical flat format** (see below)
+### Steps
+
+1. Obtain the following from the invoking context:
+   - The task data (a Notion page object, a SQLite row, or an already-flat JSON)
+   - The target status the task is transitioning TO: `Ready`, `In Progress`, `Blocked`, `Done`, or `Cancelled`
+
+2. Construct a canonical flat JSON from the task data using the **Construction Guide** below. This normalizes provider differences (Notion rich_text arrays vs. SQLite strings) into a single shape the validator understands.
+
+3. Write the canonical JSON to a writable temp file. `/tmp/validate_task.json` is the default; callers on read-only filesystems should pass a writable path instead (e.g., under `${TMPDIR}`).
+
+4. Run the validation script:
+   ```bash
+   bash ${CLAUDE_SKILL_DIR}/scripts/validate-task-fields.sh <target_status> /tmp/validate_task.json
+   ```
+
+5. Parse the JSON output. It always has this shape:
+   ```json
+   { "valid": true|false, "target_status": "<X>", "errors": [...], "warnings": [...] }
+   ```
+
+6. Return the result to the invoking skill's context. The invoking skill decides how to proceed:
+   - `valid: false` → do NOT transition status; surface the errors to the user or abort
+   - `valid: true` with warnings → transition is allowed; surface the warnings as advisory
+
+### Error handling
+
+- **Script exit code ≠ 0**: Should not happen by design (the script always exits 0 and signals via `valid`), but if it does, treat as a fatal environment error and report it to the caller.
+- **`jq` not installed**: The script prints "Error: jq is required" to stderr and exits 1. Treat as an environment setup problem and surface it to the user.
+- **Malformed canonical JSON**: The script returns `valid: false` with an `input` field error. Treat as a caller bug — re-check the construction step.
+- **`/tmp` not writable**: Pass a writable path instead. The caller owns the temp file location.
+
+This skill is `user-invocable: false` — users do not trigger it directly via slash command. It is invoked by other skills (via natural language) and by developers when running the script manually during testing.
 
 ## Canonical Input Format
 
