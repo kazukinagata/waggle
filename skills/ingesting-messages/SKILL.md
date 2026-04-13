@@ -196,6 +196,47 @@ Follow the instructions in `custom_intake_instructions` to fetch items from each
 4. Add retrieved items to the message pool for classification in Step 2.
 5. Apply the same dedup rules (Step 1d) and filters (Step 1c) where applicable.
 
+### Stub Detection and Enrichment
+
+Many custom sources (notably GOps imports) produce items whose description is effectively a stub — e.g. "GOpsタスク (タスクID: 4548). 見積前". Stub items create low-quality waggle tasks because the orchestrating LLM cannot build a meaningful Acceptance Criteria or Execution Plan from 20 characters of text.
+
+For each item retrieved from a custom source, first detect whether it is a stub using the deterministic detector:
+
+```bash
+echo '<item_json>' > /tmp/item.json
+bash "${CLAUDE_SKILL_DIR}/scripts/detect-stub-import.sh" /tmp/item.json
+```
+
+The output JSON has this shape:
+
+```json
+{
+  "is_stub": true,
+  "stub_reason": "Short description with task ID reference and only status keyword",
+  "source_id": "4548",
+  "description_length": 26
+}
+```
+
+If `is_stub` is `false`, proceed with the item as-is. If `is_stub` is `true`, attempt enrichment:
+
+1. **Fetch the source page body**. For Notion-based sources (like GOps), call `notion-fetch` with the source page ID or URL. For other sources, follow the fetch instructions in `custom_intake_instructions`.
+
+2. **Fetch discussion comments**. For Notion, call `notion-get-comments` on the same page ID. The comments often contain the real requirements — the specification discussion, approval decisions, and follow-up context that did not make it into the page body.
+
+3. **Transfer fields semantically (LLM judgment)**. The LLM reads the fetched content and maps it to the waggle task fields:
+   - Source body → waggle `Description` (preserve useful headings, strip navigation)
+   - Source requirements / checklist → waggle `Acceptance Criteria` if they are verifiable; otherwise treat as context
+   - Most recent 5 comments (by date) → appended to waggle `Context` with a `[From {source_name} discussion]` header so the executor knows their origin
+   - Source assignee (if present) → resolved via the `looking-up-members` skill and set as waggle `Assignee`
+   - Source priority / severity → mapped to waggle `Priority` when the source uses a comparable scale; otherwise leave unset
+
+4. **Fallback on fetch failure**. If the fetch fails (page deleted, permission denied, rate-limited), do not block the ingest. Proceed with the stub item, but:
+   - Add `stub-import` to the waggle task's `Tags`
+   - Append to `Context`: "Imported as stub from {source_name}. Enrichment fetch failed — the source page may need manual review before this task can be executed."
+
+This enrichment step is LLM-driven by design. The deterministic detector only decides whether enrichment is worth attempting; the actual Description / AC / Context construction is a semantic task that the orchestrating LLM performs directly. No separate agent is spawned.
+
 ---
 
 ## Step 1.8: Attachment Processing
