@@ -42,6 +42,8 @@ When the user asks "what should I do next?" or "next task":
 
 For the full task creation flow — assignee resolution, required confirmations, executor choice, questioning flow, pre-creation checklist, and status auto-determination — follow `references/task-creation-flow.md` in this directory.
 
+Before starting the flow, invoke the `loading-custom-instructions` skill with key `task-creation` to populate `custom_task_creation_instructions`. If the returned value is non-null, the task-creation flow uses it as authoritative guidance for business-logic-dependent defaults (Tags, Priority, Assignee selection, AC/Execution Plan phrasing) on top of the standard questioning. If null, the flow proceeds with the normal defaults. See `references/task-creation-flow.md` Step 0.
+
 ## Human → Agent Re-assignment
 
 When the user wants to change an Executor=human task to an agent:

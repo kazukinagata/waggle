@@ -7,7 +7,9 @@ description: >
   in an explicitly interactive session, can optionally send a user-approved
   clarification reply in-thread instead of creating a hearing-task pair.
   Supports per-user custom source configuration via ~/.waggle/intake-prompt.md
-  or Global Instructions.
+  or Global Instructions, and per-user task-creation rules (tag naming,
+  priority defaults, etc.) via ~/.waggle/task-creation-prompt.md or Global
+  Instructions.
   Use this skill whenever the user wants to process incoming messages, check
   their inbox, or convert messages into tasks — even if they don't say "intake".
   Triggers on: "message intake", "intake", "process messages",
@@ -99,12 +101,14 @@ Active Threads enables continuous monitoring of threads the user has participate
    - Existing records will have `null` for this field; no data migration is needed
 4. Load `active_threads`: query `activeThreadsDatabaseId` with filter `Status = active` and collect all records.
 
-### Custom Intake Source Loading
+### Custom Instruction Loading
 
-Load custom intake instructions if configured:
+Load both custom intake instructions and custom task-creation instructions via the shared loader:
 
-1. **CLI / Claude Desktop**: Read `~/.waggle/intake-prompt.md` if it exists. Store contents as `custom_intake_instructions`. If the file does not exist, set `custom_intake_instructions = null`.
-2. **Cowork**: Check the system prompt context for content between `<waggle-custom-intake>` and `</waggle-custom-intake>` tags. If found, store that content as `custom_intake_instructions`. If not found, set `custom_intake_instructions = null`.
+1. Invoke the `loading-custom-instructions` skill with key `intake` to populate `custom_intake_instructions`. If no custom intake source is configured, the variable is `null`. This governs which additional sources are scanned in Step 1.5.
+2. Invoke the `loading-custom-instructions` skill with key `task-creation` to populate `custom_task_creation_instructions`. If no custom task-creation rules are configured, the variable is `null`. This is applied in Step 3 when building per-category task fields (see `task-creation-templates.md`).
+
+Both files (`~/.waggle/intake-prompt.md` and `~/.waggle/task-creation-prompt.md`) may exist independently; they serve different purposes. On Cowork, both are loaded from their respective `<waggle-custom-intake>` / `<waggle-custom-task-creation>` XML tags in Global Instructions.
 
 ---
 

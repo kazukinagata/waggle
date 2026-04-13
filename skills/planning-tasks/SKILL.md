@@ -21,6 +21,12 @@ You generate and refine Acceptance Criteria (AC) and Execution Plans for tasks. 
 Invoke the `bootstrap-session` skill to establish the active provider and current user.
 Skip if `active_provider` and `current_user` are already set in this conversation.
 
+## Custom Instruction Loading
+
+Invoke the `loading-custom-instructions` skill with key `task-creation` to populate `custom_task_creation_instructions`. If the returned value is non-null, pass it along to every planning agent spawned below — AC drafts, Execution Plan drafts, and Priority defaults should honor the user's project-specific rules (e.g. "AC must use Given/When/Then", "Execution Plan steps must start with a verb", "treat security-related tasks as High priority"). If null, proceed with the normal planning heuristics.
+
+Custom instructions only influence generated field **content**. They never override the `validating-fields` gate at Phase 5, and they never decide status transitions or destructive operations.
+
 ## Target Selection
 
 Three modes of operation:
@@ -60,6 +66,7 @@ If the task title starts with `[Hearing]`:
 
 3. **Spawn the appropriate planning agent** via the Agent tool:
    - Provide: Title, Description, Context, AC (if partial), Working Directory, Repository
+   - Also forward `custom_task_creation_instructions` (if non-null) so the agent can honor project-specific rules for AC / Execution Plan style and Priority defaults
    - The agent follows the Multi-round Brainstorming Protocol (see below)
    - The agent returns: generated AC + Execution Plan as structured text
 
@@ -85,7 +92,7 @@ When processing multiple tasks (batch mode or pipeline mode):
 
 - Spawn up to **5 agents in parallel** using a single message with multiple Agent tool calls
 - If >5 tasks in a group, process in chunks of 5 (wait for chunk to complete before next)
-- Each agent receives the full task context (Title, Description, Context, AC, Working Directory, Repository)
+- Each agent receives the full task context (Title, Description, Context, AC, Working Directory, Repository) plus `custom_task_creation_instructions` if non-null
 - Code tasks → `code-planning-agent`
 - Non-code tasks → `knowledge-planning-agent`
 
