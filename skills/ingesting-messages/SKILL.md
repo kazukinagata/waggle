@@ -149,8 +149,10 @@ This ensures threads discovered in previous ingesting runs continue to be monito
 ### 1c. Common Filters (applied after merge)
 
 - `id ∉ processed_message_ids`
-- If bot message (has `bot_id` or bot-related `subtype`): keep only if it @-mentions `current_user`; discard otherwise
 - Not sent by self
+- Bot messages (has `bot_id` or bot-related `subtype` such as `bot_message`):
+  - **KEEP** if the message @-mentions `current_user` — from this point on, treat it identically to a human message. It flows through classification (Step 2), enrichment (Step 2.5), and task creation (Step 3) with no further bot-specific filtering. The bot-sender check in Step 2.3 Prerequisite #4 only gates sending Slack **clarification replies** (because bots do not read replies); it does NOT exclude the message from intake — bot-origin Category A messages still produce a `[Hearing]` task via the fall-through path.
+  - **DISCARD** otherwise (bot noise that does not concern the user).
 
 ### 1d. Deduplication
 
