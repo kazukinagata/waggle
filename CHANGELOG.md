@@ -4,6 +4,12 @@ All notable changes to the Waggle project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [2.5.1] - 2026-04-17
+
+### Fixed
+
+- **Slack bot @-mentions were silently dropped during intake** (`ingesting-messages`): Step 1c's single-line "If bot message: keep only if it @-mentions `current_user`; discard otherwise" was interpreted too aggressively by the orchestrating LLM, causing bot-origin messages that DID mention the user (CI bots, deploy bots, monitoring alerts, etc.) to be filtered out before classification. Split the rule into explicit KEEP/DISCARD bullets with the keep condition stated first, and inlined a note that Step 2.3 Prerequisite #4's bot-sender check only gates Slack clarification replies — it never excludes bot messages from intake. Bot-origin Category A messages now correctly fall through to `[Hearing]` task creation.
+
 ## [2.5.0] - 2026-04-13
 
 ### Added
