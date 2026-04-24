@@ -151,8 +151,30 @@ This ensures threads discovered in previous ingesting runs continue to be monito
 - `id ∉ processed_message_ids`
 - Not sent by self
 - Bot messages (has `bot_id` or bot-related `subtype` such as `bot_message`):
-  - **KEEP** if the message @-mentions `current_user` — from this point on, treat it identically to a human message. It flows through classification (Step 2), enrichment (Step 2.5), and task creation (Step 3) with no further bot-specific filtering. The bot-sender check in Step 2.3 Prerequisite #4 only gates sending Slack **clarification replies** (because bots do not read replies); it does NOT exclude the message from intake — bot-origin Category A messages still produce a `[Hearing]` task via the fall-through path.
+  - **If `text` is empty / whitespace-only / only newlines, apply Step 1c-1 first** (Block Kit body refetch) before the KEEP/DISCARD bullets below. The KEEP check needs a real body to scan for `<@current_user>`; skipping 1c-1 would let the message silently fall through to DISCARD.
+  - **KEEP** if the (possibly refetched) body @-mentions `current_user` — from this point on, treat it identically to a human message. It flows through classification (Step 2), enrichment (Step 2.5), and task creation (Step 3) with no further bot-specific filtering. The bot-sender check in Step 2.3 Prerequisite #4 only gates sending Slack **clarification replies** (because bots do not read replies); it does NOT exclude the message from intake — bot-origin Category A messages still produce a `[Hearing]` task via the fall-through path.
   - **DISCARD** otherwise (bot noise that does not concern the user).
+
+### 1c-1. Slack Block Kit Body Refetch (bot messages)
+
+Slack's `slack_search_*` MCP does not render `blocks` to plain text. Bot messages whose content lives entirely in Block Kit (meeting notifiers like MTG Pipeline Bot, quiz bots like Colla, etc.) therefore come back with an empty or whitespace-only `text` field, even though Slack's search index resolved an `<@current_user>` mention inside the blocks and matched the query. Left untreated, Step 1c's KEEP-on-@-mention rule cannot fire (no body to scan) and the message is silently dropped.
+
+Procedure:
+
+1. **Trigger**: the bot message's `text` is empty / whitespace-only / only newlines. (Bot messages with non-empty plain text — e.g. attendance confirmers, system-notice bots — skip 1c-1 entirely and go straight to Step 1c's KEEP/DISCARD.)
+2. **Refetch**: call `slack_read_channel` with:
+   - `channel_id` = the message's channel
+   - `oldest` = `str(float(ts) - 0.000001)` (one microsecond before the target)
+   - `latest` = `str(float(ts) + 0.000001)` (one microsecond after)
+   - `limit` = 1
+
+   Both `oldest` and `latest` are **exclusive** bounds in this MCP, so setting either equal to `ts` returns zero messages. The ± 1 μs window is the tightest pinpoint that still includes the target and nothing else. The response expands `blocks` into a plain-text representation. Replace the message's `text` with that rendered body.
+3. **Fallback on empty / error**: if the response contains no messages, or the call errors (API failure, rate limit, DM permission issue, message deleted since the search, etc.), record `Block Kit refetch failed for {channel_id}:{ts}` under Step 5's `⚠️ Fallback events:` section and **DISCARD** the message. Never KEEP on an unverified mention — the match in Slack's search index alone is not sufficient evidence that the current body still @-mentions the user.
+4. **Apply 1c**: with the refetched body in hand, return to Step 1c's KEEP/DISCARD bullets and run the `<@current_user>` scan normally.
+
+Non-bot messages are unaffected — skip this step for them.
+
+Teams / Discord: if the equivalent search MCP exhibits similar Block Kit–style truncation, apply the same pattern with the platform's channel-read API. Otherwise skip.
 
 ### 1d. Deduplication
 
