@@ -91,7 +91,7 @@ If no path is available, warn the user. The warning depends on environment:
 ### Path 1: Bash Script (CLI, requires NOTION_TOKEN)
 
 ```bash
-bash ${CLAUDE_PLUGIN_ROOT}/skills/notion-provider/scripts/update-relations.sh \
+bash ${CLAUDE_SKILL_DIR}/scripts/update-relations.sh \
   <page_id> <property_name> <mode> [page_id_1] [page_id_2] ...
 ```
 
@@ -102,25 +102,25 @@ bash ${CLAUDE_PLUGIN_ROOT}/skills/notion-provider/scripts/update-relations.sh \
 
 **Set Blocked By to multiple tasks:**
 ```bash
-bash ${CLAUDE_PLUGIN_ROOT}/skills/notion-provider/scripts/update-relations.sh \
+bash ${CLAUDE_SKILL_DIR}/scripts/update-relations.sh \
   "<page_id>" "Blocked By" replace "<blocker_id_1>" "<blocker_id_2>"
 ```
 
 **Append a blocker:**
 ```bash
-bash ${CLAUDE_PLUGIN_ROOT}/skills/notion-provider/scripts/update-relations.sh \
+bash ${CLAUDE_SKILL_DIR}/scripts/update-relations.sh \
   "<page_id>" "Blocked By" append "<new_blocker_id>"
 ```
 
 **Set Parent Task (single value):**
 ```bash
-bash ${CLAUDE_PLUGIN_ROOT}/skills/notion-provider/scripts/update-relations.sh \
+bash ${CLAUDE_SKILL_DIR}/scripts/update-relations.sh \
   "<page_id>" "Parent Task" replace "<parent_id>"
 ```
 
 **Clear a relation:**
 ```bash
-bash ${CLAUDE_PLUGIN_ROOT}/skills/notion-provider/scripts/update-relations.sh \
+bash ${CLAUDE_SKILL_DIR}/scripts/update-relations.sh \
   "<page_id>" "Blocked By" replace
 ```
 
@@ -237,7 +237,7 @@ In these environments `NOTION_TOKEN` is not exposed to the shell, so the bash sc
 Call the query script for server-side filtering:
 
 ```bash
-bash ${CLAUDE_PLUGIN_ROOT}/skills/notion-provider/scripts/query-tasks.sh \
+bash ${CLAUDE_SKILL_DIR}/scripts/query-tasks.sh \
   "<tasksDatabaseId>" '<filter_json>' '<sort_json>'
 ```
 
@@ -346,7 +346,7 @@ For single-task detail views (update, status change), use the full page object.
 
 To retrieve all tasks (e.g. for view server data push), use the detected query path with no filter:
 
-- **Path 1 (CLI)**: `bash ${CLAUDE_PLUGIN_ROOT}/skills/notion-provider/scripts/query-tasks.sh "<tasksDatabaseId>"` (no filter/sort args)
+- **Path 1 (CLI)**: `bash ${CLAUDE_SKILL_DIR}/scripts/query-tasks.sh "<tasksDatabaseId>"` (no filter/sort args)
 - **Path 2 (Claude Desktop / Cowork)**: call `mcp__notion-extension__notion-query` with `database_id: <tasksDatabaseId>` and no `filter` / `sorts`
 - **Path 3**: `notion-search` with `data_source_url` + `notion-fetch` per page
 
@@ -357,7 +357,7 @@ No post-processing needed (no Blocked By filter, no sort required).
 When querying ANY Notion database (not just the Tasks DB — e.g., Intake Log, external databases), use the same per-environment detection as the Tasks DB query:
 
 **CLI:**
-1. `NOTION_TOKEN` env var available → call the bash script: `bash ${CLAUDE_PLUGIN_ROOT}/skills/notion-provider/scripts/query-tasks.sh "<database_id>" '<filter_json>' '<sort_json>'`
+1. `NOTION_TOKEN` env var available → call the bash script: `bash ${CLAUDE_SKILL_DIR}/scripts/query-tasks.sh "<database_id>" '<filter_json>' '<sort_json>'`
 2. Otherwise → ⚠️ warn the user (same CLI warning as Path 3), then use `notion-search` + `notion-fetch`
 
 **Claude Desktop / Cowork:**
