@@ -74,10 +74,10 @@ After repair, re-verify and continue. **Never ask the user to manually fix the s
 ### Relation Update Path Detection
 
 1. `mcp__notion-extension__notion-update-relation` tool available → Path 1 (Desktop Extension)
-2. Otherwise → warn the user (no fallback)
+2. Otherwise → warn the user (see Manual Bash Script below for an advanced alternative)
 
 If the MCP tool is unavailable, warn the user:
-> "Relation field updates require the `notion-extension` Desktop Extension. Install it via the plugin setup."
+> "Relation field updates require the `notion-extension` Desktop Extension. Install it via the plugin setup. If `NOTION_TOKEN` is available in your shell, the manual bash script below is an advanced alternative."
 
 ### Path 1: Desktop Extension (notion-update-relation MCP tool)
 
