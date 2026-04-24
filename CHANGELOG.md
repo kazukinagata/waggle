@@ -4,6 +4,12 @@ All notable changes to the Waggle project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [2.5.2] - 2026-04-24
+
+### Fixed
+
+- **Notion query path auto-detection ignored the Desktop Extension MCP** (`providers/notion/skills/notion-provider`): `Query Path Detection` and `Relation Update Path Detection` keyed off `[ -n "$NOTION_TOKEN" ]` in the shell, but Claude Code no longer exports `NOTION_TOKEN` to the shell — the token is injected directly into MCP tool invocations. As a result, "my tasks" and other Assignee-filtered queries misrouted to Path 2 (`notion-search` + `notion-fetch`), triggering the `NOTION_TOKEN is not set` warning and dropping Assignee filtering, even though `mcp__notion-extension__notion-query` was available and would have served the request correctly. Detection is now MCP-tool-availability-based: Path 1 is taken whenever `mcp__notion-extension__notion-query` (or `mcp__notion-extension__notion-update-relation` for relation updates) is present, regardless of `execution_environment`. The bash scripts remain in `scripts/` as an advanced manual option under `### Manual ... (requires NOTION_TOKEN in shell env)` headings, outside the auto-detection flow. Path 2's warning text is reworded to reflect the new trigger ("MCP tool not available" rather than "NOTION_TOKEN not set") and calls out that Assignee (people property) filtering is what's actually lost on this path.
+
 ## [2.5.1] - 2026-04-17
 
 ### Fixed
