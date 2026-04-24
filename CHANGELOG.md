@@ -4,6 +4,12 @@ All notable changes to the Waggle project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [2.5.4] - 2026-04-24
+
+### Fixed
+
+- **Block Kit bot messages were silently dropped during Slack intake** (`ingesting-messages`): `slack_search_*` returns an empty `text` field for bot messages whose content lives entirely in `blocks` (e.g. MTG Pipeline Bot meeting-task notifiers, Colla-style quiz bots). Slack's search index still resolves `<@current_user>` mentions inside the blocks and matches the query, but without a visible body the 2.5.1 KEEP-on-@-mention rule in Step 1c could not fire and the message was omitted from the unprocessed-messages pool. Added Step 1c-1: any bot message arriving with an empty/whitespace-only `text` is refetched via `slack_read_channel` with pinpoint `oldest`/`latest` on the message `ts` (which expands `blocks` into plain text) before the KEEP/DISCARD decision. The full rendered body — including the `<@current_user>` mention and actionable content — now flows into classification and task creation.
+
 ## [2.5.3] - 2026-04-24
 
 ### Fixed
