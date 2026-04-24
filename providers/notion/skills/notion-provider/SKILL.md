@@ -73,27 +73,22 @@ After repair, re-verify and continue. **Never ask the user to manually fix the s
 
 ### Relation Update Path Detection
 
-1. `mcp__notion-extension__notion-update-relation` tool available → Path 1 (Desktop Extension)
-2. Otherwise → warn the user (see Manual Bash Script below for an advanced alternative)
+The available path depends on `execution_environment` because `NOTION_TOKEN` is exposed to the shell only in CLI; in Claude Desktop / Cowork the token is injected directly into MCP tool invocations and cannot drive a bash script.
 
-If the MCP tool is unavailable, warn the user:
-> "Relation field updates require the `notion-extension` Desktop Extension. Install it via the plugin setup. If `NOTION_TOKEN` is available in your shell, the manual bash script below is an advanced alternative."
+**CLI (`execution_environment = "cli"`):**
+1. `NOTION_TOKEN` env var available in shell (check: `[ -n "$NOTION_TOKEN" ] && echo "SET" || echo "NOT SET"`) → Path 1 (bash script)
+2. Otherwise → warn the user (no fallback)
 
-### Path 1: Desktop Extension (notion-update-relation MCP tool)
+**Claude Desktop / Cowork (`execution_environment = "claude-desktop"` or `"cowork"`):**
+1. `mcp__notion-extension__notion-update-relation` tool available → Path 2 (Desktop Extension)
+2. Otherwise → warn the user (no fallback)
 
-Available when the `mcp__notion-extension__notion-update-relation` tool is present.
+If no path is available, warn the user. The warning depends on environment:
 
-Call `mcp__notion-extension__notion-update-relation` with:
-- `page_id`: the Notion page UUID
-- `property_name`: relation property name (e.g., `"Blocked By"`, `"Parent Task"`)
-- `mode`: `"replace"` or `"append"`
-- `relation_ids`: array of page IDs (omit or `[]` with replace to clear)
+- **CLI**: "Relation field updates require `NOTION_TOKEN` to be available in your shell environment. Set it in `~/.claude/settings.json` env block, or export it in your shell profile."
+- **Claude Desktop / Cowork**: "Relation field updates require the `notion-extension` Desktop Extension. Install it via the plugin setup."
 
-Returns the updated Notion page object.
-
-### Manual Bash Script (advanced, requires NOTION_TOKEN in shell env)
-
-This path is **not** part of auto-detection. Use it only when invoking updates manually from a shell where `NOTION_TOKEN` is exported.
+### Path 1: Bash Script (CLI, requires NOTION_TOKEN)
 
 ```bash
 bash ${CLAUDE_PLUGIN_ROOT}/skills/notion-provider/scripts/update-relations.sh \
@@ -128,6 +123,18 @@ bash ${CLAUDE_PLUGIN_ROOT}/skills/notion-provider/scripts/update-relations.sh \
 bash ${CLAUDE_PLUGIN_ROOT}/skills/notion-provider/scripts/update-relations.sh \
   "<page_id>" "Blocked By" replace
 ```
+
+### Path 2: Desktop Extension (notion-update-relation MCP tool, Claude Desktop / Cowork)
+
+Available when the `mcp__notion-extension__notion-update-relation` tool is present.
+
+Call `mcp__notion-extension__notion-update-relation` with:
+- `page_id`: the Notion page UUID
+- `property_name`: relation property name (e.g., `"Blocked By"`, `"Parent Task"`)
+- `mode`: `"replace"` or `"append"`
+- `relation_ids`: array of page IDs (omit or `[]` with replace to clear)
+
+Returns the updated Notion page object.
 
 ### When to use
 
@@ -212,23 +219,29 @@ The database ID is stored in the config page as `intakeLogDatabaseId`.
 
 ## Querying Tasks
 
-Use the first available query path:
+Use the first available query path. The detection depends on `execution_environment` because server-side filtering is delivered by different mechanisms in each environment — bash script (CLI) vs. Desktop Extension MCP tool (Claude Desktop / Cowork).
 
 ### Query Path Detection
 
-1. `mcp__notion-extension__notion-query` tool available → Path 1 (Desktop Extension)
-2. Otherwise → Path 2 (MCP fallback: `notion-search` + `notion-fetch`) and warn the user
+**CLI (`execution_environment = "cli"`):**
+1. `NOTION_TOKEN` env var available in shell (check: `[ -n "$NOTION_TOKEN" ] && echo "SET" || echo "NOT SET"`) → Path 1 (bash script)
+2. Otherwise → Path 3 (MCP fallback) and warn the user
 
-### Path 1: Desktop Extension (notion-query MCP tool)
+**Claude Desktop / Cowork (`execution_environment = "claude-desktop"` or `"cowork"`):**
+In these environments `NOTION_TOKEN` is not exposed to the shell, so the bash script is not usable. Use the Desktop Extension MCP tool:
+1. `mcp__notion-extension__notion-query` tool available → Path 2 (Desktop Extension)
+2. Otherwise → Path 3 (MCP fallback) and warn the user
 
-Available when the `mcp__notion-extension__notion-query` tool is present. This is the primary query path across all execution environments.
+### Path 1: Notion API Bash Script (CLI, requires NOTION_TOKEN)
 
-Call `mcp__notion-extension__notion-query` with:
-- `database_id`: the `tasksDatabaseId`
-- `filter`: filter JSON (see filter recipes below)
-- `sorts`: sort JSON
+Call the query script for server-side filtering:
 
-Returns `{"results": [...]}` with full page objects including all properties.
+```bash
+bash ${CLAUDE_PLUGIN_ROOT}/skills/notion-provider/scripts/query-tasks.sh \
+  "<tasksDatabaseId>" '<filter_json>' '<sort_json>'
+```
+
+The script returns `{"results": [...]}` with full page objects including all properties.
 
 #### Filter Recipes
 
@@ -283,25 +296,27 @@ Returns `{"results": [...]}` with full page objects including all properties.
 
 **Check if a candidate parent is itself a subtask:** Fetch the candidate parent with `notion-fetch` and check if its `Parent Task` relation is empty. If non-empty, it is already a subtask and cannot be used as a parent (2-level limit).
 
-### Path 2: MCP Fallback (notion-search + notion-fetch)
+### Path 2: Desktop Extension (notion-query MCP tool, Claude Desktop / Cowork)
 
-⚠️ **Before using this path, warn the user:**
-> "The `notion-extension` MCP tool (`notion-query`) is not available. Falling back to `notion-search` + `notion-fetch`. Server-side filtering on `people` properties (Assignee) is not supported on this path, so some tasks may be missed. For accurate results, install the `notion-extension` Desktop Extension."
+Available when the `mcp__notion-extension__notion-query` tool is present. Uses the same filter recipes as Path 1 above.
+
+Call `mcp__notion-extension__notion-query` with:
+- `database_id`: the `tasksDatabaseId`
+- `filter`: filter JSON
+- `sorts`: sort JSON
+
+Returns `{"results": [...]}` in the same Notion API format as Path 1.
+
+### Path 3: MCP Fallback (notion-search + notion-fetch)
+
+⚠️ **Before using this path, warn the user.** The warning text depends on environment:
+
+- **CLI**: "`NOTION_TOKEN` is not available in your shell. Falling back to `notion-search` + `notion-fetch`. Server-side filtering on `people` properties (Assignee) is not supported on this path, so some tasks may be missed. For accurate results, set `NOTION_TOKEN` in `~/.claude/settings.json` env block."
+- **Claude Desktop / Cowork**: "The `notion-extension` MCP tool (`notion-query`) is not available. Falling back to `notion-search` + `notion-fetch`. Server-side filtering on `people` properties (Assignee) is not supported on this path, so some tasks may be missed. For accurate results, install the `notion-extension` Desktop Extension."
 
 Use `notion-search` with `data_source_url` to find task pages, then `notion-fetch` each page individually to get properties. Filter client-side by checking property values.
 
-This is the slower path — use only when Path 1 is unavailable.
-
-### Manual Notion API Script (advanced, requires NOTION_TOKEN in shell env)
-
-This path is **not** part of auto-detection. Use it only when invoking queries manually from a shell where `NOTION_TOKEN` is exported. It uses the same filter recipes as Path 1.
-
-```bash
-bash ${CLAUDE_PLUGIN_ROOT}/skills/notion-provider/scripts/query-tasks.sh \
-  "<tasksDatabaseId>" '<filter_json>' '<sort_json>'
-```
-
-The script returns `{"results": [...]}` in the same Notion API format as Path 1.
+This is the slower path — use only when Path 1 / Path 2 is unavailable.
 
 ### Post-Processing (all paths)
 
@@ -331,17 +346,23 @@ For single-task detail views (update, status change), use the full page object.
 
 To retrieve all tasks (e.g. for view server data push), use the detected query path with no filter:
 
-- **Path 1**: call `mcp__notion-extension__notion-query` with `database_id: <tasksDatabaseId>` and no `filter` / `sorts`
-- **Path 2**: `notion-search` with `data_source_url` + `notion-fetch` per page
+- **Path 1 (CLI)**: `bash ${CLAUDE_PLUGIN_ROOT}/skills/notion-provider/scripts/query-tasks.sh "<tasksDatabaseId>"` (no filter/sort args)
+- **Path 2 (Claude Desktop / Cowork)**: call `mcp__notion-extension__notion-query` with `database_id: <tasksDatabaseId>` and no `filter` / `sorts`
+- **Path 3**: `notion-search` with `data_source_url` + `notion-fetch` per page
 
 No post-processing needed (no Blocked By filter, no sort required).
 
 ## Querying Any Notion Database
 
-When querying ANY Notion database (not just the Tasks DB — e.g., Intake Log, external databases), use the first available query path:
+When querying ANY Notion database (not just the Tasks DB — e.g., Intake Log, external databases), use the same per-environment detection as the Tasks DB query:
 
-1. `mcp__notion-extension__notion-query` available → use the MCP tool with the target database ID and filter
-2. Otherwise → ⚠️ warn the user (same warning as Path 2), then use `notion-search` + `notion-fetch`
+**CLI:**
+1. `NOTION_TOKEN` env var available → call the bash script: `bash ${CLAUDE_PLUGIN_ROOT}/skills/notion-provider/scripts/query-tasks.sh "<database_id>" '<filter_json>' '<sort_json>'`
+2. Otherwise → ⚠️ warn the user (same CLI warning as Path 3), then use `notion-search` + `notion-fetch`
+
+**Claude Desktop / Cowork:**
+1. `mcp__notion-extension__notion-query` available → call the MCP tool with the target database ID and filter
+2. Otherwise → ⚠️ warn the user (same Claude Desktop / Cowork warning as Path 3), then use `notion-search` + `notion-fetch`
 
 ## Task Record Reference
 

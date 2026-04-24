@@ -4,6 +4,12 @@ All notable changes to the Waggle project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [2.5.3] - 2026-04-24
+
+### Fixed
+
+- **Notion query / relation-update path detection broke CLI users after 2.5.2** (`providers/notion/skills/notion-provider`): 2.5.2 collapsed per-`execution_environment` branching into a single `mcp__notion-extension__notion-query`-availability check, on the (wrong) assumption that the Desktop Extension MCP is reachable everywhere. The extension is a **Claude Desktop** extension — it is not loaded in CLI. As a result, CLI users with a perfectly valid `NOTION_TOKEN` in `~/.claude/settings.json` always fell to Path 2 (`notion-search` + `notion-fetch`), losing server-side Assignee filtering and getting the degraded warning. Restore per-environment branching: CLI uses the bundled bash script driven by shell-env `NOTION_TOKEN`; Claude Desktop / Cowork use the Desktop Extension MCP tool (`NOTION_TOKEN` is not exposed to the shell in those environments, so the bash script is not usable there). The MCP fallback (`notion-search` + `notion-fetch`) remains the last-resort Path 3 with an environment-specific warning telling the user what to fix. Same fix applied to Relation Update Path Detection and to "Querying Any Notion Database".
+
 ## [2.5.2] - 2026-04-24
 
 ### Fixed
