@@ -212,7 +212,7 @@ The database ID is stored in the config page as `intakeLogDatabaseId`.
 
 ## Querying Tasks
 
-Use the first available query path. The detection order depends on `execution_environment`:
+Use the first available query path:
 
 ### Query Path Detection
 
