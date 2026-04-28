@@ -26,10 +26,12 @@ Signals to check, in order:
    for an `<application_details>` block (or equivalent) that mentions
    "Cowork" — e.g. "Claude is powering Cowork mode, a feature of the Claude
    desktop app". This is the most authoritative signal.
-2. **Cowork-specific MCP tools.** Check whether any tool whose name matches
-   `mcp__cowork__*` or `mcp__cowork-onboarding__*` is available — either as
-   a regular tool or as a deferred tool surfaced via system reminders /
-   ToolSearch (e.g. `ToolSearch` with query `+cowork`).
+2. **Cowork-specific MCP tools.** Check the active tool list — both regular
+   tools and deferred tools listed in any `<system-reminder>` block — for
+   any name matching `mcp__cowork__*` or `mcp__cowork-onboarding__*`.
+   Presence alone confirms Cowork; no `ToolSearch` invocation is needed for
+   detection (`ToolSearch` only loads tool schemas, which is irrelevant
+   here).
 3. **Legacy env var (best-effort).** Run `echo "$CLAUDE_CODE_IS_COWORK"` via
    Bash. A value of `"1"` is a positive hint. An empty result is **not**
    negative evidence — Cowork's sandboxed Bash typically returns empty even

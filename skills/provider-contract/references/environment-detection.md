@@ -14,12 +14,11 @@ Waggle runs in three runtime environments. Provider plugins MAY need to adjust b
      `mcp__cowork__create_artifact`,
      `mcp__cowork__request_cowork_directory`) or
      `mcp__cowork-onboarding__*`
-  3. Legacy: `CLAUDE_CODE_IS_COWORK=1` is set on the host (and
-     `CLAUDE_CODE_ENTRYPOINT=local-agent`). **Note:** Bash subshells in
-     Cowork run in an isolated sandbox that does not inherit host env vars,
-     so `echo "$CLAUDE_CODE_IS_COWORK"` typically returns empty even on
-     Cowork. This signal is a **positive hint when present**, never a
-     negative result when absent.
+  3. Legacy: `CLAUDE_CODE_IS_COWORK=1` is set on the host. **Note:** Bash
+     subshells in Cowork run in an isolated sandbox that does not inherit
+     host env vars, so `echo "$CLAUDE_CODE_IS_COWORK"` typically returns
+     empty even on Cowork. This signal is a **positive hint when present**,
+     never a negative result when absent.
 - **Skill discovery**: Provider skills appear in the `<available_skills>` system prompt block with `<name>`, `<description>`, and `<location>` tags
 - **Parallel execution**: Scheduled Tasks
 - **Characteristics**: Cloud-hosted agent environment. No local filesystem persistence between sessions. MCP tools are available.
