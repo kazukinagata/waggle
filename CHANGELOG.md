@@ -4,6 +4,12 @@ All notable changes to the Waggle project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [2.5.5] - 2026-04-28
+
+### Fixed
+
+- **Cowork environment was misclassified as CLI when host env vars were not visible to Bash** (`detecting-provider`, `provider-contract/references/environment-detection.md`, `waggle-protocol`, `setting-up-tasks`): `detecting-provider` decided `execution_environment` solely from `CLAUDE_CODE_IS_COWORK` / `CLAUDE_CODE_ENTRYPOINT` read via Bash. Cowork's Bash subshell runs in an isolated sandbox that does not inherit host env vars, so `echo "$CLAUDE_CODE_IS_COWORK"` returns empty even on Cowork — silently falling through to the CLI branch. Downstream effects: provider discovery looked for `~/.claude/plugins/installed_plugins.json` (absent on Cowork), `managing-tasks` recommended `cli` instead of `cowork` as the default executor, `executing-tasks` offered tmux parallel (impossible on Cowork), and `loading-custom-instructions` tried to read `~/.waggle/*.md` instead of system-prompt XML tags. Detection is now multi-signal: Cowork is identified via **any** of (1) the active system prompt mentioning Cowork (e.g. "Claude is powering Cowork mode"), (2) availability of `mcp__cowork__*` or `mcp__cowork-onboarding__*` tools, or (3) the legacy `CLAUDE_CODE_IS_COWORK=1` env var. The legacy signal remains a positive hint but is no longer required — its absence is not evidence against Cowork. `setting-up-tasks` line 28 (the standalone "is the provider plugin installed?" check that runs before any provider exists, so cannot delegate to `detecting-provider`) inlines the same multi-signal Cowork test. Claude Desktop and CLI detection are unchanged. `detecting-provider/SKILL.md` was restructured so environment detection now happens once at Step 1, with provider discovery (Step 2 → 3A/3B) and the SQLite-on-Cowork guard (Step 6) both reading the precomputed `execution_environment` instead of re-checking the env var.
+
 ## [2.5.4] - 2026-04-24
 
 ### Fixed

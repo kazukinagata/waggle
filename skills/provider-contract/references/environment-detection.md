@@ -6,7 +6,20 @@ Waggle runs in three runtime environments. Provider plugins MAY need to adjust b
 
 ### Cowork
 
-- **Detection**: `CLAUDE_CODE_IS_COWORK=1` environment variable is set, `CLAUDE_CODE_ENTRYPOINT=local-agent`
+- **Detection** (any one signal positive → Cowork; see "Detection Logic" below):
+  1. The active system prompt includes an `<application_details>` block (or
+     equivalent) that mentions "Cowork" — e.g. "Claude is powering Cowork
+     mode, a feature of the Claude desktop app"
+  2. Cowork-specific MCP tools are available: `mcp__cowork__*` (e.g.
+     `mcp__cowork__create_artifact`,
+     `mcp__cowork__request_cowork_directory`) or
+     `mcp__cowork-onboarding__*`
+  3. Legacy: `CLAUDE_CODE_IS_COWORK=1` is set on the host (and
+     `CLAUDE_CODE_ENTRYPOINT=local-agent`). **Note:** Bash subshells in
+     Cowork run in an isolated sandbox that does not inherit host env vars,
+     so `echo "$CLAUDE_CODE_IS_COWORK"` typically returns empty even on
+     Cowork. This signal is a **positive hint when present**, never a
+     negative result when absent.
 - **Skill discovery**: Provider skills appear in the `<available_skills>` system prompt block with `<name>`, `<description>`, and `<location>` tags
 - **Parallel execution**: Scheduled Tasks
 - **Characteristics**: Cloud-hosted agent environment. No local filesystem persistence between sessions. MCP tools are available.
@@ -27,18 +40,44 @@ Waggle runs in three runtime environments. Provider plugins MAY need to adjust b
 
 ## Detection Logic
 
-Waggle core's `detecting-provider` skill determines the environment:
+Waggle core's `detecting-provider` skill determines the environment using a
+multi-signal Cowork check. Any one positive Cowork signal classifies the
+session as Cowork; only after all three are negative does the agent fall
+through to the env-var-based Claude Desktop / CLI distinction.
 
 ```
-if CLAUDE_CODE_IS_COWORK == "1":
+is_cowork =
+       system_prompt_mentions_cowork
+    OR any_mcp__cowork__*_or_mcp__cowork-onboarding__*_tool_available
+    OR  ( bash: CLAUDE_CODE_IS_COWORK == "1" )    # legacy hint, may false-negative
+
+if is_cowork:
     execution_environment = "cowork"
-elif CLAUDE_CODE_ENTRYPOINT == "claude-desktop":
+elif (bash) CLAUDE_CODE_ENTRYPOINT == "claude-desktop":
     execution_environment = "claude-desktop"
 else:
     execution_environment = "cli"
 ```
 
-Cowork is checked first (highest priority) because `CLAUDE_CODE_ENTRYPOINT` may also be set on Cowork.
+Cowork is checked first (highest priority) because `CLAUDE_CODE_ENTRYPOINT`
+may also be set on Cowork.
+
+### Why three signals
+
+The legacy `CLAUDE_CODE_IS_COWORK=1` heuristic alone is not reliable. Bash
+subshells in Cowork run in an isolated sandbox that does not inherit host
+environment variables, so `echo "$CLAUDE_CODE_IS_COWORK"` returns empty even
+when the host process is in Cowork mode. Falling through to CLI would
+silently break: provider discovery would look for the wrong files, the
+default executor recommendation would be wrong, and parallel execution
+would suggest tmux (which is not available on Cowork).
+
+Signals 1 and 2 are LLM-introspection — the agent inspects its own system
+prompt and available-tools list, which are not affected by the Bash sandbox.
+Keeping the env-var as a third signal preserves backward compatibility:
+when it does fire, it confirms Cowork; when it doesn't, the other two
+signals already cover the case. Do **not** simplify this back to a single
+env-var check.
 
 ## Provider Compatibility
 

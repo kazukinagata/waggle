@@ -25,7 +25,18 @@ Inspect available MCP tools to detect any already-configured providers:
 Use AskUserQuestion to confirm:
 > "I detected an existing [provider] MCP connection. Would you like to set up waggle using [provider]?"
 
-If yes, check if the corresponding provider plugin is installed (use the same discovery method as detecting-provider: check `~/.claude/plugins/installed_plugins.json` for `waggle-{provider}@*` keys, or `<available_skills>` for `{provider}-provider` in Cowork). If not installed → error:
+If yes, check if the corresponding provider plugin is installed. This skill cannot delegate to `detecting-provider` because it runs *before* a provider exists (detecting-provider would error with "No waggle provider plugin found" and stop the setup flow).
+
+First, decide which discovery source to inspect by detecting Cowork via the same multi-signal OR used by `detecting-provider` — Cowork iff **any** of:
+1. The active system prompt mentions "Cowork" (e.g. an `<application_details>` block stating "Claude is powering Cowork mode")
+2. A tool whose name matches `mcp__cowork__*` or `mcp__cowork-onboarding__*` is available
+3. `echo "$CLAUDE_CODE_IS_COWORK"` returns `"1"` (legacy hint; absence is not evidence against Cowork because Bash subshells in Cowork are sandboxed)
+
+Then branch:
+- If Cowork → look in `<available_skills>` for `{provider}-provider`
+- Otherwise → read `~/.claude/plugins/installed_plugins.json` for `waggle-{provider}@*`
+
+If not installed → error:
 > "The waggle-{provider} provider plugin is not installed. Install it first, then run setup again."
 
 If installed, skip to Step 3 with that provider.
