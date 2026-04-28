@@ -136,9 +136,11 @@ Providers are delivered as separate plugins (e.g., waggle-notion, waggle-sqlite,
 
 | Environment | Detection | Parallel Method |
 |---|---|---|
-| Cowork | `CLAUDE_CODE_IS_COWORK=1` | Scheduled Tasks |
+| Cowork | system prompt self-identifies as Cowork, OR `mcp__cowork__*` tools available, OR `CLAUDE_CODE_IS_COWORK=1` (legacy) | Scheduled Tasks |
 | Claude Desktop | `CLAUDE_CODE_ENTRYPOINT=claude-desktop` | Scheduled Tasks |
 | CLI | `CLAUDE_CODE_ENTRYPOINT=cli` (or unset) | tmux panes |
+
+See `provider-contract/references/environment-detection.md` for the full multi-signal Cowork detection logic.
 
 All environments support single-task execution in the current session.
 
