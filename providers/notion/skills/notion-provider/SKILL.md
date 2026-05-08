@@ -64,7 +64,7 @@ After repair, re-verify and continue. **Never ask the user to manually fix the s
 - `notion-create-pages` — Create a task (parent: `{ "data_source_id": TASKS_DS_ID }`)
 - `notion-update-page` — Update task properties
 - `notion-fetch` — Get a database, data source, or single task by URL/ID
-- `notion-search` — Full-text search across tasks; use for filtering by field value
+- `notion-search` — Full-text/semantic search across pages by name (e.g. finding the Waggle Config page during bootstrap). NOT for filtered task queries — server-side property filters such as Assignee/Status are unsupported. Use the Querying Tasks flow instead.
 - `notion-get-comments` / `notion-create-comment` — Read/write task comments
 
 ## Updating Relation Fields
@@ -225,12 +225,12 @@ Use the first available query path. The detection depends on `execution_environm
 
 **CLI (`execution_environment = "cli"`):**
 1. `NOTION_TOKEN` env var available in shell (check: `[ -n "$NOTION_TOKEN" ] && echo "SET" || echo "NOT SET"`) → Path 1 (bash script)
-2. Otherwise → Path 3 (MCP fallback) and warn the user
+2. Otherwise → halt the current step and surface the error to the user (no fallback). See "Error Handling for Query Path" below.
 
 **Claude Desktop / Cowork (`execution_environment = "claude-desktop"` or `"cowork"`):**
 In these environments `NOTION_TOKEN` is not exposed to the shell, so the bash script is not usable. Use the Desktop Extension MCP tool:
 1. `mcp__notion-extension__notion-query` tool available → Path 2 (Desktop Extension)
-2. Otherwise → Path 3 (MCP fallback) and warn the user
+2. Otherwise → halt the current step and surface the error to the user (no fallback). See "Error Handling for Query Path" below.
 
 ### Path 1: Notion API Bash Script (CLI, requires NOTION_TOKEN)
 
@@ -307,16 +307,18 @@ Call `mcp__notion-extension__notion-query` with:
 
 Returns `{"results": [...]}` in the same Notion API format as Path 1.
 
-### Path 3: MCP Fallback (notion-search + notion-fetch)
+### Error Handling for Query Path
 
-⚠️ **Before using this path, warn the user.** The warning text depends on environment:
+- If the detected query path is unavailable, OR a structured query call returns a database-access error like `Could not find database with ID: <id>. Make sure the relevant pages and databases are shared with your integration <name>`, do NOT fall back to `notion-search`.
+- Halt the current step (not the whole skill). Surface the Notion API error verbatim. The caller (e.g. `running-daily-tasks`) prompts the user `[Continue to next step] [End]` after surfacing the error.
 
-- **CLI**: "`NOTION_TOKEN` is not available in your shell. Falling back to `notion-search` + `notion-fetch`. Server-side filtering on `people` properties (Assignee) is not supported on this path, so some tasks may be missed. For accurate results, set `NOTION_TOKEN` in `~/.claude/settings.json` env block."
-- **Claude Desktop / Cowork**: "The `notion-extension` MCP tool (`notion-query`) is not available. Falling back to `notion-search` + `notion-fetch`. Server-side filtering on `people` properties (Assignee) is not supported on this path, so some tasks may be missed. For accurate results, install the `notion-extension` Desktop Extension."
+Halt-message templates per environment:
 
-Use `notion-search` with `data_source_url` to find task pages, then `notion-fetch` each page individually to get properties. Filter client-side by checking property values.
+- **CLI, `NOTION_TOKEN` missing**: "Cannot run Notion database query: NOTION_TOKEN is not exposed to the shell. Set it in `~/.claude/settings.json` env block, then re-run. Step halted."
+- **Claude Desktop / Cowork, `notion-extension` MCP missing**: "Cannot run Notion database query: the `notion-extension` Desktop Extension is not installed. Install it and re-run. Step halted."
+- **Any environment, Notion API returned `Could not find database with ID …`**: surface the API error verbatim, then add: "The integration `<integration name from error>` does not have access to this database. In Notion, share the database with the integration. If you also use `ingesting-messages`, share the Intake Log and Active Threads databases with the same integration. Then re-run. Step halted."
 
-This is the slower path — use only when Path 1 / Path 2 is unavailable.
+The `notion-search` fallback was removed in 2.5.6 because it cannot filter on people properties server-side and returned tasks owned by other assignees, while masking the real setup error.
 
 ### Post-Processing (all paths)
 
@@ -348,7 +350,7 @@ To retrieve all tasks (e.g. for view server data push), use the detected query p
 
 - **Path 1 (CLI)**: `bash ${CLAUDE_SKILL_DIR}/scripts/query-tasks.sh "<tasksDatabaseId>"` (no filter/sort args)
 - **Path 2 (Claude Desktop / Cowork)**: call `mcp__notion-extension__notion-query` with `database_id: <tasksDatabaseId>` and no `filter` / `sorts`
-- **Path 3**: `notion-search` with `data_source_url` + `notion-fetch` per page
+- If neither Path 1 nor Path 2 is available: halt per "Error Handling for Query Path" above.
 
 No post-processing needed (no Blocked By filter, no sort required).
 
@@ -358,11 +360,11 @@ When querying ANY Notion database (not just the Tasks DB — e.g., Intake Log, e
 
 **CLI:**
 1. `NOTION_TOKEN` env var available → call the bash script: `bash ${CLAUDE_SKILL_DIR}/scripts/query-tasks.sh "<database_id>" '<filter_json>' '<sort_json>'`
-2. Otherwise → ⚠️ warn the user (same CLI warning as Path 3), then use `notion-search` + `notion-fetch`
+2. Otherwise → halt and surface the error per "Error Handling for Query Path" above. Do not fall back to notion-search.
 
 **Claude Desktop / Cowork:**
 1. `mcp__notion-extension__notion-query` available → call the MCP tool with the target database ID and filter
-2. Otherwise → ⚠️ warn the user (same Claude Desktop / Cowork warning as Path 3), then use `notion-search` + `notion-fetch`
+2. Otherwise → halt and surface the error per "Error Handling for Query Path" above. Do not fall back to notion-search.
 
 ## Task Record Reference
 
@@ -496,6 +498,7 @@ To determine whether a task is assigned to the current user:
 | Error Category | HTTP Code | Action |
 |---|---|---|
 | Rate limit | 429 | Retryable — wait for `Retry-After` header seconds, then retry |
-| Page not found | 404 | Terminal — the page was deleted or the integration lost access. Report to user |
+| Database access denied | 404, body contains `"Could not find database with ID"` | Terminal — the integration does not have access to the database. Surface the error verbatim, name the missing integration, and instruct the user to share the database in Notion. Halt the current step. |
+| Page not found | 404 (body does **not** match the database-access pattern above) | Terminal — the page was deleted or the integration lost access. Report to user |
 | Server error | 500 | Retryable — exponential backoff (1s, 2s, 4s), max 3 attempts |
 | MCP tool unavailable | N/A | Terminal — the Notion MCP server is not configured. Instruct user to check MCP settings |

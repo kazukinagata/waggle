@@ -4,6 +4,12 @@ All notable changes to the Waggle project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [2.5.6] - 2026-05-08
+
+### Changed
+
+- **Removed `notion-search` fallback for filtered task queries** (`providers/notion/skills/notion-provider`): Path 3 (`notion-search` + `notion-fetch` with client-side filtering) was added in 2.5.3 as a graceful degradation when `notion-query` (Desktop Extension MCP) or the `NOTION_TOKEN` bash script was unavailable. In practice the degraded path silently surfaced tasks owned by other assignees — Notion's `notion-search` cannot filter by `people` properties server-side and the skills did not enforce a client-side Assignee check. It also masked the underlying setup error (e.g. a Notion integration missing share access on the Tasks DB / Intake Log / Active Threads DB), making triage harder. The Querying Tasks and "Querying Any Notion Database" flows now halt the current step when the structured query path is unavailable or returns a database-access error, surfacing the Notion API error message verbatim along with an actionable hint (share the database with the named integration, or install the Desktop Extension). Non-filtered uses of `notion-search` (e.g. finding the Waggle Config page during `bootstrap-session`) are unchanged. Cascading effect: `running-daily-tasks` Steps 2 / 2.5 / 3 / 3.5 and `ingesting-messages` Intake Log / Active Threads reads now stop with a clear error instead of producing unreliable results. The halt is step-scoped — when one step halts, the user is prompted whether to continue to the next step or end.
+
 ## [2.5.5] - 2026-04-28
 
 ### Fixed
