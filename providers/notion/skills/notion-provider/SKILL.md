@@ -17,9 +17,17 @@ When `detecting-provider` requests config retrieval for the Notion provider, fol
 
 Check the cache for resolved DB IDs before searching Notion. The cache mechanism differs by `execution_environment`:
 
-- **`cli` / `claude-desktop`**: read env vars from the running shell.
-  - If `WAGGLE_NOTION_TASKS_DB_ID` is set → use as `tasksDatabaseId`.
-  - If `WAGGLE_NOTION_TEAMS_DB_ID` is set → use as `teamsDatabaseId`.
+- **`cli` / `claude-desktop`**: read env vars from the running shell. The full set of cached IDs is:
+
+  | env var | `headless_config` field | required |
+  |---|---|---|
+  | `WAGGLE_NOTION_TASKS_DB_ID` | `tasksDatabaseId` | yes |
+  | `WAGGLE_NOTION_TEAMS_DB_ID` | `teamsDatabaseId` | optional |
+  | `WAGGLE_NOTION_INTAKE_LOG_DB_ID` | `intakeLogDatabaseId` | optional |
+  | `WAGGLE_NOTION_SPRINTS_DB_ID` | `sprintsDatabaseId` | optional |
+  | `WAGGLE_NOTION_ACTIVE_THREADS_DB_ID` | `activeThreadsDatabaseId` | optional |
+
+  Read every env var that is set and copy it into the corresponding `headless_config` field.
 
 - **`cowork`**: scan the active system prompt / available context for a block of the form:
   ```
@@ -27,13 +35,15 @@ Check the cache for resolved DB IDs before searching Notion. The cache mechanism
   {
     "tasksDatabaseId": "...",
     "teamsDatabaseId": "...",
-    ...
+    "intakeLogDatabaseId": "...",
+    "sprintsDatabaseId": "...",
+    "activeThreadsDatabaseId": "..."
   }
   </waggle-config>
   ```
-  If present and parseable as JSON, treat the parsed object the same as the env-var case (each key maps to the same `headless_config` field).
+  If present and parseable as JSON, copy each key into the corresponding `headless_config` field (same mapping as the table above; keys not present in the JSON remain unset). The Cowork JSON shape is the source of truth — a user who pastes only `tasksDatabaseId` and `teamsDatabaseId` gets a fast path with `intakeLogDatabaseId` etc. left unset, identical to the CLI / Desktop case where only those env vars are exported.
 
-If the cache provides at least `tasksDatabaseId`, populate `headless_config` and skip to Schema Validation. Otherwise continue to Step 2.
+If the cache provides at least `tasksDatabaseId`, populate `headless_config` and skip to Schema Validation. Otherwise continue to Step 2. (Optional IDs missing from the cache do **not** force a fallback — Step 2 only runs when `tasksDatabaseId` itself is absent. Downstream skills that need an unset optional ID must fetch the Config page on demand at that point.)
 
 ### Step 2: Resolve via "Waggle Config" page (cache miss path)
 
@@ -67,9 +77,12 @@ After filtering:
 Persist the resolved IDs so the next session hits the fast path instead of running search again. Behavior differs by `execution_environment`:
 
 - **`cli` / `claude-desktop`**: auto-write to `~/.claude/settings.json`.
-  - Read the existing file (create with `{}` if missing), preserve all other keys, and merge the following into the `env` field:
+  - Read the existing file (create with `{}` if missing), preserve all other keys, and merge each resolved ID into the `env` field using the table from Step 1:
     - `WAGGLE_NOTION_TASKS_DB_ID` ← `tasksDatabaseId`
-    - `WAGGLE_NOTION_TEAMS_DB_ID` ← `teamsDatabaseId` (if present)
+    - `WAGGLE_NOTION_TEAMS_DB_ID` ← `teamsDatabaseId` (only if present in `headless_config`)
+    - `WAGGLE_NOTION_INTAKE_LOG_DB_ID` ← `intakeLogDatabaseId` (only if present)
+    - `WAGGLE_NOTION_SPRINTS_DB_ID` ← `sprintsDatabaseId` (only if present)
+    - `WAGGLE_NOTION_ACTIVE_THREADS_DB_ID` ← `activeThreadsDatabaseId` (only if present)
   - If a key is already set to the resolved value, no-op. If the existing value differs, overwrite (the searched-and-fetched value is authoritative — the previous cache was stale).
   - This is silent (no user prompt) — env-var caching is non-intrusive.
 
@@ -88,7 +101,11 @@ Persist the resolved IDs so the next session hits the fast path instead of runni
 
 ### Recovery from stale cache
 
-If Step 1 returns a cached `tasksDatabaseId` but Schema Validation (next section) fails with a "database not found" error from Notion, treat the cache as stale: discard the cached values, fall through to Step 2 (search), and re-populate the cache via Step 3 with the freshly-resolved IDs.
+If Step 1 returns a cached `tasksDatabaseId` but Schema Validation (next section) fails with a `404` "Could not find database with ID" error from Notion, treat the cache as stale: discard all cached IDs in `headless_config`, fall through to Step 2 (search), and re-populate the cache via Step 3 with the freshly-resolved IDs.
+
+**Precedence over the Error Handling table**: this recovery path takes precedence over the `Database access denied → Terminal` row in the Error Handling table at the bottom of this file. Do **not** halt the current step when the failure originates from a Step 1 cached value — the same 404 signal is non-terminal in that specific context because the search-based fallback may resolve a fresh ID. The Error Handling table's terminal classification continues to apply for every other origin (e.g. a query against a task ID, a relation update, a Schema Validation failure during normal Step 2 operation).
+
+**Second failure is terminal**: if Schema Validation **still** fails with the same 404 after Step 2 resolves a fresh ID — meaning the Config page itself contains a stale ID (e.g. the Tasks DB was deleted in Notion but the Config page was not updated) — treat it as terminal at that point. Surface the error verbatim, and instruct the user either to update the Config page's `tasksDatabaseId` to point at the current Tasks DB, or to re-run `setting-up-tasks` to recreate the DB and rewrite the Config page.
 
 > **Note:** `maxConcurrentAgents` may exist in legacy config files but is no longer used. Ignore it if present.
 
@@ -554,7 +571,7 @@ To determine whether a task is assigned to the current user:
 | Error Category | HTTP Code | Action |
 |---|---|---|
 | Rate limit | 429 | Retryable — wait for `Retry-After` header seconds, then retry |
-| Database access denied | 404, body contains `"Could not find database with ID"` | Terminal — the integration does not have access to the database. Surface the error verbatim, name the missing integration, and instruct the user to share the database in Notion. Halt the current step. |
+| Database access denied | 404, body contains `"Could not find database with ID"` | Terminal — the integration does not have access to the database. Surface the error verbatim, name the missing integration, and instruct the user to share the database in Notion. Halt the current step. **Exception**: if this 404 fires during Schema Validation immediately after Step 1 returned a cached `tasksDatabaseId`, follow the "Recovery from stale cache" path in Config Retrieval instead — the failure is non-terminal in that specific context. |
 | Page not found | 404 (body does **not** match the database-access pattern above) | Terminal — the page was deleted or the integration lost access. Report to user |
 | Server error | 500 | Retryable — exponential backoff (1s, 2s, 4s), max 3 attempts |
 | MCP tool unavailable | N/A | Terminal — the Notion MCP server is not configured. Instruct user to check MCP settings |

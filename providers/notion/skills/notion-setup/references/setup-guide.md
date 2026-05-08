@@ -229,16 +229,19 @@ After the Config page is created, persist the resolved DB IDs so subsequent sess
 
 ### CLI / Claude Desktop
 
-Read `~/.claude/settings.json` (create if it doesn't exist). Merge the following into the `env` field, preserving any existing env vars:
+Read `~/.claude/settings.json` (create if it doesn't exist). Merge each ID resolved in Step 4 into the `env` field, preserving any existing env vars:
 
 ```json
 {
   "env": {
     "WAGGLE_NOTION_TASKS_DB_ID": "<TASKS_DB_ID from Step 4>",
-    "WAGGLE_NOTION_TEAMS_DB_ID": "<TEAMS_DB_ID from Step 4>"
+    "WAGGLE_NOTION_TEAMS_DB_ID": "<TEAMS_DB_ID from Step 4>",
+    "WAGGLE_NOTION_INTAKE_LOG_DB_ID": "<INTAKE_LOG_DB_ID from Step 4>"
   }
 }
 ```
+
+Add `WAGGLE_NOTION_SPRINTS_DB_ID` and `WAGGLE_NOTION_ACTIVE_THREADS_DB_ID` to the same `env` field if those databases exist (they are created later by `setting-up-scrum` and the first `ingesting-messages` run, respectively — at initial setup time only TASKS / TEAMS / INTAKE_LOG exist). Caching all resolved IDs ensures `headless_config` is fully populated on the next session's fast path so downstream skills (e.g. `ingesting-messages`) don't need an additional Config-page fetch.
 
 Replace the placeholders with the actual IDs from Step 4.
 
@@ -258,7 +261,7 @@ Cowork has no persistent local filesystem, so env-var writes are not durable. In
 > </waggle-config>
 > ```
 
-Include any other resolved IDs (e.g. `sprintsDatabaseId`, `activeThreadsDatabaseId`) as additional keys in the JSON if they exist.
+Include any other resolved IDs (e.g. `sprintsDatabaseId`, `activeThreadsDatabaseId`) as additional keys in the JSON if they exist. Caching every resolved ID — not just `tasksDatabaseId` and `teamsDatabaseId` — ensures `headless_config` is fully populated on the next session's fast path so downstream skills (e.g. `ingesting-messages`) don't need an additional Config-page fetch.
 
 ### Subsequent runs
 

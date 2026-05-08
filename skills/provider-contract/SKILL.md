@@ -184,7 +184,7 @@ The legacy `~/.waggle/config.json` file is deprecated — use the `health-checki
 
 | Provider | Cache (CLI / Claude Desktop) | Cache (Cowork) | Fallback |
 |---|---|---|---|
-| Notion | env vars: `WAGGLE_NOTION_TASKS_DB_ID`, `WAGGLE_NOTION_TEAMS_DB_ID` | `<waggle-config>` JSON in Global Instructions | "Waggle Config" Notion page search (exact title match) |
+| Notion | env vars: `WAGGLE_NOTION_TASKS_DB_ID`, `WAGGLE_NOTION_TEAMS_DB_ID`, `WAGGLE_NOTION_INTAKE_LOG_DB_ID`, `WAGGLE_NOTION_SPRINTS_DB_ID`, `WAGGLE_NOTION_ACTIVE_THREADS_DB_ID` | `<waggle-config>` JSON in Global Instructions | "Waggle Config" Notion page search (exact title match) |
 | Turso | env vars: `TURSO_URL`, `TURSO_AUTH_TOKEN` (required) | n/a (Cowork unsupported) | None |
 | SQLite | env vars: `WAGGLE_SQLITE_DB_PATH` (optional, default: `~/.waggle/tasks.db`) | n/a (Cowork unsupported) | Default path |
 
