@@ -316,7 +316,7 @@ Halt-message templates per environment:
 
 - **CLI, `NOTION_TOKEN` missing**: "Cannot run filtered Notion query: NOTION_TOKEN is not exposed to the shell. Set it in `~/.claude/settings.json` env block, then re-run. Step halted to avoid surfacing tasks owned by other assignees."
 - **Claude Desktop / Cowork, `notion-extension` MCP missing**: "Cannot run filtered Notion query: the `notion-extension` Desktop Extension is not installed. Install it and re-run. Step halted."
-- **Any environment, Notion API returned `Could not find database with ID …`**: surface the API error verbatim, then add: "The integration `<integration name from error>` does not have access to this database. In Notion, share the database (and Intake Log / Active Threads if applicable) with the integration, then re-run. Step halted."
+- **Any environment, Notion API returned `Could not find database with ID …`**: surface the API error verbatim, then add: "The integration `<integration name from error>` does not have access to this database. In Notion, share the database with the integration. If you also use `ingesting-messages`, share the Intake Log and Active Threads databases with the same integration. Then re-run. Step halted."
 
 The `notion-search` fallback was removed in 2.5.6 because it cannot filter on people properties server-side and returned tasks owned by other assignees, while masking the real setup error.
 
@@ -498,7 +498,7 @@ To determine whether a task is assigned to the current user:
 | Error Category | HTTP Code | Action |
 |---|---|---|
 | Rate limit | 429 | Retryable — wait for `Retry-After` header seconds, then retry |
-| Database access denied | 404 with body matching "Could not find database with ID" | Terminal — the integration does not have access to the database. Surface the error verbatim, name the missing integration, and instruct the user to share the database in Notion. Halt the current step. |
-| Page not found | 404 | Terminal — the page was deleted or the integration lost access. Report to user |
+| Database access denied | 404, body contains `"Could not find database with ID"` | Terminal — the integration does not have access to the database. Surface the error verbatim, name the missing integration, and instruct the user to share the database in Notion. Halt the current step. |
+| Page not found | 404 (body does **not** match the database-access pattern above) | Terminal — the page was deleted or the integration lost access. Report to user |
 | Server error | 500 | Retryable — exponential backoff (1s, 2s, 4s), max 3 attempts |
 | MCP tool unavailable | N/A | Terminal — the Notion MCP server is not configured. Instruct user to check MCP settings |
