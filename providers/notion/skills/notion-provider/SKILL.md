@@ -314,8 +314,8 @@ Returns `{"results": [...]}` in the same Notion API format as Path 1.
 
 Halt-message templates per environment:
 
-- **CLI, `NOTION_TOKEN` missing**: "Cannot run filtered Notion query: NOTION_TOKEN is not exposed to the shell. Set it in `~/.claude/settings.json` env block, then re-run. Step halted to avoid surfacing tasks owned by other assignees."
-- **Claude Desktop / Cowork, `notion-extension` MCP missing**: "Cannot run filtered Notion query: the `notion-extension` Desktop Extension is not installed. Install it and re-run. Step halted."
+- **CLI, `NOTION_TOKEN` missing**: "Cannot run Notion database query: NOTION_TOKEN is not exposed to the shell. Set it in `~/.claude/settings.json` env block, then re-run. Step halted."
+- **Claude Desktop / Cowork, `notion-extension` MCP missing**: "Cannot run Notion database query: the `notion-extension` Desktop Extension is not installed. Install it and re-run. Step halted."
 - **Any environment, Notion API returned `Could not find database with ID …`**: surface the API error verbatim, then add: "The integration `<integration name from error>` does not have access to this database. In Notion, share the database with the integration. If you also use `ingesting-messages`, share the Intake Log and Active Threads databases with the same integration. Then re-run. Step halted."
 
 The `notion-search` fallback was removed in 2.5.6 because it cannot filter on people properties server-side and returned tasks owned by other assignees, while masking the real setup error.
