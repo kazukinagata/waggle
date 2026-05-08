@@ -81,6 +81,9 @@ Read `~/.waggle/config.json` via Bash: `cat ~/.waggle/config.json 2>/dev/null`
    |---|---|---|
    | Notion | `tasksDatabaseId` | `WAGGLE_NOTION_TASKS_DB_ID` |
    | Notion | `teamsDatabaseId` | `WAGGLE_NOTION_TEAMS_DB_ID` |
+   | Notion | `intakeLogDatabaseId` | `WAGGLE_NOTION_INTAKE_LOG_DB_ID` |
+   | Notion | `sprintsDatabaseId` | `WAGGLE_NOTION_SPRINTS_DB_ID` |
+   | Notion | `activeThreadsDatabaseId` | `WAGGLE_NOTION_ACTIVE_THREADS_DB_ID` |
    | SQLite | `dbPath` | `WAGGLE_SQLITE_DB_PATH` |
    | Turso | `tursoUrl` | `TURSO_URL` |
    | Turso | `tursoAuthToken` | `TURSO_AUTH_TOKEN` |

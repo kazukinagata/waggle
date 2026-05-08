@@ -25,9 +25,9 @@ Authenticate with your Notion account when prompted.
 
 ## Step 1b: Detect Existing Setup
 
-1. Call `notion-search` with query "Waggle Config" to check for an existing configuration.
-2. If no "Waggle Config" page is found, call `notion-search` with query "Agentic Tasks Config" (legacy fallback). If found, use it as the Config page (do not rename it).
-3. If a Config page is found (from either search) -> enter **Migration Mode**:
+1. Call `notion-search` with query "Waggle Config".
+2. **Apply client-side exact-match filter** to the results: keep only entries where `title == "Waggle Config"` (exact, case-sensitive) AND `type == "page"` AND the page is not trashed/archived. Discard partial matches such as `Waggle:Hori`, `Waggle:Funase`, parent pages like `メンバー別：Waggle`, etc. — `notion-search` is a partial-match / semantic search and these false positives are common.
+3. If a Config page survives the filter -> enter **Migration Mode**:
 
 ### Migration Mode
 
@@ -47,7 +47,7 @@ d. **Tasks DB Team relation**: If a `Team` relation field exists on the Tasks DB
 
 e. Report: "Migration complete. Your setup has been updated to the latest plugin version."
 
-4. If no Config page is found -> proceed with normal new setup flow below.
+4. If no Config page survives the filter -> proceed with normal new setup flow below. Note: workspaces still using the legacy "Agentic Tasks Config" page name (pre-2.6.0) should manually rename that page to "Waggle Config" before re-running setup; the legacy-name fallback was removed in 2.6.0.
 
 ## Step 2: Choose Parent Page Location
 
@@ -223,24 +223,49 @@ export NOTION_TOKEN="ntn_xxxxxxxxxxxxx"
 
 This step is optional — the plugin works without it using MCP-only queries, but server-side filtering is significantly faster for large task databases.
 
-## Step 5c: Write environment variables
+## Step 5c: Cache resolved DB IDs (environment-aware)
 
-**Skip this step if** `execution_environment = "cowork"` (Cowork discovers config via Notion Config page search).
+After the Config page is created, persist the resolved DB IDs so subsequent sessions skip the Notion search and hit a fast path. The mechanism differs by `execution_environment`.
 
-After the Config page is created, write environment variables to `~/.claude/settings.json` so waggle can detect the Notion provider quickly without searching Notion on every startup:
+### CLI / Claude Desktop
 
-Read `~/.claude/settings.json` (create if it doesn't exist). Add the following to the `env` field (preserve any existing env vars):
+Read `~/.claude/settings.json` (create if it doesn't exist). Merge each ID resolved in Step 4 into the `env` field, preserving any existing env vars:
 
 ```json
 {
   "env": {
     "WAGGLE_NOTION_TASKS_DB_ID": "<TASKS_DB_ID from Step 4>",
-    "WAGGLE_NOTION_TEAMS_DB_ID": "<TEAMS_DB_ID from Step 4>"
+    "WAGGLE_NOTION_TEAMS_DB_ID": "<TEAMS_DB_ID from Step 4>",
+    "WAGGLE_NOTION_INTAKE_LOG_DB_ID": "<INTAKE_LOG_DB_ID from Step 4>"
   }
 }
 ```
 
+Add `WAGGLE_NOTION_SPRINTS_DB_ID` and `WAGGLE_NOTION_ACTIVE_THREADS_DB_ID` to the same `env` field if those databases exist (they are created later by `setting-up-scrum` and the first `ingesting-messages` run, respectively — at initial setup time only TASKS / TEAMS / INTAKE_LOG exist). Caching all resolved IDs ensures `headless_config` is fully populated on the next session's fast path so downstream skills (e.g. `ingesting-messages`) don't need an additional Config-page fetch.
+
 Replace the placeholders with the actual IDs from Step 4.
+
+### Cowork
+
+Cowork has no persistent local filesystem, so env-var writes are not durable. Instead, output a paste-ready block and ask the user to add it to their Global Instructions (mirroring the `<waggle-custom-intake>` / `<waggle-custom-task-creation>` pattern):
+
+> "Cowork does not have a persistent filesystem. To skip the Notion config search on every session, please add the following to your Global Instructions:"
+>
+> ```
+> <waggle-config>
+> {
+>   "tasksDatabaseId": "<TASKS_DB_ID from Step 4>",
+>   "teamsDatabaseId": "<TEAMS_DB_ID from Step 4>",
+>   "intakeLogDatabaseId": "<INTAKE_LOG_DB_ID from Step 4>"
+> }
+> </waggle-config>
+> ```
+
+Include any other resolved IDs (e.g. `sprintsDatabaseId`, `activeThreadsDatabaseId`) as additional keys in the JSON if they exist. Caching every resolved ID — not just `tasksDatabaseId` and `teamsDatabaseId` — ensures `headless_config` is fully populated on the next session's fast path so downstream skills (e.g. `ingesting-messages`) don't need an additional Config-page fetch.
+
+### Subsequent runs
+
+`notion-provider` Config Retrieval reads the env vars (CLI / Claude Desktop) or scans for `<waggle-config>` (Cowork) before falling back to `notion-search`. If a user is upgrading from < 2.6.0 and never had the cache populated (e.g. existing Cowork users), `notion-provider` will resolve via search on the first 2.6.0+ session and prompt to populate the cache then.
 
 ## Step 6: Verify
 

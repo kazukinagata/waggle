@@ -175,13 +175,18 @@ Bash scripts in the provider plugin MUST follow these rules:
 
 ## Config Storage
 
-All provider configuration is stored via environment variables in `~/.claude/settings.json` (under the `env` field). The legacy `~/.waggle/config.json` file is deprecated — use the `health-checking` skill to migrate.
+Provider configuration is cached per execution environment so bootstrap can skip remote lookups on subsequent sessions:
 
-| Provider | Env Vars | Fallback |
-|---|---|---|
-| Notion | `WAGGLE_NOTION_TASKS_DB_ID`, `WAGGLE_NOTION_TEAMS_DB_ID` (optional cache) | "Waggle Config" Notion page search |
-| Turso | `TURSO_URL`, `TURSO_AUTH_TOKEN` (required) | None |
-| SQLite | `WAGGLE_SQLITE_DB_PATH` (optional, default: `~/.waggle/tasks.db`) | Default path |
+- **CLI / Claude Desktop**: environment variables in `~/.claude/settings.json` (under the `env` field).
+- **Cowork**: a `<waggle-config>{json}</waggle-config>` block in Global Instructions, since Cowork has no persistent local filesystem.
+
+The legacy `~/.waggle/config.json` file is deprecated — use the `health-checking` skill to migrate.
+
+| Provider | Cache (CLI / Claude Desktop) | Cache (Cowork) | Fallback |
+|---|---|---|---|
+| Notion | env vars: `WAGGLE_NOTION_TASKS_DB_ID`, `WAGGLE_NOTION_TEAMS_DB_ID`, `WAGGLE_NOTION_INTAKE_LOG_DB_ID`, `WAGGLE_NOTION_SPRINTS_DB_ID`, `WAGGLE_NOTION_ACTIVE_THREADS_DB_ID` | `<waggle-config>` JSON in Global Instructions | "Waggle Config" Notion page search (exact title match) |
+| Turso | env vars: `TURSO_URL`, `TURSO_AUTH_TOKEN` (required) | n/a (Cowork unsupported) | None |
+| SQLite | env vars: `WAGGLE_SQLITE_DB_PATH` (optional, default: `~/.waggle/tasks.db`) | n/a (Cowork unsupported) | Default path |
 
 ## Environment Support
 
