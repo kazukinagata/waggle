@@ -4,6 +4,22 @@ All notable changes to the Waggle project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [2.6.0] - 2026-05-08
+
+### Added
+
+- **Cowork DB ID caching via `<waggle-config>` Global Instructions XML tag** (`providers/notion/skills/notion-provider`, `providers/notion/skills/notion-setup`): Cowork sessions can now persist resolved Notion DB IDs across sessions by pasting a `<waggle-config>{json}</waggle-config>` block into Global Instructions, mirroring the existing `<waggle-custom-intake>` / `<waggle-custom-task-creation>` pattern. `notion-provider` Config Retrieval Step 1 (cache fast path) now reads this tag on Cowork as the equivalent of the env-var fast path on CLI / Claude Desktop. After a successful search-based resolve, Step 3 (Cache Populate) prompts the Cowork user once per session with a paste-ready block; the user can dismiss with "Later" to defer until the next session. Previously Cowork users had no cache mechanism — `setup-guide.md` Step 5c explicitly skipped env-var writes on Cowork — so every session re-ran `notion-search` and was vulnerable to the partial-match bug fixed below.
+- **Auto-cache on resolve for CLI / Claude Desktop** (`providers/notion/skills/notion-provider` Config Retrieval Step 3): when bootstrap resolves the Config page via search (cache miss), it now silently writes/merges `WAGGLE_NOTION_TASKS_DB_ID` and `WAGGLE_NOTION_TEAMS_DB_ID` into `~/.claude/settings.json` so subsequent sessions hit the env-var fast path. Previously only the initial `notion-setup` flow wrote these vars — users who completed setup before env-var caching existed (or under a different mechanism) re-ran search every session forever.
+- **Stale-cache recovery** (`providers/notion/skills/notion-provider` Config Retrieval): if a cached `tasksDatabaseId` fails Schema Validation with a "database not found" error, the cache is discarded, search is re-run, and Step 3 re-populates the cache with the freshly-resolved IDs.
+
+### Fixed
+
+- **Notion config discovery picked member-specific databases as the Config page** (`providers/notion/skills/notion-provider`, `providers/notion/skills/notion-setup/references/setup-guide.md`): `notion-search "Waggle Config"` returns partial-match / semantic results, so member-scoped databases like `Waggle:Hori`, `Waggle:Funase`, and parent pages like `メンバー別：Waggle` ranked alongside the actual Config page. The previous logic relied on a parent-relationship tiebreaker that mis-fired in practice — on 2026-05-08 a Cowork session resolved the wrong page and adopted a per-member data-source ID as `tasksDatabaseId`, breaking every downstream `notion-query` with "Could not find database with ID" errors. The Config Retrieval flow and the `notion-setup` Step 1b detection both now require a CLIENT-SIDE filter of `title == "Waggle Config"` (exact, case-sensitive) AND `type == "page"` AND not trashed/archived. Anything else is discarded before disambiguation.
+
+### Removed
+
+- **Legacy "Agentic Tasks Config" page-name fallback** (`providers/notion/skills/notion-provider`, `providers/notion/skills/notion-setup/references/setup-guide.md`): the page has been renamed workspace-wide to "Waggle Config" since 2.4.x. The legacy-name fallback added a second `notion-search` round-trip and complicated the discovery flow without a remaining audience. Workspaces that have not yet migrated will now receive a clear error pointing them to `setting-up-tasks` (or to manually rename the page) instead of silently using the legacy name.
+
 ## [2.5.6] - 2026-05-08
 
 ### Changed
