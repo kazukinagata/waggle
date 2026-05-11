@@ -4,6 +4,14 @@ All notable changes to the Waggle project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [2.6.1] - 2026-05-11
+
+### Fixed
+
+- **Slack `after:` date filter off-by-one wiped boundary-day messages** (`skills/ingesting-messages`): the skill translated `lookback_period` (e.g., "24 hours") into `after:YYYY-MM-DD` without compensating for Slack's exclusive-date semantics. A 24-hour lookback from 2026-05-08 14:25 JST computed `after:2026-05-07`, which Slack interprets as "5/8 onwards" — silently dropping the entire 5/7 from all three intake queries. The skill now documents the exclusive behavior and instructs either using the MCP tool's Unix-timestamp `after` argument (inclusive) or subtracting an additional day from the query-string `after:` filter when only the string form is available. `before:YYYY-MM-DD` is documented as symmetrically exclusive. Empirical verification against the affected user's workspace confirmed `from:<@USER> after:2026-05-06` returns 5/7 messages while `after:2026-05-07` does not.
+- **Bot-posted messages dropped by `slack_search_*` default** (`skills/ingesting-messages`): the MCP default `include_bots: false` filtered out messages from automation bots (meeting-notifier bots, action-item posters, intake bots) at the search layer, before Step 1c-1's Block Kit body refetch could trigger. Combined with the date-filter off-by-one above, the 2026-05-08 user run silently missed all three MTG Pipeline Bot action-item posts from `#gp-mtg-actions-test` on 5/7, each of which @-mentioned the user via Block Kit. The Slack Query Example now mandates `include_bots: true` (or the MCP's equivalent parameter) on all three queries.
+- **`slack_read_thread(oldest=...)` exclusive bound dropped boundary-ts replies** (`skills/ingesting-messages` Step 1b-2 Active Threads Check): passing `oldest = Last Checked` skipped a reply posted at exactly that timestamp. Step 1b-2 now subtracts 1 microsecond from `Last Checked` before passing it as `oldest` so replies at the boundary are included.
+
 ## [2.6.0] - 2026-05-08
 
 ### Added
