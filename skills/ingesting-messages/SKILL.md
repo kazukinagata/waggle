@@ -48,6 +48,17 @@ Determine how far back to fetch messages:
 - If the user specified a lookback period (e.g., "past 3 days", "48 hours", "since Monday"), set `lookback_period` to that value.
 - Default: `lookback_period = "24 hours"`
 
+#### Translating `lookback_period` to Slack date filters
+
+Slack's `after:YYYY-MM-DD` and `before:YYYY-MM-DD` query-string filters are **exclusive** of the named date — `after:2026-05-07` returns messages from 2026-05-08 onwards, NOT 5/7. Compute the cutoff carefully:
+
+- **Preferred path — Unix-timestamp argument**: if the MCP tool exposes an `after` (or `oldest`) argument that accepts a Unix timestamp, use that. The Unix-timestamp form is inclusive: `after = int(unix_timestamp(now() - lookback_period))` returns messages at or after that instant.
+- **Fallback — query-string filter with date adjustment**: if the MCP tool only supports the query-string `after:` filter, compute `cutoff_date = (now() - lookback_period).date()` and emit `after:{cutoff_date - 1 day}` to compensate for Slack's exclusivity. Example: a 24-hour lookback at 2026-05-08 14:25 JST has `cutoff_date = 2026-05-07`; emit **`after:2026-05-06`** (NOT `after:2026-05-07`, which would exclude 5/7 entirely).
+
+`before:YYYY-MM-DD` is symmetrically exclusive — use `before:{end_date + 1 day}` if the end date itself should be included. The query-string filters `on:YYYY-MM-DD` and `during:YYYY-MM-DD` are inclusive but only cover a single day, so they are not useful for arbitrary lookback ranges.
+
+**Sanity check**: after running the query, confirm at least one returned result is on the boundary day you intended to include. If every result is from the day after the boundary, the off-by-one is back — re-check the filter.
+
 ### Messaging MCP Auto-Detection
 
 Inspect available MCP tools and determine which messaging tool to use:
@@ -125,10 +136,14 @@ Retrieve every message from the past `{lookback_period}` that is directed at or 
 
 ### 1b. Slack Query Example
 
-- **Query 1 (DMs)**: Search with `to:me`
-- **Query 2 (Channel mentions)**: Search for messages containing `<@USER_ID>` (the `current_user`'s Slack user ID). Exclude own messages. Search scope must include both public and private channels the user is a member of. If the MCP tool has a channel-type filter, ensure `private` / `mpim` / `im` types are included alongside `public_channel`.
+**All three queries below MUST pass `include_bots: true`** (or the equivalent MCP parameter — `with_bots`, `bots: true`, etc.; consult the MCP tool's schema for the exact name). The MCP default is to exclude bots, which silently drops messages from automation bots — meeting summary bots, action-item posters, intake bots — even when those bots @-mention the user via Block Kit. Without this flag set, Step 1c-1 (Block Kit body refetch) never fires because the bot messages are absent from the search result entirely.
+
+**For the date filter on each search, follow "Translating `lookback_period` to Slack date filters" in Step 0.** Prefer the MCP tool's Unix-timestamp `after` argument over the query-string `after:` filter when both are supported. If using the query-string filter, remember to subtract 1 day from the cutoff date to compensate for Slack's exclusive-date semantics.
+
+- **Query 1 (DMs)**: Search with `to:me`, `include_bots: true`, and the lookback filter from Step 0.
+- **Query 2 (Channel mentions)**: Search for messages containing `<@USER_ID>` (the `current_user`'s Slack user ID), with `include_bots: true` and the lookback filter. Exclude own messages. `include_bots: true` is especially important here — channels dedicated to bot-posted action items (e.g., a meeting-notifier bot posting to `gp-mtg-actions-test`) are exactly the case where the default `false` silently wipes the entire intake source. Search scope must include both public and private channels the user is a member of. If the MCP tool has a channel-type filter, ensure `private` / `mpim` / `im` types are included alongside `public_channel`.
 - **Query 3 (Thread participant replies)**:
-  1. From Query 1, Query 2, and a `from:me` search (past `{lookback_period}`), collect all `thread_ts` values of threads `current_user` participates in
+  1. From Query 1, Query 2, and a `from:me` search (past `{lookback_period}`, also with `include_bots: true`), collect all `thread_ts` values of threads `current_user` participates in
   2. Fetch replies for each thread
   3. Exclude own messages and already-processed messages
   4. If the MCP does not support thread-level queries, skip Query 3 and note it in the summary
@@ -137,7 +152,7 @@ Retrieve every message from the past `{lookback_period}` that is directed at or 
 
 For each thread in `active_threads`, check for new replies that the lookback-period queries may have missed:
 
-1. Call `slack_read_thread` with `channel_id` and `message_ts` set to the thread's Thread TS value. Set `oldest` to the thread's `Last Checked` timestamp to retrieve only new replies since the last check.
+1. Call `slack_read_thread` with `channel_id` and `message_ts` set to the thread's Thread TS value. Set `oldest` to **`Last Checked - 0.000001`** (one microsecond before the Last Checked timestamp) to retrieve replies posted at or after the last check. The MCP's `oldest` parameter is exclusive — passing the literal `Last Checked` value would skip a reply posted at exactly that timestamp.
 2. From the response, exclude:
    - Messages sent by `current_user` (own messages)
    - Messages whose unique ID (`channel_id:ts`) is already in `processed_message_ids`
