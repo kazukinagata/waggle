@@ -4,7 +4,7 @@ All notable changes to the Waggle project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
-## [2.6.1] - 2026-05-08
+## [2.6.1] - 2026-05-11
 
 ### Fixed
 

@@ -57,7 +57,7 @@ Slack's `after:YYYY-MM-DD` and `before:YYYY-MM-DD` query-string filters are **ex
 
 `before:YYYY-MM-DD` is symmetrically exclusive — use `before:{end_date + 1 day}` if the end date itself should be included. The query-string filters `on:YYYY-MM-DD` and `during:YYYY-MM-DD` are inclusive but only cover a single day, so they are not useful for arbitrary lookback ranges.
 
-**Sanity check**: after running the query, confirm at least one returned result is on the boundary day you intended to include. If every result is from the day after the boundary, the off-by-one is back — re-check the filter.
+**Sanity check (advisory)**: after running the query, if you happen to have prior expectation that the boundary day contained Slack activity for `current_user`, confirm at least one returned result is on that boundary day. If results all skip the boundary day **and** the user is normally active there, the off-by-one may have come back — re-check the filter. Skip this check when the boundary day is plausibly empty (user offline, weekend, no relevant traffic); an empty boundary day is not by itself evidence of a bug.
 
 ### Messaging MCP Auto-Detection
 
@@ -152,7 +152,7 @@ Retrieve every message from the past `{lookback_period}` that is directed at or 
 
 For each thread in `active_threads`, check for new replies that the lookback-period queries may have missed:
 
-1. Call `slack_read_thread` with `channel_id` and `message_ts` set to the thread's Thread TS value. Set `oldest` to **`Last Checked - 0.000001`** (one microsecond before the Last Checked timestamp) to retrieve replies posted at or after the last check. The MCP's `oldest` parameter is exclusive — passing the literal `Last Checked` value would skip a reply posted at exactly that timestamp.
+1. Call `slack_read_thread` with `channel_id` and `message_ts` set to the thread's Thread TS value. Set `oldest` to **`str(unix_timestamp(Last Checked) - 0.000001)`** — convert the Notion `date` field to a Unix timestamp float (e.g., `datetime.fromisoformat(Last_Checked).timestamp()`), subtract one microsecond, then pass as a string (same pattern as Step 1c-1's `oldest` / `latest` window). The MCP's `oldest` parameter is exclusive of the named ts; passing the literal `Last Checked` (after correct Unix conversion) would still skip a reply posted at exactly that timestamp, so the ±1 μs subtraction is required. Passing the raw Notion ISO-8601 date string directly will either error or silently return wrong results.
 2. From the response, exclude:
    - Messages sent by `current_user` (own messages)
    - Messages whose unique ID (`channel_id:ts`) is already in `processed_message_ids`
