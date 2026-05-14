@@ -138,7 +138,7 @@ When the user asks to regenerate or update a custom view:
 **Then, depending on `execution_environment`**:
 
 - **`cli`** / **`claude-desktop`**: the localhost server serves the updated file on next browser refresh.
-- **`cowork`**: re-run the cowork generator and call `update_artifact`. **Assignee binding caveat**: Cowork's `list_artifacts` does not return the `assigneeUserId` baked into a previously-registered artifact, so the original scoping is irrecoverable at regenerate time. If the user originally scoped this custom view to someone other than themselves (e.g., Alice) and then asks for a plain "regenerate" without naming the assignee, the default below silently re-scopes to `current_user.id`. When in doubt, confirm with the user before defaulting — or have them re-state the assignee on the regenerate command (`/managing-views regenerate <slug> for Alice`). By default pass `current_user.id` as the 5th positional, or the Notion user ID of an explicitly-named person via the `looking-up-members` skill:
+- **`cowork`**: re-run the cowork generator, then dispatch on whether the artifact already exists (the same list-then-branch pattern `/viewing-tasks` uses for `waggle-tasks`). The fallback to `create_artifact` matters when the user previously deleted the view (which only sets a stub HTML) or when the local file exists but was never registered. **Assignee binding caveat**: Cowork's `list_artifacts` does not return the `assigneeUserId` baked into a previously-registered artifact, so the original scoping is irrecoverable at regenerate time. If the user originally scoped this custom view to someone other than themselves (e.g., Alice) and then asks for a plain "regenerate" without naming the assignee, the default below silently re-scopes to `current_user.id`. When in doubt, confirm with the user before defaulting — or have them re-state the assignee on the regenerate command (`/managing-views regenerate <slug> for Alice`). By default pass `current_user.id` as the 5th positional, or the Notion user ID of an explicitly-named person via the `looking-up-members` skill:
 
   ```bash
   bash "${CLAUDE_SKILL_DIR}/scripts/generate-cowork-custom-artifact.sh" \
@@ -147,6 +147,10 @@ When the user asks to regenerate or update a custom view:
     "<assignee notion user id, e.g. current_user.id>" \
     > /tmp/waggle-view-<slug>.html
   ```
+
+  Call `mcp__cowork__list_artifacts()` and check whether the response includes an entry with `id == "waggle-view-<slug>"`.
+
+  **If the artifact already exists**, update it in place:
 
   ```
   mcp__cowork__update_artifact({
@@ -157,7 +161,18 @@ When the user asks to regenerate or update a custom view:
   })
   ```
 
-  Clean up: `rm -f /tmp/waggle-view-<slug>.html`.
+  **If the artifact does not exist**, register it via create:
+
+  ```
+  mcp__cowork__create_artifact({
+    id: "waggle-view-<slug>",
+    html_path: "/tmp/waggle-view-<slug>.html",
+    description: "<short description from user's request>",
+    mcp_tools: ["mcp__Notion_Extension_for_Waggle__notion-query"]
+  })
+  ```
+
+  Tell the user whether it was an update or a fresh registration. Clean up: `rm -f /tmp/waggle-view-<slug>.html`.
 
 ## Reference Template
 
