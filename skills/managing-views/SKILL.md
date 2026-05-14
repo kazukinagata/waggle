@@ -2,6 +2,9 @@
 name: managing-views
 description: >
   Creates, lists, deletes, and regenerates custom task visualizations.
+  In cli / claude-desktop they are HTML files served by the local view server.
+  In Cowork each custom view is registered as its own Live Artifact (id
+  `waggle-view-<slug>`) that fetches data via window.cowork.callMcpTool.
   Use this skill whenever the user wants to create, delete, customize, or
   manage saved task visualizations — custom dashboards, filtered boards, or
   personalized views. Triggers on: "create view", "custom view",
@@ -12,12 +15,11 @@ user-invocable: true
 
 # Waggle — Custom View Management
 
-You manage custom task visualizations that users can create via natural language.
+You manage custom task visualizations that users can create via natural language. The local HTML file at `~/.waggle/views/<slug>.html` is the source of truth in every environment; how it reaches the user differs by `execution_environment`.
 
 ## Session Bootstrap
 
-Invoke the `bootstrap-session` skill to establish the active provider and current user.
-Skip if `active_provider` and `current_user` are already set in this conversation.
+Invoke the `bootstrap-session` skill to establish the active provider, the current user, and `execution_environment`. Skip if these are already set in this conversation.
 
 ## Directory Setup
 
@@ -27,50 +29,137 @@ Custom views are stored outside the plugin directory so they survive updates:
 mkdir -p ~/.waggle/views
 ```
 
+## Mode Selection
+
+Pick the operation's transport based on `execution_environment`:
+
+- **`cli`** / **`claude-desktop`** → the local view server (`localhost:3456`) serves each `~/.waggle/views/<slug>.html` at `/custom/<slug>.html`. Plain file create/delete/edit on disk.
+- **`cowork`** → each custom view is registered as a Live Artifact with `id = "waggle-view-<slug>"` via `mcp__cowork__create_artifact`. Updates go through `mcp__cowork__update_artifact`. Cowork has **no delete API**, so delete degrades to a stub-HTML replacement (see Delete below).
+
+In both modes the local HTML at `~/.waggle/views/<slug>.html` remains the canonical source — Cowork operations regenerate from it via `generate-cowork-custom-artifact.sh`.
+
 ## Operations
 
 ### Create
 
 When the user asks to create a custom view (e.g., "create a view showing blocked tasks by assignee", "make a dashboard for team progress"):
 
-1. Derive a slug from the user's description (e.g., "team progress dashboard" -> `team-progress-dashboard`)
-2. Generate a standalone HTML file using the **Reference Template** below
-3. Write it to `~/.waggle/views/<slug>.html`
-4. Confirm creation and provide the URL: `http://localhost:3456/custom/<slug>.html`
-5. Open the view in the browser using platform detection (see viewing-tasks skill)
+1. Derive a slug from the user's description (e.g., "team progress dashboard" -> `team-progress-dashboard`). See **Naming Convention** below.
+2. Generate a standalone HTML file using the **Reference Template** below. The template must include the `<!-- COWORK_BOOT -->` marker inside `<head>` so Cowork-mode registration can inject the live-fetch adapter.
+3. Write it to `~/.waggle/views/<slug>.html`.
+
+**Then, depending on `execution_environment`**:
+
+- **`cli`** / **`claude-desktop`**: confirm creation and provide the URL `http://localhost:3456/custom/<slug>.html`. Open in the browser using platform detection (see viewing-tasks skill).
+- **`cowork`**: resolve `tasksDatabaseId` (and optional `current_team`) from `headless_config`, then run:
+
+  ```bash
+  bash "${CLAUDE_SKILL_DIR}/scripts/generate-cowork-custom-artifact.sh" \
+    "<slug>" "<tasksDatabaseId>" \
+    "<current_team.id or empty>" "<current_team.name or empty>" \
+    > /tmp/waggle-view-<slug>.html
+  ```
+
+  Then call:
+
+  ```
+  mcp__cowork__create_artifact({
+    id: "waggle-view-<slug>",
+    html_path: "/tmp/waggle-view-<slug>.html",
+    description: "<short description from user's request>",
+    mcp_tools: ["mcp__Notion_Extension_for_Waggle__notion-query"]
+  })
+  ```
+
+  Clean up: `rm -f /tmp/waggle-view-<slug>.html`. Tell the user to open the `waggle-view-<slug>` Live Artifact panel in the Cowork sidebar.
 
 ### List
 
 When the user asks to list custom views:
 
-```bash
-ls ~/.waggle/views/*.html 2>/dev/null
-```
+- **`cli`** / **`claude-desktop`**:
+  ```bash
+  ls ~/.waggle/views/*.html 2>/dev/null
+  ```
+  Or use the API: `curl -s http://localhost:3456/api/views | jq`
 
-Or use the API: `curl -s http://localhost:3456/api/views | jq`
+- **`cowork`**: call `mcp__cowork__list_artifacts()` and filter the response to entries where `id == "waggle-tasks"` (the primary dashboard) or `id.startsWith("waggle-view-")` (custom views). Surface each entry's `id`, `name`, and `createdAt`. Cowork's `list_artifacts` does not return the `description` or `mcp_tools` we pass on create — all metadata lives in the `id`.
 
 ### Delete
 
-When the user asks to delete a custom view:
+Confirm deletion with the user before proceeding.
 
-```bash
-rm ~/.waggle/views/<slug>.html
-```
+- **`cli`** / **`claude-desktop`**:
+  ```bash
+  rm ~/.waggle/views/<slug>.html
+  ```
 
-Confirm deletion with the user before removing.
+- **`cowork`**: Cowork has no delete API, and `id` is immutable across `update_artifact` calls. Degrade as follows:
+
+  1. Remove the local source: `rm -f ~/.waggle/views/<slug>.html`.
+  2. Write a stub HTML to `/tmp/waggle-view-<slug>-stub.html`:
+
+     ```html
+     <!DOCTYPE html>
+     <html lang="en">
+     <head>
+       <meta charset="UTF-8">
+       <title>View removed</title>
+       <style>body{font-family:-apple-system,sans-serif;padding:32px;color:#888;}</style>
+     </head>
+     <body>
+       <h2>This view has been removed.</h2>
+       <p>Dismiss this panel via the Cowork sidebar (✕).</p>
+     </body>
+     </html>
+     ```
+
+  3. Call:
+
+     ```
+     mcp__cowork__update_artifact({
+       id: "waggle-view-<slug>",
+       html_path: "/tmp/waggle-view-<slug>-stub.html",
+       update_summary: "[DELETED] <slug>"
+     })
+     ```
+
+  4. Tell the user the stub will linger until they manually dismiss the panel; this is the documented Cowork limitation, not a bug.
 
 ### Regenerate
 
 When the user asks to regenerate or update a custom view:
 
-1. Read the existing file to understand what it does
-2. Generate a new version incorporating the user's feedback
-3. Overwrite the file at `~/.waggle/views/<slug>.html`
-4. The view will update on next browser refresh
+1. Read the existing file at `~/.waggle/views/<slug>.html` to understand what it does.
+2. Generate a new version incorporating the user's feedback. Keep the `<!-- COWORK_BOOT -->` marker in `<head>`.
+3. Overwrite `~/.waggle/views/<slug>.html`.
+
+**Then, depending on `execution_environment`**:
+
+- **`cli`** / **`claude-desktop`**: the localhost server serves the updated file on next browser refresh.
+- **`cowork`**: re-run the cowork generator and call `update_artifact`:
+
+  ```bash
+  bash "${CLAUDE_SKILL_DIR}/scripts/generate-cowork-custom-artifact.sh" \
+    "<slug>" "<tasksDatabaseId>" \
+    "<current_team.id or empty>" "<current_team.name or empty>" \
+    > /tmp/waggle-view-<slug>.html
+  ```
+
+  ```
+  mcp__cowork__update_artifact({
+    id: "waggle-view-<slug>",
+    html_path: "/tmp/waggle-view-<slug>.html",
+    update_summary: "[FEAT] <one-line summary of changes>",
+    mcp_tools: ["mcp__Notion_Extension_for_Waggle__notion-query"]
+  })
+  ```
+
+  Clean up: `rm -f /tmp/waggle-view-<slug>.html`.
 
 ## Reference Template
 
-When generating a custom view HTML file, use this skeleton. Fill in the visualization logic based on the user's request.
+When generating a custom view HTML file, use this skeleton. Fill in the visualization logic based on the user's request. **Keep the `<!-- COWORK_BOOT -->` marker in `<head>` unchanged** — the Cowork generator replaces it with the live-fetch adapter; in cli / claude-desktop it stays a harmless HTML comment.
 
 ```html
 <!DOCTYPE html>
@@ -98,6 +187,7 @@ When generating a custom view HTML file, use this skeleton. Fill in the visualiz
   <style>
     body { background: #000; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif; -webkit-font-smoothing: antialiased; }
   </style>
+  <!-- COWORK_BOOT -->
 </head>
 <body class="min-h-screen text-white">
   <!-- Header -->
@@ -121,14 +211,34 @@ When generating a custom view HTML file, use this skeleton. Fill in the visualiz
   <script>
     let tasks = [];
 
-    // Check for static mode
-    if (window.__STATIC_DATA__) {
-      tasks = window.__STATIC_DATA__.tasks || [];
-      document.getElementById('sse-status').textContent = 'Static';
-      document.getElementById('sse-status').classList.add('bg-accent-orange/20', 'text-accent-orange');
-      render();
+    function setStatus(text, kind) {
+      const el = document.getElementById('sse-status');
+      if (!el) return;
+      el.textContent = text;
+      el.className = 'text-xs px-2 py-1 rounded-full ' + ({
+        live: 'bg-accent-green/20 text-accent-green',
+        cowork: 'bg-accent-blue/20 text-accent-blue',
+        error: 'bg-accent-red/20 text-accent-red',
+        idle: 'bg-surface-secondary text-label-tertiary'
+      }[kind] || 'bg-surface-secondary text-label-tertiary');
+    }
+
+    if (typeof window.__coworkFetch === 'function') {
+      // Cowork mode — generator replaced <!-- COWORK_BOOT --> with the adapter.
+      (async () => {
+        setStatus('Loading…', 'idle');
+        const data = await window.__coworkFetch();
+        tasks = data.tasks || [];
+        if (data.error) {
+          setStatus('Error: ' + data.error, 'error');
+          document.getElementById('app').innerHTML = '<p class="text-accent-red">Failed to load tasks: ' + data.error + '</p>';
+          return;
+        }
+        setStatus('Live (Cowork)', 'cowork');
+        render();
+      })();
     } else {
-      // Fetch initial data
+      // Localhost mode — local view server + SSE.
       fetch('/api/tasks')
         .then(r => r.json())
         .then(data => {
@@ -139,23 +249,14 @@ When generating a custom view HTML file, use this skeleton. Fill in the visualiz
           document.getElementById('app').innerHTML = '<p class="text-accent-red">Failed to load tasks.</p>';
         });
 
-      // SSE for real-time updates
       const es = new EventSource('/api/events');
-      es.addEventListener('connected', () => {
-        const el = document.getElementById('sse-status');
-        el.textContent = 'Live';
-        el.className = 'text-xs px-2 py-1 rounded-full bg-accent-green/20 text-accent-green';
-      });
+      es.addEventListener('connected', () => { setStatus('Live', 'live'); });
       es.addEventListener('refresh', (e) => {
         const data = JSON.parse(e.data);
         tasks = data.tasks || [];
         render();
       });
-      es.onerror = () => {
-        const el = document.getElementById('sse-status');
-        el.textContent = 'Disconnected';
-        el.className = 'text-xs px-2 py-1 rounded-full bg-accent-red/20 text-accent-red';
-      };
+      es.onerror = () => { setStatus('Disconnected', 'error'); };
     }
 
     // Click-to-copy task ID
@@ -171,6 +272,10 @@ When generating a custom view HTML file, use this skeleton. Fill in the visualiz
 
     function render() {
       const app = document.getElementById('app');
+      if (!tasks.length) {
+        app.innerHTML = '<p class="text-label-secondary">No tasks match this view.</p>';
+        return;
+      }
       // ===== CUSTOM VISUALIZATION LOGIC HERE =====
       // Use the `tasks` array. Each task has these fields:
       // See "Task Data Shape" below for the full interface.
@@ -230,7 +335,8 @@ Use lowercase, hyphens for spaces, remove special characters.
 
 - Match the existing dark theme (black background, glass-morphism surfaces)
 - Use the design system colors defined in the Tailwind config above
-- Keep the header consistent with back link to `/selector.html`
-- Include SSE status indicator
-- Make visualizations interactive where possible (hover states, click-to-copy)
-- Ensure the view is responsive
+- The back link to `/selector.html` is meaningful in localhost mode only; in Cowork it points to an artifact-internal path that won't resolve. The link can stay (harmless dead link in Cowork) or be hidden when `window.__coworkFetch` is defined.
+- Include the status badge (`#sse-status`) — the template's `setStatus()` helper renders "Live" (localhost) / "Live (Cowork)" / "Disconnected" / "Error" with consistent styling.
+- Make visualizations interactive where possible (hover states, click-to-copy).
+- Ensure the view is responsive.
+- Render the **Loading / Empty / Error** triad consistently: the template ships with "Loading…" + "No tasks match this view." + "Failed to load tasks: …" states wired up. Reuse those rather than inventing per-view variants.

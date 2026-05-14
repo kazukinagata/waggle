@@ -1,0 +1,224 @@
+#!/usr/bin/env bash
+# generate-cowork-custom-artifact.sh
+#
+# Wraps a single user-authored custom view HTML (~/.waggle/views/<slug>.html)
+# into a Cowork-ready artifact by replacing the `<!-- COWORK_BOOT -->` marker
+# with the live-fetch adapter (window.__COWORK_QUERY_CONFIG__ +
+# window.__coworkFetch). Single-renderer — no IIFE bundling like the
+# multi-view dashboard generator, because each custom view ships as its own
+# standalone artifact with its own render() in its own scope.
+#
+# Usage:
+#   generate-cowork-custom-artifact.sh <slug> <tasksDatabaseId> [team_id] [team_name]
+#
+# Output: writes the standalone HTML to stdout.
+#
+# This generator intentionally duplicates the cowork adapter JS with the
+# multi-view dashboard generator at skills/viewing-tasks/scripts/. Per the
+# project's skill-independence rule, scripts owned by one skill cannot
+# source files from another skill's directory. Keep the adapter in sync
+# manually when changes are needed in both places.
+
+set -euo pipefail
+
+SLUG="${1:?Usage: generate-cowork-custom-artifact.sh <slug> <tasksDatabaseId> [team_id] [team_name]}"
+DB_ID="${2:?Usage: generate-cowork-custom-artifact.sh <slug> <tasksDatabaseId> [team_id] [team_name]}"
+TEAM_ID="${3:-}"
+TEAM_NAME="${4:-}"
+
+TEMPLATE="$HOME/.waggle/views/${SLUG}.html"
+
+if [ ! -f "$TEMPLATE" ]; then
+  echo "Error: custom view template not found: $TEMPLATE" >&2
+  exit 1
+fi
+
+if ! head -3 "$TEMPLATE" | grep -qi '<!doctype html>'; then
+  echo "Error: $TEMPLATE missing <!DOCTYPE html> (mojibake guard)" >&2
+  exit 1
+fi
+if ! grep -qi '<meta charset="utf-8">' "$TEMPLATE"; then
+  echo "Error: $TEMPLATE missing <meta charset=\"UTF-8\"> (mojibake guard)" >&2
+  exit 1
+fi
+if ! grep -q '<!-- COWORK_BOOT -->' "$TEMPLATE"; then
+  echo "Error: $TEMPLATE missing <!-- COWORK_BOOT --> marker. The marker must" >&2
+  echo "       appear inside <head> for the live-fetch adapter to be injected." >&2
+  echo "       See the Reference Template in skills/managing-views/SKILL.md." >&2
+  exit 1
+fi
+
+# Build COWORK_QUERY_CONFIG JSON (databaseId + optional currentTeam)
+if [ -n "$TEAM_ID" ] && [ -n "$TEAM_NAME" ]; then
+  TEAM_JSON=$(printf '{"id":"%s","name":"%s"}' "$TEAM_ID" "$TEAM_NAME")
+else
+  TEAM_JSON="null"
+fi
+
+# Build the COWORK_BOOT replacement into a tempfile so sed can swap it in
+BOOT_FILE=$(mktemp)
+trap 'rm -f "$BOOT_FILE"' EXIT
+
+cat > "$BOOT_FILE" <<COWORK_BOOT
+<script>
+window.__COWORK_QUERY_CONFIG__ = {
+  databaseId: "${DB_ID}",
+  currentTeam: ${TEAM_JSON}
+};
+</script>
+<script>
+/* Cowork live-fetch adapter (custom view) */
+(function () {
+  'use strict';
+  var COLD_START_TIMEOUT_MS = 3000;
+  var COLD_START_POLL_INTERVAL_MS = 50;
+  var PAGE_SIZE = 100;
+  var MAX_ROWS = 1000;
+
+  function waitForCowork() {
+    return new Promise(function (resolve, reject) {
+      var start = Date.now();
+      (function poll() {
+        if (window.cowork && typeof window.cowork.callMcpTool === 'function') {
+          resolve();
+        } else if (Date.now() - start > COLD_START_TIMEOUT_MS) {
+          reject(new Error('Cowork runtime unavailable (timed out). Reload the panel, or call any Notion MCP tool from chat once before reopening.'));
+        } else {
+          setTimeout(poll, COLD_START_POLL_INTERVAL_MS);
+        }
+      })();
+    });
+  }
+
+  function extractJson(maybe) {
+    var v = maybe;
+    if (v && typeof v === 'object' && Array.isArray(v.content)) {
+      var textPart = v.content.find(function (c) { return c && c.type === 'text' && typeof c.text === 'string'; });
+      if (textPart) v = textPart.text;
+    }
+    if (typeof v === 'string' && (v.indexOf('Tool call failed') === 0 || v.indexOf('Error:') === 0)) {
+      throw new Error(v);
+    }
+    if (v && typeof v === 'object' && (v.results || v.object === 'list')) return v;
+    if (typeof v !== 'string') v = JSON.stringify(v);
+    var first = v.indexOf('{');
+    var last = v.lastIndexOf('}');
+    if (first < 0 || last <= first) throw new Error('No JSON span in MCP response: ' + v.slice(0, 200));
+    return JSON.parse(v.substring(first, last + 1));
+  }
+
+  function rtText(rt) {
+    if (!Array.isArray(rt)) return '';
+    return rt.map(function (x) { return x.plain_text || ''; }).join('');
+  }
+
+  function parseNotionPageToTask(p) {
+    var props = p.properties || {};
+    var pick = function (k) { return props[k] || {}; };
+    return {
+      id: p.id,
+      url: p.url || null,
+      title: ((pick('Title').title) || []).map(function (x) { return x.plain_text || ''; }).join(''),
+      description: rtText(pick('Description').rich_text).slice(0, 400),
+      acceptanceCriteria: rtText(pick('Acceptance Criteria').rich_text).slice(0, 200),
+      status: (pick('Status').select && pick('Status').select.name) || 'Backlog',
+      blockedBy: (pick('Blocked By').relation || []).map(function (r) { return r.id; }),
+      priority: (pick('Priority').select && pick('Priority').select.name) || null,
+      executor: (pick('Executor').select && pick('Executor').select.name) || null,
+      requiresReview: pick('Requires Review').checkbox === true,
+      executionPlan: rtText(pick('Execution Plan').rich_text).slice(0, 200),
+      workingDirectory: rtText(pick('Working Directory').rich_text),
+      sessionReference: rtText(pick('Session Reference').rich_text),
+      dispatchedAt: (pick('Dispatched At').date && pick('Dispatched At').date.start) || null,
+      agentOutput: rtText(pick('Agent Output').rich_text).slice(0, 200),
+      errorMessage: rtText(pick('Error Message').rich_text),
+      context: '',
+      artifacts: '',
+      repository: pick('Repository').url || null,
+      dueDate: (pick('Due Date').date && pick('Due Date').date.start) || null,
+      tags: (pick('Tags').multi_select || []).map(function (t) { return t.name; }),
+      parentTaskId: ((pick('Parent Task').relation || [])[0] || {}).id || null,
+      project: null,
+      team: null,
+      assignee: (pick('Assignee').people || []).map(function (u) { return { id: u.id, name: u.name || '' }; }),
+      acknowledgedAt: (pick('Acknowledged At').date && pick('Acknowledged At').date.start) || null,
+      createdAt: pick('Created At').created_time || p.created_time || null
+    };
+  }
+
+  async function paginatedQuery(databaseId) {
+    var rows = [];
+    var cursor;
+    var truncated = false;
+    var loops = 0;
+    while (true) {
+      loops++;
+      if (loops > 20) break;
+      var args = { database_id: databaseId, page_size: PAGE_SIZE };
+      if (cursor) args.start_cursor = cursor;
+      var res = await window.cowork.callMcpTool('mcp__Notion_Extension_for_Waggle__notion-query', args);
+      var data = extractJson(res);
+      var results = data.results || [];
+      for (var i = 0; i < results.length && rows.length < MAX_ROWS; i++) rows.push(results[i]);
+      if (rows.length >= MAX_ROWS) { truncated = true; break; }
+      if (!data.has_more) break;
+      cursor = data.next_cursor;
+      if (!cursor) break;
+    }
+    return { rows: rows, truncated: truncated };
+  }
+
+  async function coworkFetch() {
+    try {
+      await waitForCowork();
+    } catch (e) {
+      console.error('[waggle-view] cowork runtime unavailable:', e);
+      window.__coworkLastError = e;
+      return { tasks: [], updatedAt: new Date().toISOString(), error: e.message || String(e) };
+    }
+    var cfg = window.__COWORK_QUERY_CONFIG__ || {};
+    if (!cfg.databaseId) {
+      var err = new Error('Missing tasksDatabaseId — regenerate via /managing-views.');
+      window.__coworkLastError = err;
+      return { tasks: [], updatedAt: new Date().toISOString(), error: err.message };
+    }
+    try {
+      var out = await paginatedQuery(cfg.databaseId);
+      var tasks = out.rows.map(parseNotionPageToTask);
+      return {
+        tasks: tasks,
+        updatedAt: new Date().toISOString(),
+        currentTeam: cfg.currentTeam || null,
+        truncated: out.truncated
+      };
+    } catch (e) {
+      console.error('[waggle-view] fetch failed:', e);
+      window.__coworkLastError = e;
+      return { tasks: [], updatedAt: new Date().toISOString(), error: e.message || String(e) };
+    }
+  }
+
+  // Custom views call window.__coworkFetch() themselves and use the returned
+  // { tasks, updatedAt } to populate their own state. Unlike the bundled
+  // dashboard, there is no shared.js / W.updateData here — the custom view
+  // template owns its data plumbing.
+  window.__coworkFetch = coworkFetch;
+})();
+</script>
+COWORK_BOOT
+
+# Substitute the COWORK_BOOT marker with the generated block.
+# Read the boot block into a python variable (via env) for safe substitution —
+# sed can't easily handle multi-line replacements with shell special chars.
+BOOT_CONTENT=$(cat "$BOOT_FILE")
+export BOOT_CONTENT
+python3 -c '
+import os, sys
+template = open(sys.argv[1], "r", encoding="utf-8").read()
+boot = os.environ["BOOT_CONTENT"]
+if "<!-- COWORK_BOOT -->" not in template:
+    sys.stderr.write("Error: marker missing at substitution time\n")
+    sys.exit(1)
+out = template.replace("<!-- COWORK_BOOT -->", boot, 1)
+sys.stdout.write(out)
+' "$TEMPLATE"
