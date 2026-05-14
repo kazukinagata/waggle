@@ -181,6 +181,10 @@
     if (updatedEl && data.updatedAt) updatedEl.textContent = 'Updated: ' + new Date(data.updatedAt).toLocaleTimeString();
     if (W.onFilterBarUpdate) W.onFilterBarUpdate();
     if (W.onDataUpdate) W.onDataUpdate();
+    // Multiplex hook for bundled artifacts (e.g. Cowork dashboard) where multiple
+    // view renderers register via `(W._renderers = W._renderers || []).push(render)`.
+    // Undefined in localhost mode → zero behavior change.
+    if (W._renderers) W._renderers.forEach(function (f) { try { f(); } catch (e) {} });
   }
 
   function fetchTasks() {
@@ -220,27 +224,31 @@
   function refreshTasks() {
     var btn = document.getElementById('refresh-btn');
     if (btn) btn.classList.add('loading');
-    fetchTasks().then(function () {
+    // Cowork-mode artifacts inject window.__coworkFetch and skip the localhost
+    // server entirely. Delegate refresh to it when present. The Cowork adapter
+    // returns `true` on a fresh successful fetch and `false` when it surfaced
+    // an error banner — skip the "Refreshed" toast on the false branch so the
+    // banner and toast don't contradict each other.
+    var p = (typeof window.__coworkFetch === 'function')
+      ? Promise.resolve().then(function () { return window.__coworkFetch(); })
+      : fetchTasks();
+    p.then(function (result) {
       if (btn) btn.classList.remove('loading');
+      if (result === false) return;
       showToast('Refreshed');
+    }, function () {
+      // Rejection guard: never leave the button stuck in the loading state.
+      if (btn) btn.classList.remove('loading');
     });
   }
 
   function initData() {
-    if (window.__STATIC_DATA__) {
-      updateData(window.__STATIC_DATA__);
-      var dot = document.getElementById('sse-dot');
-      var status = document.getElementById('sse-status');
-      var updatedEl = document.getElementById('updated-at');
-      if (dot) dot.style.display = 'none';
-      if (status) status.textContent = 'Static';
-      if (updatedEl && window.__STATIC_DATA__.updatedAt) {
-        updatedEl.textContent = 'Generated: ' + new Date(window.__STATIC_DATA__.updatedAt).toLocaleTimeString();
-      }
-    } else {
-      fetchTasks();
-      connectSSE();
+    if (typeof window.__coworkFetch === 'function') {
+      window.__coworkFetch();
+      return;
     }
+    fetchTasks();
+    connectSSE();
   }
 
   // ── Keyboard Navigation ──

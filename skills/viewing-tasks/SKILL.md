@@ -1,8 +1,10 @@
 ---
 name: viewing-tasks
 description: >
-  Manages the local view server that renders task data as interactive HTML pages
-  (Kanban, List, Calendar, Gantt). Starts the server, pushes data, and opens views.
+  Renders task data as interactive HTML dashboards (Kanban, List, Calendar, Gantt).
+  In cli / claude-desktop the dashboard is served by a local view server on
+  localhost:3456. In Cowork the dashboard is registered as a Live Artifact that
+  fetches Notion data directly via window.cowork.callMcpTool.
   Use this skill whenever the user wants to see tasks visually — board views,
   timelines, calendars, or any kind of task visualization or dashboard display.
   Triggers on: "kanban", "list view", "show tasks", "view", "visualize",
@@ -10,34 +12,89 @@ description: >
 user-invocable: true
 ---
 
-# Waggle — View Server
+# Waggle — Tasks Dashboard
 
-You manage the local view server that renders task data as interactive HTML pages.
+You render the user's tasks as an interactive dashboard. The transport depends on the execution environment; the user-visible interface (Kanban / List / Calendar / Gantt) is the same in every environment.
 
 ## Session Bootstrap
 
-Invoke the `bootstrap-session` skill to establish the active provider and current user.
-Skip if `active_provider` and `current_user` are already set in this conversation.
+Invoke the `bootstrap-session` skill to establish the active provider, the current user, and `execution_environment`. Skip if these are already set in this conversation.
 
-## Environment Detection
+## Mode Selection
 
-Before starting, detect the runtime environment:
+Pick the transport based on `execution_environment` (set by bootstrap):
 
-```bash
-# Check if running in a remote/sandboxed environment where localhost is not accessible from the user's browser
-if [ -n "${CLOUD_SHELL:-}" ]; then
-  # Use static HTML export mode (see below)
-  STATIC_MODE=true
-else
-  STATIC_MODE=false
-fi
-```
+- **`cowork`** → use **Cowork Live Artifact Mode** (below). localhost is not reachable from the user's browser in Cowork.
+- **`cli`** / **`claude-desktop`** → use **Localhost Server Mode** (below). The local view server hosts the dashboard at `http://localhost:3456`.
 
-If `STATIC_MODE=true`, skip "Starting the Server" and go directly to **Static HTML Export** below.
+The two modes use the same `Task` data shape and the same set of view renderers (kanban / list / calendar / gantt). Only the transport and the host shell differ.
 
-## Starting the Server
+## Cowork Live Artifact Mode
 
-The view server runs at `http://localhost:3456`. To start it:
+In Cowork, the dashboard is a single Live Artifact (`id = "waggle-tasks"`) that bundles all four view renderers with a tab strip at the top. The artifact fetches Notion data itself via `mcp__Notion_Extension_for_Waggle__notion-query`; refresh is driven by Cowork's built-in ↻ button or the in-page refresh, both of which re-run the artifact JS.
+
+### Steps
+
+1. Resolve `tasksDatabaseId` from `headless_config` (set during bootstrap). If `current_team` is set, capture `current_team.id` / `current_team.name` for baking into the artifact.
+
+2. Generate the bundled HTML:
+
+   ```bash
+   bash "${CLAUDE_SKILL_DIR}/scripts/generate-cowork-artifact.sh" \
+     "<tasksDatabaseId>" \
+     "<current_team.id or empty>" \
+     "<current_team.name or empty>" \
+     > /tmp/waggle-tasks.html
+   ```
+
+3. Call `mcp__cowork__list_artifacts()` and check whether the response includes an entry with `id == "waggle-tasks"`.
+
+4. **If the artifact already exists**, refresh it in place via `update_artifact` (don't create a duplicate):
+
+   ```
+   mcp__cowork__update_artifact({
+     id: "waggle-tasks",
+     html_path: "/tmp/waggle-tasks.html",
+     update_summary: "[REFRESH] regenerated against latest schema / team",
+     mcp_tools: ["mcp__Notion_Extension_for_Waggle__notion-query"]
+   })
+   ```
+
+   This re-bakes the latest `databaseId` / `currentTeam` and picks up any code changes since the last registration. The user gets the Cowork approval prompt on update.
+
+5. **If the artifact does not exist**, register it via `create_artifact`:
+
+   ```
+   mcp__cowork__create_artifact({
+     id: "waggle-tasks",
+     html_path: "/tmp/waggle-tasks.html",
+     description: "Waggle Tasks Dashboard — Kanban / List / Calendar / Gantt",
+     mcp_tools: ["mcp__Notion_Extension_for_Waggle__notion-query"]
+   })
+   ```
+
+6. Clean up the temp file: `rm -f /tmp/waggle-tasks.html`. Tell the user to open the **waggle-tasks** Live Artifact panel in the Cowork sidebar (or, on update, reload the existing panel).
+
+### Cowork-mode behavior
+
+- The artifact bundles Kanban / List / Calendar / Gantt; the active tab is persisted per-user in `localStorage` (`waggle-tasks-active-tab-v1`).
+- Each artifact reload re-fetches via `mcp__Notion_Extension_for_Waggle__notion-query` (paginated, cap 1000 rows). The status badge reads "Live (Cowork)" when the fetch succeeds.
+- The artifact is **read-only**. Mutating Notion tools are deliberately not declared in `mcp_tools` yet; inline-edit UI will come in a later skill release and will widen `mcp_tools` via `update_artifact`.
+- **Windows cold-start (GitHub Issue #55788)**: on Windows the artifact's first call to `callMcpTool` may fail with HTTP 400 in a cold-start state. Workaround: ask the user to invoke any Notion MCP tool from the Cowork chat once before opening the artifact, then reload the panel. Mac is unaffected.
+- Custom user-defined views are managed by the `managing-views` skill and registered as separate `waggle-view-<slug>` artifacts.
+
+### Troubleshooting
+
+- **"Cowork runtime unavailable" banner** in the artifact: the cold-start race fired. Reload the panel, or have the user run any Notion MCP tool from chat first.
+- **"Failed to load tasks: ..."**: open DevTools on the artifact panel (right-click → Inspect). Network tab shows the `callMcpTool` request; Console shows any JS errors. Verify the baked `databaseId` matches the active `tasksDatabaseId`.
+- **Dashboard shows stale data**: click the Cowork built-in ↻, which re-executes the artifact JS and re-fetches.
+- **Stale artifact (schema changed, wrong team)**: re-run `/viewing-tasks` — the skill regenerates and calls `update_artifact` with the latest `databaseId` / team binding.
+
+## Localhost Server Mode
+
+In cli / claude-desktop, the dashboard is served from a local Hono server on `http://localhost:3456`. The skill ensures the server is running, pushes the current task snapshot, and opens the browser.
+
+### Starting the Server
 
 ```bash
 cd "${CLAUDE_SKILL_DIR}/server" && npm ci --silent && npx tsx src/index.ts &
@@ -51,7 +108,7 @@ curl -s http://localhost:3456/api/health 2>/dev/null
 
 If the health check succeeds, the server is already running. Do NOT start a second instance.
 
-## Available Views
+### Available Views
 
 | View | URL | Status |
 |---|---|---|
@@ -61,7 +118,7 @@ If the health check succeeds, the server is already running. Do NOT start a seco
 | Calendar | http://localhost:3456/calendar.html | Available |
 | Gantt | http://localhost:3456/gantt.html | Available |
 
-## Opening a View
+### Opening a View
 
 After ensuring the server is running, open the appropriate URL in the user's browser:
 
@@ -78,7 +135,7 @@ wslview http://localhost:3456/kanban.html
 
 Detect the platform and use the appropriate command.
 
-## Initializing Data After Start
+### Initializing Data After Start
 
 After starting the server, push current task data so the view is populated.
 Follow the **Pushing Data to View Server** section in the active provider's SKILL.md to:
@@ -86,11 +143,11 @@ Follow the **Pushing Data to View Server** section in the active provider's SKIL
 2. Format as `{ "tasks": [...], "updatedAt": "<ISO timestamp>", "currentTeam": { "id": "<id>", "name": "<name>" } }` (include `currentTeam` if `current_team` is set from resolving-identity; omit if null)
 3. POST to `http://localhost:3456/api/data`
 
-## Custom Views
+### Custom Views
 
 Users can create custom visualizations using the `managing-views` skill. Custom views are served at `/custom/<slug>.html`.
 
-### Opening a Custom View
+#### Opening a Custom View
 
 ```bash
 # macOS
@@ -103,21 +160,15 @@ xdg-open http://localhost:3456/custom/<slug>.html
 wslview http://localhost:3456/custom/<slug>.html
 ```
 
-### Listing Custom Views
+#### Listing Custom Views
 
 ```bash
 ls ~/.waggle/views/*.html
 ```
 
-### Static Export for Custom Views
-
-```bash
-"${CLAUDE_SKILL_DIR}/scripts/generate-static-html.sh" custom:<slug> /tmp/tasks.json > /tmp/<slug>.html
-```
-
 To create, delete, or regenerate custom views, use the `managing-views` skill.
 
-## View Features
+### View Features (Localhost Mode)
 
 All views support:
 - **Real-time updates**: Connected to SSE at `/api/events`. Changes made via managing-tasks skill are reflected automatically.
@@ -125,45 +176,7 @@ All views support:
 - **Click-to-copy**: Click a task to copy its ID for use in Claude Code
 - **Dark mode**: Default dark theme
 
-## Static HTML Export
-
-When running in a remote environment (e.g. cloud shell) where localhost is not accessible from the user's browser, generate a standalone HTML file with embedded task data instead of starting the server.
-
-### Steps
-
-1. Fetch all tasks from the data source (follow the active provider's SKILL.md)
-2. Save the task data as a temporary JSON file:
-
-```bash
-cat > /tmp/tasks.json << 'TASKEOF'
-{ "tasks": [...], "updatedAt": "<ISO timestamp>" }
-TASKEOF
-```
-
-3. Generate the standalone HTML:
-
-```bash
-"${CLAUDE_SKILL_DIR}/scripts/generate-static-html.sh" <view> /tmp/tasks.json > /tmp/<view>.html
-```
-
-Supported views: `kanban`, `list`
-
-4. Present the generated HTML file to the user. In environments that support artifacts (e.g. Claude Desktop), output the HTML content directly so it can be rendered in the browser. Otherwise, inform the user of the file path.
-
-5. Clean up temporary files:
-
-```bash
-rm -f /tmp/tasks.json /tmp/<view>.html
-```
-
-### Static Mode Behavior
-
-- All task data is embedded in the HTML — no server or network access required
-- SSE indicator shows "Static" instead of "Live"
-- Filtering and search work normally (client-side)
-- Back links to the view selector are disabled (single-file mode)
-
-## Troubleshooting
+### Troubleshooting (Localhost Mode)
 
 If views don't update after task changes:
 1. Check the server is running: `curl http://localhost:3456/api/health`
