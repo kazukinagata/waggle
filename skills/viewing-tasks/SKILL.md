@@ -19,22 +19,6 @@ You manage the local view server that renders task data as interactive HTML page
 Invoke the `bootstrap-session` skill to establish the active provider and current user.
 Skip if `active_provider` and `current_user` are already set in this conversation.
 
-## Environment Detection
-
-Before starting, detect the runtime environment:
-
-```bash
-# Check if running in a remote/sandboxed environment where localhost is not accessible from the user's browser
-if [ -n "${CLOUD_SHELL:-}" ]; then
-  # Use static HTML export mode (see below)
-  STATIC_MODE=true
-else
-  STATIC_MODE=false
-fi
-```
-
-If `STATIC_MODE=true`, skip "Starting the Server" and go directly to **Static HTML Export** below.
-
 ## Starting the Server
 
 The view server runs at `http://localhost:3456`. To start it:
@@ -109,12 +93,6 @@ wslview http://localhost:3456/custom/<slug>.html
 ls ~/.waggle/views/*.html
 ```
 
-### Static Export for Custom Views
-
-```bash
-"${CLAUDE_SKILL_DIR}/scripts/generate-static-html.sh" custom:<slug> /tmp/tasks.json > /tmp/<slug>.html
-```
-
 To create, delete, or regenerate custom views, use the `managing-views` skill.
 
 ## View Features
@@ -124,44 +102,6 @@ All views support:
 - **Client-side filtering**: Filter by Status, Priority, search text
 - **Click-to-copy**: Click a task to copy its ID for use in Claude Code
 - **Dark mode**: Default dark theme
-
-## Static HTML Export
-
-When running in a remote environment (e.g. cloud shell) where localhost is not accessible from the user's browser, generate a standalone HTML file with embedded task data instead of starting the server.
-
-### Steps
-
-1. Fetch all tasks from the data source (follow the active provider's SKILL.md)
-2. Save the task data as a temporary JSON file:
-
-```bash
-cat > /tmp/tasks.json << 'TASKEOF'
-{ "tasks": [...], "updatedAt": "<ISO timestamp>" }
-TASKEOF
-```
-
-3. Generate the standalone HTML:
-
-```bash
-"${CLAUDE_SKILL_DIR}/scripts/generate-static-html.sh" <view> /tmp/tasks.json > /tmp/<view>.html
-```
-
-Supported views: `kanban`, `list`
-
-4. Present the generated HTML file to the user. In environments that support artifacts (e.g. Claude Desktop), output the HTML content directly so it can be rendered in the browser. Otherwise, inform the user of the file path.
-
-5. Clean up temporary files:
-
-```bash
-rm -f /tmp/tasks.json /tmp/<view>.html
-```
-
-### Static Mode Behavior
-
-- All task data is embedded in the HTML — no server or network access required
-- SSE indicator shows "Static" instead of "Live"
-- Filtering and search work normally (client-side)
-- Back links to the view selector are disabled (single-file mode)
 
 ## Troubleshooting
 

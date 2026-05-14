@@ -227,20 +227,8 @@
   }
 
   function initData() {
-    if (window.__STATIC_DATA__) {
-      updateData(window.__STATIC_DATA__);
-      var dot = document.getElementById('sse-dot');
-      var status = document.getElementById('sse-status');
-      var updatedEl = document.getElementById('updated-at');
-      if (dot) dot.style.display = 'none';
-      if (status) status.textContent = 'Static';
-      if (updatedEl && window.__STATIC_DATA__.updatedAt) {
-        updatedEl.textContent = 'Generated: ' + new Date(window.__STATIC_DATA__.updatedAt).toLocaleTimeString();
-      }
-    } else {
-      fetchTasks();
-      connectSSE();
-    }
+    fetchTasks();
+    connectSSE();
   }
 
   // ── Keyboard Navigation ──
