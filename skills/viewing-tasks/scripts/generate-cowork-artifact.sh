@@ -80,9 +80,11 @@ extract_view_body() {
   ' "$1"
 }
 
-# Extract the inline <script> body (the last `<script>` block, which has no
-# src attribute). All four view HTMLs put this immediately after the three
-# `<script src="...">` external loads.
+# Extract the inline <script> body — the first bare `^<script>$` line (no
+# src attribute, no inline JSON props). This matches all four current view
+# HTMLs, each of which has exactly one such block after the three
+# `<script src="...">` external loads. If a view ever adds a second inline
+# block, the render_count==4 self-test below will fail to surface it.
 extract_view_inline_script() {
   awk '
     /^<script>[[:space:]]*$/ { in_script=1; next }
@@ -91,17 +93,25 @@ extract_view_inline_script() {
   ' "$1"
 }
 
-# Scope per-view "broad" CSS selectors (body / main at start of rule) to the
-# view's pane attribute so they do not leak across panes when bundled. Other
-# rules use unique class names and need no rewriting.
+# Scope per-view "broad" CSS selectors that start with `body` or `main` to the
+# view's pane attribute so they do not leak across panes when bundled. Catches:
+#   body { … }              → [data-view-pane="<view>"] { … }
+#   body.foo { … }          → [data-view-pane="<view>"].foo { … }
+#   body .foo { … }         → [data-view-pane="<view>"] .foo { … }
+#   body > .foo { … }       → [data-view-pane="<view>"] > .foo { … }
+#   main { … }              → [data-view-pane="<view>"] main { … }
+#   main .foo { … }         → [data-view-pane="<view>"] main .foo { … }
+# The trigger is `body` or `main` as a whole word at the start of a selector
+# line (after optional indentation), followed by any non-identifier character.
+# Other rules use unique class names and need no rewriting.
 scope_view_style() {
   local view="$1"
   awk -v view="$view" '
-    /^[[:space:]]*body[[:space:]]*\{/ {
+    /^[[:space:]]*body([^a-zA-Z0-9_-]|$)/ {
       sub(/body/, "[data-view-pane=\"" view "\"]")
       print; next
     }
-    /^[[:space:]]*main[[:space:]]*\{/ {
+    /^[[:space:]]*main([^a-zA-Z0-9_-]|$)/ {
       sub(/main/, "[data-view-pane=\"" view "\"] main")
       print; next
     }
@@ -174,21 +184,12 @@ FILTER_JS=$(cat "$STATIC_DIR/filter-bar.js")
 DETAIL_CSS=$(cat "$STATIC_DIR/detail-panel.css")
 DETAIL_JS=$(cat "$STATIC_DIR/detail-panel.js")
 
-# ── Build the COWORK_QUERY_CONFIG JSON (injection-safe via python json) ──
-#
-# DB_ID / TEAM_ID / TEAM_NAME flow from agent-resolved values; never trust
-# raw string interpolation into JS. Use python json.dumps so quotes /
-# backslashes / unicode get escaped correctly. The emitted blob is a JSON
-# literal which is also a valid JS literal.
-
-COWORK_CONFIG_JSON=$(python3 -c '
-import json, sys
-db = sys.argv[1]
-team_id = sys.argv[2] or ""
-team_name = sys.argv[3] or ""
-team = {"id": team_id, "name": team_name} if (team_id and team_name) else None
-print(json.dumps({"databaseId": db, "currentTeam": team}, ensure_ascii=False))
-' "$DB_ID" "$TEAM_ID" "$TEAM_NAME")
+# The COWORK_QUERY_CONFIG JSON block is emitted inline below from Python
+# (see the "Cowork query config + adapter" section). DB_ID / TEAM_ID /
+# TEAM_NAME flow from agent-resolved values; never trust raw string
+# interpolation into JS. Python json.dumps escapes quotes / backslashes /
+# unicode correctly. Building the block in Python also bypasses bash heredoc
+# expansion entirely.
 
 # ── Emit the bundle ──────────────────────────────────────────────────────
 
@@ -289,14 +290,22 @@ HEADER_HTML
   printf '</script>\n'
 
   # ── Cowork query config + adapter ──
-  # COWORK_CONFIG_JSON is built via python json.dumps above — safe for direct
-  # interpolation since the result is already a valid JSON literal (and
-  # therefore a valid JS literal).
-  cat <<COWORK_CONFIG
-<script>
-window.__COWORK_QUERY_CONFIG__ = ${COWORK_CONFIG_JSON};
-</script>
-COWORK_CONFIG
+  # Emit the config block entirely from Python to bypass bash heredoc
+  # interpolation. bash heredocs only do a single expansion pass, so any
+  # `$X` patterns inside the JSON would survive intact today — but a future
+  # maintainer adding a literal `$X` or backtick to the body would get a
+  # surprise. Building the block in Python removes the foot-gun entirely.
+  python3 -c '
+import json, sys
+db = sys.argv[1]
+team_id = sys.argv[2] or ""
+team_name = sys.argv[3] or ""
+team = {"id": team_id, "name": team_name} if (team_id and team_name) else None
+cfg = {"databaseId": db, "currentTeam": team}
+print("<script>")
+print("window.__COWORK_QUERY_CONFIG__ = " + json.dumps(cfg, ensure_ascii=False) + ";")
+print("</script>")
+' "$DB_ID" "$TEAM_ID" "$TEAM_NAME"
 
   cat <<'COWORK_ADAPTER'
 <script>
@@ -422,6 +431,10 @@ COWORK_CONFIG
     return { rows: rows, truncated: truncated };
   }
 
+  // Returns `true` when fresh data was painted, `false` when an error banner
+  // was surfaced. shared.js's refreshTasks() reads this to decide whether to
+  // fire the "Refreshed" toast — silencing it on the false branch so the
+  // toast doesn't contradict the visible banner.
   async function coworkFetch() {
     setStatus('Loading…', false);
     setBanner('');
@@ -430,13 +443,13 @@ COWORK_CONFIG
     } catch (e) {
       setStatus('Error', false);
       setBanner(e.message || String(e), 'error');
-      return;
+      return false;
     }
     var cfg = window.__COWORK_QUERY_CONFIG__ || {};
     if (!cfg.databaseId) {
       setStatus('Error', false);
       setBanner('Missing tasksDatabaseId — regenerate the artifact via /viewing-tasks.', 'error');
-      return;
+      return false;
     }
     try {
       var out = await paginatedQuery(cfg.databaseId);
@@ -446,9 +459,11 @@ COWORK_CONFIG
       }
       setStatus('Live (Cowork)', true);
       if (out.truncated) setBanner('Showing first ' + MAX_ROWS + ' tasks (workspace exceeds cap).', 'warn');
+      return true;
     } catch (e) {
       setStatus('Error', false);
       setBanner('Failed to load tasks: ' + (e.message || String(e)), 'error');
+      return false;
     }
   }
 

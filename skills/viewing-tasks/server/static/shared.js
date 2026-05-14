@@ -225,13 +225,20 @@
     var btn = document.getElementById('refresh-btn');
     if (btn) btn.classList.add('loading');
     // Cowork-mode artifacts inject window.__coworkFetch and skip the localhost
-    // server entirely. Delegate refresh to it when present.
+    // server entirely. Delegate refresh to it when present. The Cowork adapter
+    // returns `true` on a fresh successful fetch and `false` when it surfaced
+    // an error banner — skip the "Refreshed" toast on the false branch so the
+    // banner and toast don't contradict each other.
     var p = (typeof window.__coworkFetch === 'function')
-      ? Promise.resolve(window.__coworkFetch())
+      ? Promise.resolve().then(function () { return window.__coworkFetch(); })
       : fetchTasks();
-    p.then(function () {
+    p.then(function (result) {
       if (btn) btn.classList.remove('loading');
+      if (result === false) return;
       showToast('Refreshed');
+    }, function () {
+      // Rejection guard: never leave the button stuck in the loading state.
+      if (btn) btn.classList.remove('loading');
     });
   }
 

@@ -57,27 +57,31 @@ if ! grep -q '<!-- COWORK_BOOT -->' "$TEMPLATE"; then
   exit 1
 fi
 
-# Build COWORK_QUERY_CONFIG JSON safely via python json.dumps. Inputs are
-# agent-resolved values but might contain quotes / unicode; never trust raw
-# string interpolation into JS.
-COWORK_CONFIG_JSON=$(python3 -c '
+# Build the COWORK_BOOT replacement into a tempfile so the python substitution
+# step can swap it into the template. The config line is emitted by Python
+# below to avoid relying on bash heredoc expansion semantics (which would do
+# one pass over the JSON value, surviving today but brittle if a maintainer
+# adds a literal `$X` or backtick to the heredoc body in the future).
+BOOT_FILE=$(mktemp)
+trap 'rm -f "$BOOT_FILE"' EXIT
+
+# Emit the config block from Python (writes to BOOT_FILE).
+python3 -c '
 import json, sys
 db = sys.argv[1]
 team_id = sys.argv[2] or ""
 team_name = sys.argv[3] or ""
 team = {"id": team_id, "name": team_name} if (team_id and team_name) else None
-print(json.dumps({"databaseId": db, "currentTeam": team}, ensure_ascii=False))
-' "$DB_ID" "$TEAM_ID" "$TEAM_NAME")
+cfg = {"databaseId": db, "currentTeam": team}
+with open(sys.argv[4], "w", encoding="utf-8") as f:
+    f.write("<script>\n")
+    f.write("window.__COWORK_QUERY_CONFIG__ = " + json.dumps(cfg, ensure_ascii=False) + ";\n")
+    f.write("</script>\n")
+' "$DB_ID" "$TEAM_ID" "$TEAM_NAME" "$BOOT_FILE"
 
-# Build the COWORK_BOOT replacement into a tempfile so the python substitution
-# step can swap it in below.
-BOOT_FILE=$(mktemp)
-trap 'rm -f "$BOOT_FILE"' EXIT
-
-cat > "$BOOT_FILE" <<COWORK_BOOT
-<script>
-window.__COWORK_QUERY_CONFIG__ = ${COWORK_CONFIG_JSON};
-</script>
+# Append the adapter script with a quoted heredoc so nothing in the body is
+# bash-interpolated.
+cat >> "$BOOT_FILE" <<'COWORK_BOOT'
 <script>
 /* Cowork live-fetch adapter (custom view) */
 (function () {
