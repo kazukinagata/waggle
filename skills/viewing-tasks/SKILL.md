@@ -37,13 +37,7 @@ In Cowork, the dashboard is a single Live Artifact (`id = "waggle-tasks"`) that 
 
 1. Resolve `tasksDatabaseId` from `headless_config` (set during bootstrap). If `current_team` is set, capture `current_team.id` / `current_team.name` for baking into the artifact.
 
-2. Call `mcp__cowork__list_artifacts()`. If the response includes an entry with `id == "waggle-tasks"`, the dashboard is already registered. Tell the user:
-
-   > "Your Tasks Dashboard is already registered. Open the **waggle-tasks** Live Artifact panel in Cowork to view it."
-
-   Stop here — do **not** re-register.
-
-3. Otherwise (no existing artifact), generate the bundled HTML and register it:
+2. Generate the bundled HTML:
 
    ```bash
    bash "${CLAUDE_SKILL_DIR}/scripts/generate-cowork-artifact.sh" \
@@ -53,7 +47,22 @@ In Cowork, the dashboard is a single Live Artifact (`id = "waggle-tasks"`) that 
      > /tmp/waggle-tasks.html
    ```
 
-   Then call:
+3. Call `mcp__cowork__list_artifacts()` and check whether the response includes an entry with `id == "waggle-tasks"`.
+
+4. **If the artifact already exists**, refresh it in place via `update_artifact` (don't create a duplicate):
+
+   ```
+   mcp__cowork__update_artifact({
+     id: "waggle-tasks",
+     html_path: "/tmp/waggle-tasks.html",
+     update_summary: "[REFRESH] regenerated against latest schema / team",
+     mcp_tools: ["mcp__Notion_Extension_for_Waggle__notion-query"]
+   })
+   ```
+
+   This re-bakes the latest `databaseId` / `currentTeam` and picks up any code changes since the last registration. The user gets the Cowork approval prompt on update.
+
+5. **If the artifact does not exist**, register it via `create_artifact`:
 
    ```
    mcp__cowork__create_artifact({
@@ -64,9 +73,7 @@ In Cowork, the dashboard is a single Live Artifact (`id = "waggle-tasks"`) that 
    })
    ```
 
-   Clean up the temp file afterwards: `rm -f /tmp/waggle-tasks.html`.
-
-4. Tell the user the artifact has been registered and to open the **waggle-tasks** Live Artifact panel in the Cowork sidebar.
+6. Clean up the temp file: `rm -f /tmp/waggle-tasks.html`. Tell the user to open the **waggle-tasks** Live Artifact panel in the Cowork sidebar (or, on update, reload the existing panel).
 
 ### Cowork-mode behavior
 

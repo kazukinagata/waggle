@@ -54,24 +54,28 @@ done
 
 # ── Helpers ───────────────────────────────────────────────────────────────
 
-# Extract per-view inline <style> body (everything between the
-# `<link rel="stylesheet" href="detail-panel.css">` line and `</head>`).
-# The result is the per-view CSS only, without the shared CSS link tags.
+# Extract per-view inline <style> body (between the inline <style> opening
+# and </style>). Returns CSS only — the wrapping <style>/</style> tags are
+# stripped so they don't terminate the bundle's outer <style> early.
 extract_view_style() {
   awk '
-    /<link rel="stylesheet" href="detail-panel\.css">/ { active=1; next }
-    active && /<\/head>/ { exit }
+    /<link rel="stylesheet" href="detail-panel\.css">/ { gate=1; next }
+    gate && /^[[:space:]]*<style>[[:space:]]*$/ { active=1; next }
+    active && /^[[:space:]]*<\/style>[[:space:]]*$/ { exit }
     active { print }
   ' "$1"
 }
 
-# Extract the view-specific body content (between `<div id="filter-bar"></div>`
-# and `<div class="toast"`). The shared header, filter-bar placeholder, and
-# toast are reconstructed once at the bundle level.
+# Extract the view-specific body content. Starts at `</header>` so view-pane
+# chrome that lives between the shared header and the filter-bar (e.g. the
+# calendar nav-bar with prev/next/today buttons) is included. Stops at
+# `<div class="toast"`. The `<div id="filter-bar"></div>` line is filtered
+# out so the shared filter-bar isn't duplicated across panes.
 extract_view_body() {
   awk '
-    /<div id="filter-bar"><\/div>/ { active=1; next }
+    /<\/header>/ { active=1; next }
     active && /<div class="toast"/ { exit }
+    active && /^[[:space:]]*<div id="filter-bar"><\/div>[[:space:]]*$/ { next }
     active { print }
   ' "$1"
 }
@@ -105,20 +109,57 @@ scope_view_style() {
   '
 }
 
+# Per-view DOM ID collision rewrites. Currently only `id="empty"` collides
+# (both list.html and gantt.html ship an empty-state pane with that id, and
+# their inline scripts call `document.getElementById('empty')`). Rename
+# gantt's `empty` so list's stays the first match. Extend this function if
+# more collisions appear.
+rewrite_view_ids() {
+  local view="$1"
+  case "$view" in
+    gantt)
+      sed -E \
+        -e 's#id="empty"#id="gantt-empty"#g' \
+        -e "s#getElementById\\('empty'\\)#getElementById('gantt-empty')#g" \
+        -e 's#getElementById\("empty"\)#getElementById("gantt-empty")#g'
+      ;;
+    *)
+      cat
+      ;;
+  esac
+}
+
+# Drop `W.initKeyboard({ ... });` blocks from per-view scripts. `shared.js`
+# stores keyboard state in one singleton, so bundling four views would have
+# the last view's call clobber earlier ones. The bundled artifact installs
+# a single tab-aware keyboard binding later; per-view calls must be stripped.
+strip_init_keyboard() {
+  awk '
+    /W\.initKeyboard[[:space:]]*\(/ {
+      in_keyboard=1
+    }
+    in_keyboard {
+      if (match($0, /\}\)[[:space:]]*;/)) {
+        in_keyboard=0
+      }
+      next
+    }
+    { print }
+  '
+}
+
 # Wrap a view's inline script body in an IIFE with the defensive preamble.
-# Rewrites `W.onDataUpdate = render` → multiplex push and strips per-view
-# `W.initData()` calls (the bundle triggers initData() once at the end).
+# Rewrites `W.onDataUpdate = render` → multiplex push, strips per-view
+# `W.initData()` calls, and strips `W.initKeyboard(...)` blocks (one
+# bundle-level keyboard binding takes over). Use `#` as the sed delimiter
+# so the `||` in the replacement doesn't collide.
 wrap_view_script() {
   local view="$1"
   printf '<script>(function () {\n'
   printf '  // Cowork bundle preamble (view: %s)\n' "$view"
   printf '  var W = window.Waggle = window.Waggle || {};\n'
   printf '  W._renderers = W._renderers || [];\n'
-  # Transform the inline script body:
-  #   - replace renderer registration with multiplex push
-  #   - drop standalone W.initData() lines
-  # Use `#` as the sed delimiter so the `||` in the replacement doesn't collide.
-  sed -E \
+  strip_init_keyboard | sed -E \
     -e 's#W\.onDataUpdate[[:space:]]*=[[:space:]]*render[[:space:]]*;#(W._renderers = W._renderers || []).push(render);#' \
     -e '/^[[:space:]]*W\.initData\(\)[[:space:]]*;[[:space:]]*$/d'
   printf '})();</script>\n'
@@ -133,13 +174,21 @@ FILTER_JS=$(cat "$STATIC_DIR/filter-bar.js")
 DETAIL_CSS=$(cat "$STATIC_DIR/detail-panel.css")
 DETAIL_JS=$(cat "$STATIC_DIR/detail-panel.js")
 
-# ── Build the COWORK_QUERY_CONFIG JSON ───────────────────────────────────
+# ── Build the COWORK_QUERY_CONFIG JSON (injection-safe via python json) ──
+#
+# DB_ID / TEAM_ID / TEAM_NAME flow from agent-resolved values; never trust
+# raw string interpolation into JS. Use python json.dumps so quotes /
+# backslashes / unicode get escaped correctly. The emitted blob is a JSON
+# literal which is also a valid JS literal.
 
-if [ -n "$TEAM_ID" ] && [ -n "$TEAM_NAME" ]; then
-  TEAM_JSON=$(printf '{"id":"%s","name":"%s"}' "$TEAM_ID" "$TEAM_NAME")
-else
-  TEAM_JSON="null"
-fi
+COWORK_CONFIG_JSON=$(python3 -c '
+import json, sys
+db = sys.argv[1]
+team_id = sys.argv[2] or ""
+team_name = sys.argv[3] or ""
+team = {"id": team_id, "name": team_name} if (team_id and team_name) else None
+print(json.dumps({"databaseId": db, "currentTeam": team}, ensure_ascii=False))
+' "$DB_ID" "$TEAM_ID" "$TEAM_NAME")
 
 # ── Emit the bundle ──────────────────────────────────────────────────────
 
@@ -221,7 +270,7 @@ HEADER_HTML
   # ── View panes ──
   for v in "${VIEWS[@]}"; do
     printf '<section data-view-pane="%s" hidden>\n' "$v"
-    extract_view_body "$STATIC_DIR/${v}.html"
+    extract_view_body "$STATIC_DIR/${v}.html" | rewrite_view_ids "$v"
     printf '</section>\n'
   done
 
@@ -240,12 +289,12 @@ HEADER_HTML
   printf '</script>\n'
 
   # ── Cowork query config + adapter ──
+  # COWORK_CONFIG_JSON is built via python json.dumps above — safe for direct
+  # interpolation since the result is already a valid JSON literal (and
+  # therefore a valid JS literal).
   cat <<COWORK_CONFIG
 <script>
-window.__COWORK_QUERY_CONFIG__ = {
-  databaseId: "${DB_ID}",
-  currentTeam: ${TEAM_JSON}
-};
+window.__COWORK_QUERY_CONFIG__ = ${COWORK_CONFIG_JSON};
 </script>
 COWORK_CONFIG
 
@@ -324,27 +373,27 @@ COWORK_CONFIG
       id: p.id,
       url: p.url || null,
       title: ((pick('Title').title) || []).map(function (x) { return x.plain_text || ''; }).join(''),
-      description: rtText(pick('Description').rich_text).slice(0, 400),
-      acceptanceCriteria: rtText(pick('Acceptance Criteria').rich_text).slice(0, 200),
+      description: rtText(pick('Description').rich_text),
+      acceptanceCriteria: rtText(pick('Acceptance Criteria').rich_text),
       status: (pick('Status').select && pick('Status').select.name) || 'Backlog',
       blockedBy: (pick('Blocked By').relation || []).map(function (r) { return r.id; }),
       priority: (pick('Priority').select && pick('Priority').select.name) || null,
       executor: (pick('Executor').select && pick('Executor').select.name) || null,
       requiresReview: pick('Requires Review').checkbox === true,
-      executionPlan: rtText(pick('Execution Plan').rich_text).slice(0, 200),
+      executionPlan: rtText(pick('Execution Plan').rich_text),
       workingDirectory: rtText(pick('Working Directory').rich_text),
       sessionReference: rtText(pick('Session Reference').rich_text),
       dispatchedAt: (pick('Dispatched At').date && pick('Dispatched At').date.start) || null,
-      agentOutput: rtText(pick('Agent Output').rich_text).slice(0, 200),
+      agentOutput: rtText(pick('Agent Output').rich_text),
       errorMessage: rtText(pick('Error Message').rich_text),
-      context: '',
-      artifacts: '',
+      context: rtText(pick('Context').rich_text),
+      artifacts: rtText(pick('Artifacts').rich_text),
       repository: pick('Repository').url || null,
       dueDate: (pick('Due Date').date && pick('Due Date').date.start) || null,
       tags: (pick('Tags').multi_select || []).map(function (t) { return t.name; }),
       parentTaskId: ((pick('Parent Task').relation || [])[0] || {}).id || null,
-      project: null,
-      team: null,
+      project: (pick('Project').select && pick('Project').select.name) || null,
+      team: (pick('Team').select && pick('Team').select.name) || null,
       assignee: (pick('Assignee').people || []).map(function (u) { return { id: u.id, name: u.name || '' }; }),
       acknowledgedAt: (pick('Acknowledged At').date && pick('Acknowledged At').date.start) || null,
       createdAt: pick('Created At').created_time || p.created_time || null
@@ -458,9 +507,49 @@ COWORK_ADAPTER
 TAB_JS
 
   # ── Per-view IIFE-wrapped scripts ──
+  # rewrite_view_ids runs on the script content too so `getElementById` calls
+  # that reference renamed IDs stay paired with their elements.
   for v in "${VIEWS[@]}"; do
-    extract_view_inline_script "$STATIC_DIR/${v}.html" | wrap_view_script "$v"
+    extract_view_inline_script "$STATIC_DIR/${v}.html" | rewrite_view_ids "$v" | wrap_view_script "$v"
   done
+
+  # ── Bundle-level keyboard binding (replaces stripped per-view W.initKeyboard) ──
+  # shared.js's W.initKeyboard wires a single document-level key handler against
+  # a singleton state. Bundling four views would clobber that state to whichever
+  # view called initKeyboard last. Install one keyboard binding here that
+  # dispatches to the active tab's renderer surface.
+  cat <<'KEYBOARD_JS'
+<script>
+(function () {
+  'use strict';
+  function activeView() {
+    var panes = document.querySelectorAll('[data-view-pane]');
+    for (var i = 0; i < panes.length; i++) {
+      if (!panes[i].hidden) return panes[i].getAttribute('data-view-pane');
+    }
+    return null;
+  }
+  function activeFilteredTaskIds() {
+    var W = window.Waggle;
+    if (!W || typeof W.getFiltered !== 'function') return [];
+    return W.getFiltered().map(function (t) { return t.id; });
+  }
+  function activeTaskElement(taskId) {
+    var v = activeView();
+    if (!v) return null;
+    var pane = document.querySelector('[data-view-pane="' + v + '"]');
+    if (!pane) return null;
+    return pane.querySelector('[data-task-id="' + taskId + '"]');
+  }
+  if (window.Waggle && typeof window.Waggle.initKeyboard === 'function') {
+    window.Waggle.initKeyboard({
+      getNavigableTasks: activeFilteredTaskIds,
+      getTaskElement: activeTaskElement
+    });
+  }
+})();
+</script>
+KEYBOARD_JS
 
   # ── Trailing global init ──
   cat <<'TRAILER'
@@ -521,6 +610,38 @@ fi
 
 if ! grep -qi '<meta charset="utf-8">' "$OUT"; then
   echo "Self-test FAILED: output missing <meta charset=\"UTF-8\">" >&2
+  exit 1
+fi
+
+# Stylesheet integrity: there must be exactly ONE outer <style>...</style>
+# pair. Extra closing tags would mean a per-view <style> was inlined intact
+# and prematurely terminated the bundle stylesheet.
+style_open=$(grep -c '^[[:space:]]*<style>[[:space:]]*$' "$OUT" || true)
+style_close=$(grep -c '^[[:space:]]*</style>[[:space:]]*$' "$OUT" || true)
+if [ "$style_open" -ne 1 ] || [ "$style_close" -ne 1 ]; then
+  echo "Self-test FAILED: expected exactly one <style>/</style> pair, got open=$style_open close=$style_close" >&2
+  exit 1
+fi
+
+# DOM ID uniqueness for the IDs we explicitly bake into the bundle. Each must
+# appear exactly once after rewrite_view_ids resolves known collisions.
+for id in empty gantt-empty tbody board calendar-container gantt-container; do
+  count=$(grep -oE "id=\"$id\"" "$OUT" | wc -l)
+  if [ "$count" -gt 1 ]; then
+    echo "Self-test FAILED: id=\"$id\" appears $count times (must be unique)" >&2
+    exit 1
+  fi
+done
+
+# Per-view W.initKeyboard calls must be stripped — the single bundle-level
+# keyboard binding takes over. shared.js's `W.initKeyboard = function ...`
+# definition is exempt (one match expected).
+per_view_init_keyboard=$(grep -c '^[[:space:]]\+W\.initKeyboard(' "$OUT" || true)
+# Bundle-level binding starts at column 4 (`    window.Waggle.initKeyboard({`)
+# so it's NOT counted by the per-view pattern above.
+if [ "$per_view_init_keyboard" -ne 0 ]; then
+  echo "Self-test FAILED: $per_view_init_keyboard leftover W.initKeyboard(...) calls — strip_init_keyboard missed something" >&2
+  grep -n '^[[:space:]]\+W\.initKeyboard(' "$OUT" >&2 || true
   exit 1
 fi
 

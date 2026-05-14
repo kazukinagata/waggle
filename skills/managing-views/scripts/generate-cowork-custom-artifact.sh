@@ -13,11 +13,11 @@
 #
 # Output: writes the standalone HTML to stdout.
 #
-# This generator intentionally duplicates the cowork adapter JS with the
-# multi-view dashboard generator at skills/viewing-tasks/scripts/. Per the
-# project's skill-independence rule, scripts owned by one skill cannot
-# source files from another skill's directory. Keep the adapter in sync
-# manually when changes are needed in both places.
+# A second Cowork artifact generator (owned by a different skill) carries an
+# independent copy of the cowork adapter. Per the project's skill-independence
+# rule, scripts owned by one skill cannot source files from another skill's
+# directory, so the adapter is duplicated by design. Keep the adapter
+# logically in sync manually when changes are needed across generators.
 
 set -euo pipefail
 
@@ -25,6 +25,15 @@ SLUG="${1:?Usage: generate-cowork-custom-artifact.sh <slug> <tasksDatabaseId> [t
 DB_ID="${2:?Usage: generate-cowork-custom-artifact.sh <slug> <tasksDatabaseId> [team_id] [team_name]}"
 TEAM_ID="${3:-}"
 TEAM_NAME="${4:-}"
+
+# Slug must be filesystem-safe AND artifact-id-safe (kebab-case lowercase).
+# Reject anything that could escape the path or produce a confusing artifact
+# id. SKILL.md asks the agent to derive slugs this way, but enforce it here
+# too in case callers come from another path.
+if ! printf '%s' "$SLUG" | grep -qE '^[a-z0-9][a-z0-9-]{0,63}$'; then
+  echo "Error: slug '$SLUG' must match ^[a-z0-9][a-z0-9-]{0,63}$ (kebab-case, lowercase, alphanum/dash)." >&2
+  exit 1
+fi
 
 TEMPLATE="$HOME/.waggle/views/${SLUG}.html"
 
@@ -48,23 +57,26 @@ if ! grep -q '<!-- COWORK_BOOT -->' "$TEMPLATE"; then
   exit 1
 fi
 
-# Build COWORK_QUERY_CONFIG JSON (databaseId + optional currentTeam)
-if [ -n "$TEAM_ID" ] && [ -n "$TEAM_NAME" ]; then
-  TEAM_JSON=$(printf '{"id":"%s","name":"%s"}' "$TEAM_ID" "$TEAM_NAME")
-else
-  TEAM_JSON="null"
-fi
+# Build COWORK_QUERY_CONFIG JSON safely via python json.dumps. Inputs are
+# agent-resolved values but might contain quotes / unicode; never trust raw
+# string interpolation into JS.
+COWORK_CONFIG_JSON=$(python3 -c '
+import json, sys
+db = sys.argv[1]
+team_id = sys.argv[2] or ""
+team_name = sys.argv[3] or ""
+team = {"id": team_id, "name": team_name} if (team_id and team_name) else None
+print(json.dumps({"databaseId": db, "currentTeam": team}, ensure_ascii=False))
+' "$DB_ID" "$TEAM_ID" "$TEAM_NAME")
 
-# Build the COWORK_BOOT replacement into a tempfile so sed can swap it in
+# Build the COWORK_BOOT replacement into a tempfile so the python substitution
+# step can swap it in below.
 BOOT_FILE=$(mktemp)
 trap 'rm -f "$BOOT_FILE"' EXIT
 
 cat > "$BOOT_FILE" <<COWORK_BOOT
 <script>
-window.__COWORK_QUERY_CONFIG__ = {
-  databaseId: "${DB_ID}",
-  currentTeam: ${TEAM_JSON}
-};
+window.__COWORK_QUERY_CONFIG__ = ${COWORK_CONFIG_JSON};
 </script>
 <script>
 /* Cowork live-fetch adapter (custom view) */
@@ -119,27 +131,27 @@ window.__COWORK_QUERY_CONFIG__ = {
       id: p.id,
       url: p.url || null,
       title: ((pick('Title').title) || []).map(function (x) { return x.plain_text || ''; }).join(''),
-      description: rtText(pick('Description').rich_text).slice(0, 400),
-      acceptanceCriteria: rtText(pick('Acceptance Criteria').rich_text).slice(0, 200),
+      description: rtText(pick('Description').rich_text),
+      acceptanceCriteria: rtText(pick('Acceptance Criteria').rich_text),
       status: (pick('Status').select && pick('Status').select.name) || 'Backlog',
       blockedBy: (pick('Blocked By').relation || []).map(function (r) { return r.id; }),
       priority: (pick('Priority').select && pick('Priority').select.name) || null,
       executor: (pick('Executor').select && pick('Executor').select.name) || null,
       requiresReview: pick('Requires Review').checkbox === true,
-      executionPlan: rtText(pick('Execution Plan').rich_text).slice(0, 200),
+      executionPlan: rtText(pick('Execution Plan').rich_text),
       workingDirectory: rtText(pick('Working Directory').rich_text),
       sessionReference: rtText(pick('Session Reference').rich_text),
       dispatchedAt: (pick('Dispatched At').date && pick('Dispatched At').date.start) || null,
-      agentOutput: rtText(pick('Agent Output').rich_text).slice(0, 200),
+      agentOutput: rtText(pick('Agent Output').rich_text),
       errorMessage: rtText(pick('Error Message').rich_text),
-      context: '',
-      artifacts: '',
+      context: rtText(pick('Context').rich_text),
+      artifacts: rtText(pick('Artifacts').rich_text),
       repository: pick('Repository').url || null,
       dueDate: (pick('Due Date').date && pick('Due Date').date.start) || null,
       tags: (pick('Tags').multi_select || []).map(function (t) { return t.name; }),
       parentTaskId: ((pick('Parent Task').relation || [])[0] || {}).id || null,
-      project: null,
-      team: null,
+      project: (pick('Project').select && pick('Project').select.name) || null,
+      team: (pick('Team').select && pick('Team').select.name) || null,
       assignee: (pick('Assignee').people || []).map(function (u) { return { id: u.id, name: u.name || '' }; }),
       acknowledgedAt: (pick('Acknowledged At').date && pick('Acknowledged At').date.start) || null,
       createdAt: pick('Created At').created_time || p.created_time || null
