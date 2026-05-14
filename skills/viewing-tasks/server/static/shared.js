@@ -181,6 +181,10 @@
     if (updatedEl && data.updatedAt) updatedEl.textContent = 'Updated: ' + new Date(data.updatedAt).toLocaleTimeString();
     if (W.onFilterBarUpdate) W.onFilterBarUpdate();
     if (W.onDataUpdate) W.onDataUpdate();
+    // Multiplex hook for bundled artifacts (e.g. Cowork dashboard) where multiple
+    // view renderers register via `(W._renderers = W._renderers || []).push(render)`.
+    // Undefined in localhost mode → zero behavior change.
+    if (W._renderers) W._renderers.forEach(function (f) { try { f(); } catch (e) {} });
   }
 
   function fetchTasks() {
@@ -220,13 +224,22 @@
   function refreshTasks() {
     var btn = document.getElementById('refresh-btn');
     if (btn) btn.classList.add('loading');
-    fetchTasks().then(function () {
+    // Cowork-mode artifacts inject window.__coworkFetch and skip the localhost
+    // server entirely. Delegate refresh to it when present.
+    var p = (typeof window.__coworkFetch === 'function')
+      ? Promise.resolve(window.__coworkFetch())
+      : fetchTasks();
+    p.then(function () {
       if (btn) btn.classList.remove('loading');
       showToast('Refreshed');
     });
   }
 
   function initData() {
+    if (typeof window.__coworkFetch === 'function') {
+      window.__coworkFetch();
+      return;
+    }
     fetchTasks();
     connectSSE();
   }
