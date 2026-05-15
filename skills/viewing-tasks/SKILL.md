@@ -37,32 +37,37 @@ In Cowork, the dashboard is a single Live Artifact (`id = "waggle-tasks"`) that 
 
 1. Resolve `tasksDatabaseId` from `headless_config` (set during bootstrap). If `current_team` is set, capture `current_team.id` / `current_team.name` for baking into the artifact.
 
-2. Generate the bundled HTML:
+2. Determine the assignee to scope the artifact to. By default this is `current_user.id` (the person opening the artifact almost always wants their own open tasks, not the entire workspace). If the user has explicitly asked to view another person's tasks ("show Alice's board", "build a dashboard for the platform team lead"), resolve that person via the `looking-up-members` skill and use their Notion user ID instead.
+
+3. Generate the bundled HTML. Pass the assignee ID as the 4th positional argument — the bundle will server-side filter to that person AND exclude Done/Cancelled at the Notion query layer:
 
    ```bash
    bash "${CLAUDE_SKILL_DIR}/scripts/generate-cowork-artifact.sh" \
      "<tasksDatabaseId>" \
      "<current_team.id or empty>" \
      "<current_team.name or empty>" \
+     "<assignee notion user id, e.g. current_user.id>" \
      > /tmp/waggle-tasks.html
    ```
 
-3. Call `mcp__cowork__list_artifacts()` and check whether the response includes an entry with `id == "waggle-tasks"`.
+   Pass an empty string for the 4th argument only if the user has explicitly asked for an unscoped view across all assignees; the bundle then shows all open tasks with an informational banner. Status exclusion (Done + Cancelled) is always applied — these terminal states are never useful in the active dashboard.
 
-4. **If the artifact already exists**, refresh it in place via `update_artifact` (don't create a duplicate):
+4. Call `mcp__cowork__list_artifacts()` and check whether the response includes an entry with `id == "waggle-tasks"`.
+
+5. **If the artifact already exists**, refresh it in place via `update_artifact` (don't create a duplicate):
 
    ```
    mcp__cowork__update_artifact({
      id: "waggle-tasks",
      html_path: "/tmp/waggle-tasks.html",
-     update_summary: "[REFRESH] regenerated against latest schema / team",
+     update_summary: "[REFRESH] regenerated against latest schema / team / assignee scope",
      mcp_tools: ["mcp__Notion_Extension_for_Waggle__notion-query"]
    })
    ```
 
-   This re-bakes the latest `databaseId` / `currentTeam` and picks up any code changes since the last registration. The user gets the Cowork approval prompt on update.
+   This re-bakes the latest `databaseId` / `currentTeam` / `assigneeUserId` and picks up any code changes since the last registration. The user gets the Cowork approval prompt on update.
 
-5. **If the artifact does not exist**, register it via `create_artifact`:
+6. **If the artifact does not exist**, register it via `create_artifact`:
 
    ```
    mcp__cowork__create_artifact({
@@ -73,12 +78,12 @@ In Cowork, the dashboard is a single Live Artifact (`id = "waggle-tasks"`) that 
    })
    ```
 
-6. Clean up the temp file: `rm -f /tmp/waggle-tasks.html`. Tell the user to open the **waggle-tasks** Live Artifact panel in the Cowork sidebar (or, on update, reload the existing panel).
+7. Clean up the temp file: `rm -f /tmp/waggle-tasks.html`. Tell the user to open the **waggle-tasks** Live Artifact panel in the Cowork sidebar (or, on update, reload the existing panel).
 
 ### Cowork-mode behavior
 
 - The artifact bundles Kanban / List / Calendar / Gantt; the active tab is persisted per-user in `localStorage` (`waggle-tasks-active-tab-v1`).
-- Each artifact reload re-fetches via `mcp__Notion_Extension_for_Waggle__notion-query` (paginated, cap 1000 rows). The status badge reads "Live (Cowork)" when the fetch succeeds.
+- Each artifact reload re-fetches via `mcp__Notion_Extension_for_Waggle__notion-query` (paginated, cap 1000 rows). The fetch is server-side filtered to the baked `assigneeUserId` and always excludes `Status == Done` / `Status == Cancelled`; the bundled `filter-bar.js` narrows further on the client. The status badge reads "Live (Cowork)" when the fetch succeeds. To switch the bound assignee, re-run `/viewing-tasks` with the new person's name — the skill regenerates and calls `update_artifact` with the new scope.
 - The artifact is **read-only**. Mutating Notion tools are deliberately not declared in `mcp_tools` yet; inline-edit UI will come in a later skill release and will widen `mcp_tools` via `update_artifact`.
 - **Windows cold-start (GitHub Issue #55788)**: on Windows the artifact's first call to `callMcpTool` may fail with HTTP 400 in a cold-start state. Workaround: ask the user to invoke any Notion MCP tool from the Cowork chat once before opening the artifact, then reload the panel. Mac is unaffected.
 - Custom user-defined views are managed by the `managing-views` skill and registered as separate `waggle-view-<slug>` artifacts.
@@ -88,7 +93,8 @@ In Cowork, the dashboard is a single Live Artifact (`id = "waggle-tasks"`) that 
 - **"Cowork runtime unavailable" banner** in the artifact: the cold-start race fired. Reload the panel, or have the user run any Notion MCP tool from chat first.
 - **"Failed to load tasks: ..."**: open DevTools on the artifact panel (right-click → Inspect). Network tab shows the `callMcpTool` request; Console shows any JS errors. Verify the baked `databaseId` matches the active `tasksDatabaseId`.
 - **Dashboard shows stale data**: click the Cowork built-in ↻, which re-executes the artifact JS and re-fetches.
-- **Stale artifact (schema changed, wrong team)**: re-run `/viewing-tasks` — the skill regenerates and calls `update_artifact` with the latest `databaseId` / team binding.
+- **Stale artifact (schema changed, wrong team, wrong assignee)**: re-run `/viewing-tasks` — the skill regenerates and calls `update_artifact` with the latest `databaseId` / team / assignee binding.
+- **"My dashboard is empty / shows the wrong person's tasks"**: the baked `assigneeUserId` may not match the user's expectations. Re-run `/viewing-tasks` (defaults to `current_user.id`) or `/viewing-tasks <name>` to scope to someone else. To see everyone, ask for an unscoped regeneration explicitly.
 
 ## Localhost Server Mode
 

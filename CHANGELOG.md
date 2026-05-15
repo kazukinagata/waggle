@@ -4,6 +4,12 @@ All notable changes to the Waggle project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [2.7.2] - 2026-05-15
+
+### Fixed
+
+- **Cowork Live Artifacts no longer fetch the entire workspace** (`skills/viewing-tasks/scripts/generate-cowork-artifact.sh`, `skills/managing-views/scripts/generate-cowork-custom-artifact.sh`). The bundled fetch adapter previously called `mcp__Notion_Extension_for_Waggle__notion-query` with only `{ database_id, page_size, start_cursor }` — no Notion `filter` — so the artifact pulled every task in the database (capped at 1000) and left all narrowing to the client-side `filter-bar.js`. On a multi-person workspace that meant opening the dashboard surfaced everyone's backlog and finished work, swamping the user's actual open items. The adapter now applies a server-side filter: `Assignee contains <assigneeUserId>` (when configured, baked at generation time) AND `Status != Done` AND `Status != Cancelled`. The `__COWORK_QUERY_CONFIG__` block gains an `assigneeUserId` field; both generators accept a new optional positional arg for it (`viewing-tasks` 4th, `managing-views` 5th). Both SKILL.md flows now default to `current_user.id` and document an explicit "show another person's view" override via the `looking-up-members` skill. Empty assignee degrades to status-only filtering with an informational banner rather than silently going blank.
+
 ## [2.7.1] - 2026-05-15
 
 ### Fixed

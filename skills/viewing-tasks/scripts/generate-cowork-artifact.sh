@@ -7,9 +7,15 @@
 # and renders one of the four views via a top tab strip.
 #
 # Usage:
-#   generate-cowork-artifact.sh <tasksDatabaseId> [team_id] [team_name]
+#   generate-cowork-artifact.sh <tasksDatabaseId> [team_id] [team_name] [assignee_user_id]
 #
 # Output: writes the standalone HTML to stdout.
+#
+# When [assignee_user_id] is provided, the bundle's runtime fetch is scoped
+# server-side to that assignee (people.contains). Status is always restricted
+# to non-terminal — Done and Cancelled are excluded by a fixed select clause.
+# When [assignee_user_id] is empty, the Assignee predicate is omitted (degraded
+# unscoped mode); the status exclusion still applies.
 #
 # See skills/viewing-tasks/SKILL.md "Cowork Live Artifact Mode" for the
 # protocol-level invocation. The generator enforces structural invariants
@@ -17,9 +23,10 @@
 
 set -euo pipefail
 
-DB_ID="${1:?Usage: generate-cowork-artifact.sh <tasksDatabaseId> [team_id] [team_name]}"
+DB_ID="${1:?Usage: generate-cowork-artifact.sh <tasksDatabaseId> [team_id] [team_name] [assignee_user_id]}"
 TEAM_ID="${2:-}"
 TEAM_NAME="${3:-}"
+ASSIGNEE_USER_ID="${4:-}"
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 STATIC_DIR="$SCRIPT_DIR/../server/static"
@@ -300,12 +307,17 @@ import json, sys
 db = sys.argv[1]
 team_id = sys.argv[2] or ""
 team_name = sys.argv[3] or ""
+assignee_user_id = sys.argv[4] or ""
 team = {"id": team_id, "name": team_name} if (team_id and team_name) else None
-cfg = {"databaseId": db, "currentTeam": team}
+cfg = {
+    "databaseId": db,
+    "currentTeam": team,
+    "assigneeUserId": assignee_user_id or None,
+}
 print("<script>")
 print("window.__COWORK_QUERY_CONFIG__ = " + json.dumps(cfg, ensure_ascii=False) + ";")
 print("</script>")
-' "$DB_ID" "$TEAM_ID" "$TEAM_NAME"
+' "$DB_ID" "$TEAM_ID" "$TEAM_NAME" "$ASSIGNEE_USER_ID"
 
   cat <<'COWORK_ADAPTER'
 <script>
@@ -409,7 +421,24 @@ print("</script>")
     };
   }
 
-  async function paginatedQuery(databaseId) {
+  // Build the Notion filter object. Status is always restricted to
+  // non-terminal (Done / Cancelled excluded). When assigneeUserId is set,
+  // narrow further to "Assignee contains <id>". An empty assigneeUserId
+  // means degraded unscoped mode — status-only filtering — so the artifact
+  // still renders something rather than silently going blank.
+  function buildFilter(assigneeUserId) {
+    var clauses = [
+      { property: 'Status', select: { does_not_equal: 'Done' } },
+      { property: 'Status', select: { does_not_equal: 'Cancelled' } }
+    ];
+    if (assigneeUserId) {
+      clauses.unshift({ property: 'Assignee', people: { contains: assigneeUserId } });
+    }
+    return { and: clauses };
+  }
+
+  async function paginatedQuery(databaseId, assigneeUserId) {
+    var filter = buildFilter(assigneeUserId);
     var rows = [];
     var cursor;
     var truncated = false;
@@ -417,7 +446,7 @@ print("</script>")
     while (true) {
       loops++;
       if (loops > 20) break;
-      var args = { database_id: databaseId, page_size: PAGE_SIZE };
+      var args = { database_id: databaseId, page_size: PAGE_SIZE, filter: filter };
       if (cursor) args.start_cursor = cursor;
       var res = await window.cowork.callMcpTool('mcp__Notion_Extension_for_Waggle__notion-query', args);
       var data = extractJson(res);
@@ -452,13 +481,18 @@ print("</script>")
       return false;
     }
     try {
-      var out = await paginatedQuery(cfg.databaseId);
+      var out = await paginatedQuery(cfg.databaseId, cfg.assigneeUserId);
       var tasks = out.rows.map(parseNotionPageToTask);
       if (window.Waggle && typeof window.Waggle.updateData === 'function') {
         window.Waggle.updateData({ tasks: tasks, updatedAt: new Date().toISOString(), currentTeam: cfg.currentTeam || null });
       }
       setStatus('Live (Cowork)', true);
-      if (out.truncated) setBanner('Showing first ' + MAX_ROWS + ' tasks (workspace exceeds cap).', 'warn');
+      if (out.truncated) {
+        var scope = cfg.assigneeUserId ? 'open tasks for the configured assignee' : 'open tasks';
+        setBanner('Showing first ' + MAX_ROWS + ' ' + scope + ' (cap exceeded).', 'warn');
+      } else if (!cfg.assigneeUserId) {
+        setBanner('Showing all open tasks (no assignee configured — regenerate via /viewing-tasks to scope).', 'info');
+      }
       return true;
     } catch (e) {
       setStatus('Error', false);
@@ -657,6 +691,25 @@ per_view_init_keyboard=$(grep -c '^[[:space:]]\+W\.initKeyboard(' "$OUT" || true
 if [ "$per_view_init_keyboard" -ne 0 ]; then
   echo "Self-test FAILED: $per_view_init_keyboard leftover W.initKeyboard(...) calls — strip_init_keyboard missed something" >&2
   grep -n '^[[:space:]]\+W\.initKeyboard(' "$OUT" >&2 || true
+  exit 1
+fi
+
+# Filter wiring: the baked config must carry the assigneeUserId key, and the
+# adapter's buildFilter must include the fixed Done/Cancelled exclusions. If
+# any future refactor drops the filter, these assertions fire so the artifact
+# can never silently revert to "fetch every row in the workspace".
+if ! grep -q '"assigneeUserId"' "$OUT"; then
+  echo "Self-test FAILED: config block missing assigneeUserId key" >&2
+  exit 1
+fi
+
+if ! grep -q "does_not_equal: 'Done'" "$OUT"; then
+  echo "Self-test FAILED: Status != Done clause missing from buildFilter" >&2
+  exit 1
+fi
+
+if ! grep -q "does_not_equal: 'Cancelled'" "$OUT"; then
+  echo "Self-test FAILED: Status != Cancelled clause missing from buildFilter" >&2
   exit 1
 fi
 
