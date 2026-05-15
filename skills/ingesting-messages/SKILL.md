@@ -86,8 +86,18 @@ The Intake Log is a Notion database (`Intake Log`) that tracks which messages ha
      | Tool Name | select | `slack` / `teams` / `discord` |
      | Processed At | date | Processing timestamp |
    - Write the new database ID back to the config page as `intakeLogDatabaseId`.
-3. Load `processed_message_ids`: query `intakeLogDatabaseId` using the provider's "Querying Any Notion Database" flow and collect all existing Message ID values.
-4. **FIFO cleanup**: If the Intake Log has more than 1000 entries, delete the oldest records (by Processed At) until the count is at or below 1000.
+3. Load `processed_message_ids` (date-windowed, paginated).
+   - Derive `intake_log_retention_days` from the current `lookback_period` so the dedup window always covers what the messaging MCP can re-surface in this run: `intake_log_retention_days = max(30, ceil(lookback_period_in_days) + 7)`. The `+ 7` buffer absorbs Step 4's exclusive `before:` cutoff, off-by-one day adjustments in the Slack date filter (see Step 0's "Translating `lookback_period` to Slack date filters"), and timing skew between Step 0 and Step 4 within a single run.
+   - Compute `retention_cutoff = (now - intake_log_retention_days).date()` in ISO `YYYY-MM-DD` form.
+   - Query the Intake Log with the provider's "Querying Any Notion Database" flow using:
+     - `filter`: `{"property":"Processed At","date":{"on_or_after":"<retention_cutoff>"}}`
+     - `page_size`: 50 (keeps each MCP response under typical host token caps with the full Notion page payload)
+     - `start_cursor`: from the previous response's `next_cursor` on subsequent calls
+   - Iterate while the response's `has_more` is `true`, collecting each record's `Message ID` title value into `processed_message_ids`. Stop when `has_more` is `false`.
+   - **Cross-run edge case**: if the current `lookback_period` is materially longer than the lookback used by recent prior runs, Step 4 of those prior runs may already have archived Intake Log records whose `Processed At` is older than the prior run's (shorter) `intake_log_retention_days`. Such already-processed messages will be missing from `processed_message_ids` and re-classified as new, producing duplicate task candidates in Step 2.7's confirmation table. This is a known trade-off — the dedup window only stretches forward from the run that asked for the longer lookback. The user can mitigate at the Step 2.7 confirmation by switching to "Select individually" and skipping rows they recognise as duplicates of existing tasks.
+   - This load path replaces the older "fetch the whole database in one call" pattern, which silently overflowed the MCP token cap once the log exceeded ~200 records (~250KB of full-page JSON) and stalled the run for many minutes while it tried to recover from the host-side spill file.
+   - **Extension version requirement**: this paginated path requires `notion-extension` v0.4.0 or later. If the response does not contain a `has_more` field even when `page_size` was set, the installed extension is v0.3.x and is silently ignoring `page_size` (the server returns the aggregated full result set instead). Treat this as a halt condition for the current run: surface "Notion Desktop Extension is older than v0.4.0. Install the latest version to use paginated intake. Step halted." rather than continuing with a possibly-truncated aggregate that may exceed the host token cap. The `health-checking` skill probes for this and is the right place for users to verify their installed version.
+4. FIFO/count-based cleanup is intentionally **not** performed here. The Intake Log is bounded by Step 4's time-based TTL cleanup instead (see below), so Step 0 does not need to know or shrink the total record count.
 
 ### Active Threads Preparation
 
@@ -593,7 +603,12 @@ Create tasks directly via `notion-create-pages` for each message (do not go thro
    - Message ID: the message unique ID (e.g. `channel_id:ts`)
    - Tool Name: the messaging tool name (e.g. `slack`)
    - Processed At: current timestamp
-2. If the Intake Log DB exceeds 1000 entries, delete the oldest records (by Processed At) to bring it back to 1000.
+2. **TTL cleanup** (time-based, replaces the old count-based FIFO): archive Intake Log records whose `Processed At` is older than the **same** `intake_log_retention_days` value derived in Step 0 (`max(30, ceil(lookback_period_in_days) + 7)`). Reusing the same value guarantees the in-memory dedup set built in Step 0 and the on-disk retention window in the database stay aligned within this run.
+   - Compute `retention_cutoff = (now - intake_log_retention_days).date()`.
+   - Query the Intake Log with `filter: {"property":"Processed At","date":{"before":"<retention_cutoff>"}}`, `page_size: 50`. Iterate `start_cursor` / `has_more` as in Step 0.
+   - For each returned record, soft-delete via `notion-update-page` with `archived: true`. (Notion has no hard delete via API.)
+   - Tolerate rate limits: on HTTP 429, honor the `Retry-After` header. Do not block the rest of the run on cleanup failure — log the error and continue. The next run will retry.
+   - Skipping the cleanup is safe (the next run will catch up); skipping the load in Step 0 is not, so cleanup runs last.
 
 ### Active Threads Update
 

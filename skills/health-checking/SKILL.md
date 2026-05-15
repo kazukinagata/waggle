@@ -112,13 +112,21 @@ Read `~/.waggle/config.json` via Bash: `cat ~/.waggle/config.json 2>/dev/null`
 
 **Skip if** `execution_environment = "cli"` or `active_provider` is not `"notion"`.
 
-Check available MCP tools:
+Check available MCP tools, then probe pagination support:
 
 | Condition | Result |
 |---|---|
-| `mcp__notion-extension__notion-query` tool is available | PASS: Latest Notion Desktop Extension (v0.2.0) is installed |
-| `mcp__notion-query__notion-query` tool is available (but not `mcp__notion-extension__*`) | WARN: Outdated extension detected. Uninstall `notion-query` and install the new `notion-extension` v0.2.0 |
-| Neither tool is available | WARN: Notion Desktop Extension is not installed. Install `notion-extension` v0.2.0 for full functionality (relation field updates, people property filters) |
+| `mcp__notion-extension__notion-query` tool is available AND pagination probe succeeds (see below) | PASS: Latest Notion Desktop Extension (v0.4.0+) is installed |
+| `mcp__notion-extension__notion-query` tool is available BUT pagination probe shows v0.3.x semantics | WARN: Outdated `notion-extension` detected (v0.3.x or earlier — silently ignores `page_size`). Install v0.4.0 or later so `ingesting-messages` and large-database queries can paginate. Without this, the Intake Log query can overflow the MCP token cap and stall the run for many minutes. |
+| `mcp__notion-query__notion-query` tool is available (but not `mcp__notion-extension__*`) | WARN: Outdated extension detected. Uninstall `notion-query` and install the new `notion-extension` v0.4.0+ |
+| Neither tool is available | WARN: Notion Desktop Extension is not installed. Install `notion-extension` v0.4.0+ for full functionality (paginated queries, relation field updates, people property filters) |
+
+**Pagination probe**: when `mcp__notion-extension__notion-query` is available, call it with `database_id: <any small reachable database, e.g. the Waggle Config DB derived from active_provider's identity flow>` and `page_size: 1`. Inspect the response:
+
+- Response object contains a `has_more` key → server honors `page_size` → v0.4.0+. PASS.
+- Response object does not contain `has_more` (only `results`) → server ignored `page_size` and aggregated everything → v0.3.x or earlier. WARN.
+
+The Waggle Config DB or the Intake Log DB IDs are good probe targets because they exist whenever waggle is set up and are tiny; do not probe the Tasks DB if it is large, since v0.3.x will pull it in full during the probe.
 
 ---
 
