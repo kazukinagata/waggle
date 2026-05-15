@@ -51,16 +51,17 @@ When the user asks to create a custom view (e.g., "create a view showing blocked
 **Then, depending on `execution_environment`**:
 
 - **`cli`** / **`claude-desktop`**: confirm creation and provide the URL `http://localhost:3456/custom/<slug>.html`. Open in the browser using platform detection (see viewing-tasks skill).
-- **`cowork`**: resolve `tasksDatabaseId` (and optional `current_team`) from `headless_config`, then run:
+- **`cowork`**: resolve `tasksDatabaseId` (and optional `current_team`) from `headless_config`. Determine the assignee to scope the view to — default to `current_user.id`; if the user explicitly asked for another person's view ("Alice's blocked tasks"), resolve via the `looking-up-members` skill and pass that Notion user ID. The generator bakes the assignee + a fixed `Status != Done`/`Cancelled` exclusion into the live-fetch adapter so the artifact's Notion query is scoped at the source:
 
   ```bash
   bash "${CLAUDE_SKILL_DIR}/scripts/generate-cowork-custom-artifact.sh" \
     "<slug>" "<tasksDatabaseId>" \
     "<current_team.id or empty>" "<current_team.name or empty>" \
+    "<assignee notion user id, e.g. current_user.id>" \
     > /tmp/waggle-view-<slug>.html
   ```
 
-  Then call:
+  Pass an empty string for the 5th argument only if the user explicitly asked for an unscoped view across all assignees; the status exclusion still applies. Then call:
 
   ```
   mcp__cowork__create_artifact({
@@ -137,12 +138,13 @@ When the user asks to regenerate or update a custom view:
 **Then, depending on `execution_environment`**:
 
 - **`cli`** / **`claude-desktop`**: the localhost server serves the updated file on next browser refresh.
-- **`cowork`**: re-run the cowork generator and call `update_artifact`:
+- **`cowork`**: re-run the cowork generator and call `update_artifact`. Reuse the original assignee scoping unless the user has asked to re-target — by default pass `current_user.id` as the 5th positional, or the Notion user ID of an explicitly-named person via the `looking-up-members` skill:
 
   ```bash
   bash "${CLAUDE_SKILL_DIR}/scripts/generate-cowork-custom-artifact.sh" \
     "<slug>" "<tasksDatabaseId>" \
     "<current_team.id or empty>" "<current_team.name or empty>" \
+    "<assignee notion user id, e.g. current_user.id>" \
     > /tmp/waggle-view-<slug>.html
   ```
 

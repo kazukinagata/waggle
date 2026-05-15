@@ -9,9 +9,15 @@
 # standalone artifact with its own render() in its own scope.
 #
 # Usage:
-#   generate-cowork-custom-artifact.sh <slug> <tasksDatabaseId> [team_id] [team_name]
+#   generate-cowork-custom-artifact.sh <slug> <tasksDatabaseId> [team_id] [team_name] [assignee_user_id]
 #
 # Output: writes the standalone HTML to stdout.
+#
+# When [assignee_user_id] is provided, the bundle's runtime fetch is scoped
+# server-side to that assignee (people.contains). Status is always restricted
+# to non-terminal — Done and Cancelled are excluded by a fixed select clause.
+# When [assignee_user_id] is empty, the Assignee predicate is omitted (degraded
+# unscoped mode); the status exclusion still applies.
 #
 # A second Cowork artifact generator (owned by a different skill) carries an
 # independent copy of the cowork adapter. Per the project's skill-independence
@@ -21,10 +27,12 @@
 
 set -euo pipefail
 
-SLUG="${1:?Usage: generate-cowork-custom-artifact.sh <slug> <tasksDatabaseId> [team_id] [team_name]}"
-DB_ID="${2:?Usage: generate-cowork-custom-artifact.sh <slug> <tasksDatabaseId> [team_id] [team_name]}"
+USAGE="Usage: generate-cowork-custom-artifact.sh <slug> <tasksDatabaseId> [team_id] [team_name] [assignee_user_id]"
+SLUG="${1:?$USAGE}"
+DB_ID="${2:?$USAGE}"
 TEAM_ID="${3:-}"
 TEAM_NAME="${4:-}"
+ASSIGNEE_USER_ID="${5:-}"
 
 # Slug must be filesystem-safe AND artifact-id-safe (kebab-case lowercase).
 # Reject anything that could escape the path or produce a confusing artifact
@@ -71,13 +79,18 @@ import json, sys
 db = sys.argv[1]
 team_id = sys.argv[2] or ""
 team_name = sys.argv[3] or ""
+assignee_user_id = sys.argv[4] or ""
 team = {"id": team_id, "name": team_name} if (team_id and team_name) else None
-cfg = {"databaseId": db, "currentTeam": team}
-with open(sys.argv[4], "w", encoding="utf-8") as f:
+cfg = {
+    "databaseId": db,
+    "currentTeam": team,
+    "assigneeUserId": assignee_user_id or None,
+}
+with open(sys.argv[5], "w", encoding="utf-8") as f:
     f.write("<script>\n")
     f.write("window.__COWORK_QUERY_CONFIG__ = " + json.dumps(cfg, ensure_ascii=False) + ";\n")
     f.write("</script>\n")
-' "$DB_ID" "$TEAM_ID" "$TEAM_NAME" "$BOOT_FILE"
+' "$DB_ID" "$TEAM_ID" "$TEAM_NAME" "$ASSIGNEE_USER_ID" "$BOOT_FILE"
 
 # Append the adapter script with a quoted heredoc so nothing in the body is
 # bash-interpolated.
@@ -162,7 +175,23 @@ cat >> "$BOOT_FILE" <<'COWORK_BOOT'
     };
   }
 
-  async function paginatedQuery(databaseId) {
+  // Build the Notion filter object. Status is always restricted to
+  // non-terminal (Done / Cancelled excluded). When assigneeUserId is set,
+  // narrow further to "Assignee contains <id>". Empty assigneeUserId =
+  // degraded unscoped mode (status-only) so the view still renders.
+  function buildFilter(assigneeUserId) {
+    var clauses = [
+      { property: 'Status', select: { does_not_equal: 'Done' } },
+      { property: 'Status', select: { does_not_equal: 'Cancelled' } }
+    ];
+    if (assigneeUserId) {
+      clauses.unshift({ property: 'Assignee', people: { contains: assigneeUserId } });
+    }
+    return { and: clauses };
+  }
+
+  async function paginatedQuery(databaseId, assigneeUserId) {
+    var filter = buildFilter(assigneeUserId);
     var rows = [];
     var cursor;
     var truncated = false;
@@ -170,7 +199,7 @@ cat >> "$BOOT_FILE" <<'COWORK_BOOT'
     while (true) {
       loops++;
       if (loops > 20) break;
-      var args = { database_id: databaseId, page_size: PAGE_SIZE };
+      var args = { database_id: databaseId, page_size: PAGE_SIZE, filter: filter };
       if (cursor) args.start_cursor = cursor;
       var res = await window.cowork.callMcpTool('mcp__Notion_Extension_for_Waggle__notion-query', args);
       var data = extractJson(res);
@@ -199,12 +228,13 @@ cat >> "$BOOT_FILE" <<'COWORK_BOOT'
       return { tasks: [], updatedAt: new Date().toISOString(), error: err.message };
     }
     try {
-      var out = await paginatedQuery(cfg.databaseId);
+      var out = await paginatedQuery(cfg.databaseId, cfg.assigneeUserId);
       var tasks = out.rows.map(parseNotionPageToTask);
       return {
         tasks: tasks,
         updatedAt: new Date().toISOString(),
         currentTeam: cfg.currentTeam || null,
+        assigneeUserId: cfg.assigneeUserId || null,
         truncated: out.truncated
       };
     } catch (e) {
