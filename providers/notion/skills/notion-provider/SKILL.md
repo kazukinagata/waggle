@@ -377,8 +377,15 @@ Call `mcp__notion-extension__notion-query` with:
 - `database_id`: the `tasksDatabaseId`
 - `filter`: filter JSON
 - `sorts`: sort JSON
+- `page_size` (optional, 1-100): when set, the tool returns one Notion API page at a time and the response includes `has_more` and `next_cursor` so the caller can iterate. When omitted, all pages are aggregated server-side — this risks overflowing the MCP host's token cap on databases with hundreds of rows.
+- `start_cursor` (optional): pass the previous response's `next_cursor` to fetch the next page. Only meaningful alongside `page_size`.
+- `filter_properties` (optional, array of Notion property IDs): when set, only the named properties appear in each result's `properties` object. Reduces payload but does not strip Notion's page-level metadata.
 
-Returns `{"results": [...]}` in the same Notion API format as Path 1.
+Returns `{"results": [...]}` in the same Notion API format as Path 1; when `page_size` is set, the response also includes `has_more` (boolean) and `next_cursor` (string or null).
+
+**Pagination requires extension v0.4.0+**. The tool name `mcp__notion-extension__notion-query` is unchanged from v0.3.x, so the tool's mere presence does not guarantee pagination support. v0.3.x silently ignores `page_size` and `start_cursor` and always returns the aggregated full result set — defeating the pagination strategy and risking the original token-cap overflow. **How to detect at runtime**: when calling with `page_size`, check whether the response contains a `has_more` field. If it does not, the installed extension is v0.3.x or earlier; halt the calling step and surface "Notion Desktop Extension is older than v0.4.0. Install the latest version to use paginated queries on this database." Users can also verify their installed version proactively via the `health-checking` skill, which probes for this.
+
+**When to paginate**: any time the target database may grow past a few hundred records (Intake Log, Tasks DB, custom-source mirrors). The legacy "no page_size" mode is preserved for short queries with bounded result sets where one round-trip is simpler.
 
 ### Error Handling for Query Path
 
@@ -436,7 +443,7 @@ When querying ANY Notion database (not just the Tasks DB — e.g., Intake Log, e
 2. Otherwise → halt and surface the error per "Error Handling for Query Path" above. Do not fall back to notion-search.
 
 **Claude Desktop / Cowork:**
-1. `mcp__notion-extension__notion-query` available → call the MCP tool with the target database ID and filter
+1. `mcp__notion-extension__notion-query` available → call the MCP tool with the target database ID and filter. For databases that may grow past ~200 rows (Intake Log, Tasks DB, custom-source mirrors), pass `page_size` (1-100) and iterate using the response's `has_more` / `next_cursor`. See Path 2 above for full parameter docs.
 2. Otherwise → halt and surface the error per "Error Handling for Query Path" above. Do not fall back to notion-search.
 
 ## Task Record Reference

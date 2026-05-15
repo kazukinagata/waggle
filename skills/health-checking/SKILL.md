@@ -112,13 +112,21 @@ Read `~/.waggle/config.json` via Bash: `cat ~/.waggle/config.json 2>/dev/null`
 
 **Skip if** `execution_environment = "cli"` or `active_provider` is not `"notion"`.
 
-Check available MCP tools:
+Check available MCP tools, then probe pagination support:
 
 | Condition | Result |
 |---|---|
-| `mcp__notion-extension__notion-query` tool is available | PASS: Latest Notion Desktop Extension (v0.2.0) is installed |
-| `mcp__notion-query__notion-query` tool is available (but not `mcp__notion-extension__*`) | WARN: Outdated extension detected. Uninstall `notion-query` and install the new `notion-extension` v0.2.0 |
-| Neither tool is available | WARN: Notion Desktop Extension is not installed. Install `notion-extension` v0.2.0 for full functionality (relation field updates, people property filters) |
+| `mcp__notion-extension__notion-query` tool is available AND pagination probe succeeds (see below) | PASS: Latest Notion Desktop Extension (v0.4.0+) is installed |
+| `mcp__notion-extension__notion-query` tool is available BUT pagination probe shows v0.3.x semantics | WARN: Outdated `notion-extension` detected (v0.3.x or earlier — silently ignores `page_size`). Install v0.4.0 or later so `ingesting-messages` and large-database queries can paginate. Without this, the Intake Log query can overflow the MCP token cap and stall the run for many minutes. |
+| `mcp__notion-query__notion-query` tool is available (but not `mcp__notion-extension__*`) | WARN: Outdated extension detected. Uninstall `notion-query` and install the new `notion-extension` v0.4.0+ |
+| Neither tool is available | WARN: Notion Desktop Extension is not installed. Install `notion-extension` v0.4.0+ for full functionality (paginated queries, relation field updates, people property filters) |
+
+**Pagination probe**: when `mcp__notion-extension__notion-query` is available, call it with `database_id: <intakeLogDatabaseId from the Waggle Config page>` and `page_size: 1`. The Intake Log is guaranteed to exist after the first `ingesting-messages` run and is always small (bounded by Step 4's TTL cleanup), so it is the safest probe target. If `intakeLogDatabaseId` is not yet set in config (first-ever waggle session, before `ingesting-messages` has created the DB), fall back to any other small config-referenced DB you already have an ID for. **Do not probe `tasksDatabaseId`** — on a v0.3.x host the probe itself will fetch the entire Tasks DB and trigger the very overflow this check is meant to detect.
+
+Inspect the response:
+
+- Response object contains a `has_more` key → server honors `page_size` → v0.4.0+. PASS.
+- Response object does not contain `has_more` (only `results`) → server ignored `page_size` and aggregated everything → v0.3.x or earlier. WARN.
 
 ---
 
