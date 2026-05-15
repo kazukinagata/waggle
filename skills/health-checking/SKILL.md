@@ -121,12 +121,12 @@ Check available MCP tools, then probe pagination support:
 | `mcp__notion-query__notion-query` tool is available (but not `mcp__notion-extension__*`) | WARN: Outdated extension detected. Uninstall `notion-query` and install the new `notion-extension` v0.4.0+ |
 | Neither tool is available | WARN: Notion Desktop Extension is not installed. Install `notion-extension` v0.4.0+ for full functionality (paginated queries, relation field updates, people property filters) |
 
-**Pagination probe**: when `mcp__notion-extension__notion-query` is available, call it with `database_id: <any small reachable database, e.g. the Waggle Config DB derived from active_provider's identity flow>` and `page_size: 1`. Inspect the response:
+**Pagination probe**: when `mcp__notion-extension__notion-query` is available, call it with `database_id: <intakeLogDatabaseId from the Waggle Config page>` and `page_size: 1`. The Intake Log is guaranteed to exist after the first `ingesting-messages` run and is always small (bounded by Step 4's TTL cleanup), so it is the safest probe target. If `intakeLogDatabaseId` is not yet set in config (first-ever waggle session, before `ingesting-messages` has created the DB), fall back to any other small config-referenced DB you already have an ID for. **Do not probe `tasksDatabaseId`** — on a v0.3.x host the probe itself will fetch the entire Tasks DB and trigger the very overflow this check is meant to detect.
+
+Inspect the response:
 
 - Response object contains a `has_more` key → server honors `page_size` → v0.4.0+. PASS.
 - Response object does not contain `has_more` (only `results`) → server ignored `page_size` and aggregated everything → v0.3.x or earlier. WARN.
-
-The Waggle Config DB or the Intake Log DB IDs are good probe targets because they exist whenever waggle is set up and are tiny; do not probe the Tasks DB if it is large, since v0.3.x will pull it in full during the probe.
 
 ---
 

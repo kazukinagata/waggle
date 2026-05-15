@@ -45,7 +45,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
               'Notion sorts array. Example: [{"property":"Priority","direction":"ascending"}]',
           },
           page_size: {
-            type: "number",
+            type: "integer",
             description:
               "Notion API page_size (1-100). When set, this tool returns a single page along with has_more and next_cursor so the caller can paginate. When omitted, the server aggregates all pages internally and returns the full result set (legacy behavior; risks exceeding MCP token caps on large databases).",
             minimum: 1,

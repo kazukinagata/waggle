@@ -607,6 +607,7 @@ Create tasks directly via `notion-create-pages` for each message (do not go thro
    - Compute `retention_cutoff = (now - intake_log_retention_days).date()`.
    - Query the Intake Log with `filter: {"property":"Processed At","date":{"before":"<retention_cutoff>"}}`, `page_size: 50`. Iterate `start_cursor` / `has_more` as in Step 0.
    - For each returned record, soft-delete via `notion-update-page` with `archived: true`. (Notion has no hard delete via API.)
+   - **Per-run cap**: stop after archiving 200 records in total, even if more pages remain. The next run will continue from the same `before` cutoff. This bounds cleanup wall-clock time on the first run after upgrading from the old count-based FIFO, when a user may have thousands of records older than `retention_cutoff` accumulated under the prior 1000-entry cap. Without this cap, the cleanup itself could re-introduce a multi-minute hang and undo the benefit of this skill change.
    - Tolerate rate limits: on HTTP 429, honor the `Retry-After` header. Do not block the rest of the run on cleanup failure — log the error and continue. The next run will retry.
    - Skipping the cleanup is safe (the next run will catch up); skipping the load in Step 0 is not, so cleanup runs last.
 
