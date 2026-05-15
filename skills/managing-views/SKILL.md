@@ -138,7 +138,7 @@ When the user asks to regenerate or update a custom view:
 **Then, depending on `execution_environment`**:
 
 - **`cli`** / **`claude-desktop`**: the localhost server serves the updated file on next browser refresh.
-- **`cowork`**: re-run the cowork generator and call `update_artifact`. Reuse the original assignee scoping unless the user has asked to re-target — by default pass `current_user.id` as the 5th positional, or the Notion user ID of an explicitly-named person via the `looking-up-members` skill:
+- **`cowork`**: re-run the cowork generator and call `update_artifact`. **Assignee binding caveat**: Cowork's `list_artifacts` does not return the `assigneeUserId` baked into a previously-registered artifact, so the original scoping is irrecoverable at regenerate time. If the user originally scoped this custom view to someone other than themselves (e.g., Alice) and then asks for a plain "regenerate" without naming the assignee, the default below silently re-scopes to `current_user.id`. When in doubt, confirm with the user before defaulting — or have them re-state the assignee on the regenerate command (`/managing-views regenerate <slug> for Alice`). By default pass `current_user.id` as the 5th positional, or the Notion user ID of an explicitly-named person via the `looking-up-members` skill:
 
   ```bash
   bash "${CLAUDE_SKILL_DIR}/scripts/generate-cowork-custom-artifact.sh" \

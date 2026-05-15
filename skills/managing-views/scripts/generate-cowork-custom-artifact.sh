@@ -253,6 +253,27 @@ cat >> "$BOOT_FILE" <<'COWORK_BOOT'
 </script>
 COWORK_BOOT
 
+# Filter wiring self-tests — mirror the checks in generate-cowork-artifact.sh.
+# The boot block is fully assembled at this point (config via Python + adapter
+# via heredoc), so validating it directly catches future edits to either half
+# that silently drop the filter. The top-of-file note ("keep the adapter
+# logically in sync manually") is a developer convention; these machine checks
+# are the safety net.
+if ! grep -q '"assigneeUserId"' "$BOOT_FILE"; then
+  echo "Self-test FAILED: BOOT_FILE missing assigneeUserId key" >&2
+  exit 1
+fi
+
+if ! grep -q "does_not_equal: 'Done'" "$BOOT_FILE"; then
+  echo "Self-test FAILED: Status != Done clause missing from buildFilter" >&2
+  exit 1
+fi
+
+if ! grep -q "does_not_equal: 'Cancelled'" "$BOOT_FILE"; then
+  echo "Self-test FAILED: Status != Cancelled clause missing from buildFilter" >&2
+  exit 1
+fi
+
 # Substitute the COWORK_BOOT marker with the generated block.
 # Read the boot block into a python variable (via env) for safe substitution —
 # sed can't easily handle multi-line replacements with shell special chars.
