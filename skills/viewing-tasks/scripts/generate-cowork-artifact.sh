@@ -177,6 +177,11 @@ strip_init_keyboard() {
     /W\.initKeyboard[[:space:]]*\(/ {
       in_keyboard=1
       depth = count_chars($0, "{") - count_chars($0, "}")
+      # Single-line form `W.initKeyboard({...});` closes on the trigger line
+      # itself — depth returns to 0 immediately. Without this guard, in_keyboard
+      # stays 1 and the next line is dropped even though we are already past
+      # the keyboard block.
+      if (depth <= 0) { in_keyboard=0 }
       next
     }
     in_keyboard {
