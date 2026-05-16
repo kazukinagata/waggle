@@ -1,7 +1,7 @@
 {
-  "name": "notion-extension",
-  "version": "0.5.0",
-  "description": "Notion MCP server for Waggle — database queries and relation updates",
+  "name": "mcpb-debug-notion-clone-mock",
+  "version": "0.0.2",
+  "description": "Mock clone of Notion Extension for Waggle — same manifest/schema/startup, mock handlers",
   "type": "module",
   "main": "server/index.js",
   "license": "MIT",

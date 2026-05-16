@@ -1,8 +1,8 @@
 {
   "manifest_version": "0.3",
-  "name": "notion-extension",
-  "version": "0.5.0",
-  "description": "Notion database querying with people property filters and relation property updates. Designed for Waggle plugin.",
+  "name": "mcpb-debug-notion-extension-clone",
+  "version": "0.0.1",
+  "description": "Exact functional clone of providers/notion/extension/ (real Notion API calls — not a mock) but with a different name and no display_name. Used to confirm the prefix-casing fix works end-to-end against real Notion data before applying the breaking change to the real extension.",
   "author": {
     "name": "Kazuki Nagata"
   },

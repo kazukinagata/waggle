@@ -14,10 +14,13 @@ if (!NOTION_TOKEN) {
   process.exit(1);
 }
 
+// Imported but never used. Kept to mirror the real notion-extension's
+// dependency-loading and startup cost.
+// eslint-disable-next-line no-unused-vars
 const notion = new Client({ auth: NOTION_TOKEN });
 
 const server = new Server(
-  { name: "notion-extension", version: "0.5.0" },
+  { name: "mcpb-debug-notion-clone-mock", version: "0.0.1" },
   { capabilities: { tools: {} } }
 );
 
@@ -101,73 +104,26 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
   ],
 }));
 
-async function handleQuery(args) {
-  const { database_id, filter, sorts, page_size, start_cursor, filter_properties } = args;
-
-  const baseParams = { database_id };
-  if (filter) baseParams.filter = filter;
-  if (sorts) baseParams.sorts = sorts;
-  if (filter_properties) baseParams.filter_properties = filter_properties;
-
-  // Caller-driven pagination: return one page plus cursors so the caller can
-  // iterate. This keeps each MCP response under the host's token cap on large
-  // databases (Intake Log, Tasks DB with hundreds of rows, etc.).
-  if (page_size !== undefined) {
-    const response = await notion.databases.query({
-      ...baseParams,
-      page_size,
-      ...(start_cursor ? { start_cursor } : {}),
-    });
-    return {
-      results: response.results,
-      has_more: response.has_more,
-      next_cursor: response.next_cursor,
-    };
-  }
-
-  // Legacy mode: aggregate all pages server-side. Preserved for callers that
-  // do not yet drive pagination; will overflow MCP token caps on large DBs.
-  const allResults = [];
-  let cursor = undefined;
-  let hasMore = true;
-  while (hasMore) {
-    const response = await notion.databases.query({
-      ...baseParams,
-      ...(cursor ? { start_cursor: cursor } : {}),
-    });
-    allResults.push(...response.results);
-    hasMore = response.has_more;
-    cursor = response.next_cursor;
-  }
-  return { results: allResults };
+async function handleQueryMock(_args) {
+  return {
+    results: [],
+    has_more: false,
+    next_cursor: null,
+    _mock: true,
+  };
 }
 
-async function handleUpdateRelation(args) {
-  const { page_id, property_name, mode, relation_ids = [] } = args;
-
-  let finalIds = relation_ids;
-
-  if (mode === "append" && relation_ids.length > 0) {
-    const page = await notion.pages.retrieve({ page_id });
-    const existing = page.properties[property_name]?.relation ?? [];
-    const existingIds = existing.map((r) => r.id);
-    const seen = new Set(existingIds);
-    for (const id of relation_ids) {
-      if (!seen.has(id)) {
-        existingIds.push(id);
-        seen.add(id);
-      }
-    }
-    finalIds = existingIds;
-  }
-
-  const relation = finalIds.map((id) => ({ id }));
-  const result = await notion.pages.update({
-    page_id,
-    properties: { [property_name]: { relation } },
-  });
-
-  return result;
+async function handleUpdateRelationMock(args) {
+  return {
+    object: "page",
+    id: args?.page_id ?? "mock-page-id",
+    properties: {
+      [args?.property_name ?? "Mock Relation"]: {
+        relation: (args?.relation_ids ?? []).map((id) => ({ id })),
+      },
+    },
+    _mock: true,
+  };
 }
 
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
@@ -176,10 +132,10 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   let result;
   switch (name) {
     case "notion-query":
-      result = await handleQuery(args);
+      result = await handleQueryMock(args);
       break;
     case "notion-update-relation":
-      result = await handleUpdateRelation(args);
+      result = await handleUpdateRelationMock(args);
       break;
     default:
       throw new Error(`Unknown tool: ${name}`);
@@ -193,4 +149,4 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 const transport = new StdioServerTransport();
 server.connect(transport);
 
-console.error("notion-extension MCP server running...");
+console.error("mcpb-debug-notion-clone-mock MCP server running...");

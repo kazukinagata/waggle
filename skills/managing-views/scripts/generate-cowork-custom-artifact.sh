@@ -9,14 +9,20 @@
 # standalone artifact with its own render() in its own scope.
 #
 # Usage:
-#   generate-cowork-custom-artifact.sh <slug> <tasksDatabaseId> [team_id] [team_name] [assignee_user_id]
+#   generate-cowork-custom-artifact.sh <slug> <tasksDatabaseId> <team_id> <team_name> <assignee_user_id> <mcp_tool_name>
 #
 # Output: writes the standalone HTML to stdout.
 #
-# When [assignee_user_id] is provided, the bundle's runtime fetch is scoped
+# <team_id> / <team_name> / <assignee_user_id> accept empty string. <mcp_tool_name>
+# is REQUIRED — the caller (the SKILL.md flow run by Claude) must resolve the
+# Notion-query MCP tool from its available tools and pass the exact full name
+# (e.g. mcp__notion-extension__notion-query). Hardcoding it here would break
+# any user whose installed extension version exposes a different prefix.
+#
+# When <assignee_user_id> is provided, the bundle's runtime fetch is scoped
 # server-side to that assignee (people.contains). Status is always restricted
 # to non-terminal — Done and Cancelled are excluded by a fixed select clause.
-# When [assignee_user_id] is empty, the Assignee predicate is omitted (degraded
+# When <assignee_user_id> is empty, the Assignee predicate is omitted (degraded
 # unscoped mode); the status exclusion still applies.
 #
 # A second Cowork artifact generator (owned by a different skill) carries an
@@ -27,12 +33,20 @@
 
 set -euo pipefail
 
-USAGE="Usage: generate-cowork-custom-artifact.sh <slug> <tasksDatabaseId> [team_id] [team_name] [assignee_user_id]"
+USAGE="Usage: generate-cowork-custom-artifact.sh <slug> <tasksDatabaseId> <team_id> <team_name> <assignee_user_id> <mcp_tool_name>"
 SLUG="${1:?$USAGE}"
 DB_ID="${2:?$USAGE}"
 TEAM_ID="${3:-}"
 TEAM_NAME="${4:-}"
 ASSIGNEE_USER_ID="${5:-}"
+MCP_TOOL_NAME="${6:-}"
+if [ -z "$MCP_TOOL_NAME" ]; then
+  echo "Error: 6th argument <mcp_tool_name> is required and must be non-empty." >&2
+  echo "       Pass the full MCP tool name your environment exposes" >&2
+  echo "       (e.g. mcp__notion-extension__notion-query). The caller is expected" >&2
+  echo "       to resolve this from the available MCP tools rather than hardcode." >&2
+  exit 1
+fi
 
 # Slug must be filesystem-safe AND artifact-id-safe (kebab-case lowercase).
 # Reject anything that could escape the path or produce a confusing artifact
@@ -80,17 +94,19 @@ db = sys.argv[1]
 team_id = sys.argv[2] or ""
 team_name = sys.argv[3] or ""
 assignee_user_id = sys.argv[4] or ""
+mcp_tool_name = sys.argv[5]
 team = {"id": team_id, "name": team_name} if (team_id and team_name) else None
 cfg = {
     "databaseId": db,
     "currentTeam": team,
     "assigneeUserId": assignee_user_id or None,
+    "mcpToolName": mcp_tool_name,
 }
-with open(sys.argv[5], "w", encoding="utf-8") as f:
+with open(sys.argv[6], "w", encoding="utf-8") as f:
     f.write("<script>\n")
     f.write("window.__COWORK_QUERY_CONFIG__ = " + json.dumps(cfg, ensure_ascii=False) + ";\n")
     f.write("</script>\n")
-' "$DB_ID" "$TEAM_ID" "$TEAM_NAME" "$ASSIGNEE_USER_ID" "$BOOT_FILE"
+' "$DB_ID" "$TEAM_ID" "$TEAM_NAME" "$ASSIGNEE_USER_ID" "$MCP_TOOL_NAME" "$BOOT_FILE"
 
 # Append the adapter script with a quoted heredoc so nothing in the body is
 # bash-interpolated.
@@ -190,8 +206,17 @@ cat >> "$BOOT_FILE" <<'COWORK_BOOT'
     return { and: clauses };
   }
 
+  function getMcpToolName() {
+    var cfg = window.__COWORK_QUERY_CONFIG__ || {};
+    if (!cfg.mcpToolName) {
+      throw new Error('mcpToolName missing from baked config — regenerate the artifact via /managing-views.');
+    }
+    return cfg.mcpToolName;
+  }
+
   async function paginatedQuery(databaseId, assigneeUserId) {
     var filter = buildFilter(assigneeUserId);
+    var toolName = getMcpToolName();
     var rows = [];
     var cursor;
     var truncated = false;
@@ -201,7 +226,7 @@ cat >> "$BOOT_FILE" <<'COWORK_BOOT'
       if (loops > 20) break;
       var args = { database_id: databaseId, page_size: PAGE_SIZE, filter: filter };
       if (cursor) args.start_cursor = cursor;
-      var res = await window.cowork.callMcpTool('mcp__Notion_Extension_for_Waggle__notion-query', args);
+      var res = await window.cowork.callMcpTool(toolName, args);
       var data = extractJson(res);
       var results = data.results || [];
       for (var i = 0; i < results.length && rows.length < MAX_ROWS; i++) rows.push(results[i]);
@@ -261,6 +286,11 @@ COWORK_BOOT
 # are the safety net.
 if ! grep -q '"assigneeUserId"' "$BOOT_FILE"; then
   echo "Self-test FAILED: BOOT_FILE missing assigneeUserId key" >&2
+  exit 1
+fi
+
+if ! grep -q '"mcpToolName"' "$BOOT_FILE"; then
+  echo "Self-test FAILED: BOOT_FILE missing mcpToolName key" >&2
   exit 1
 fi
 

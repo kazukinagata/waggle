@@ -380,6 +380,7 @@
     refreshTasks: refreshTasks,
     connectSSE: connectSSE,
     initData: initData,
+    updateData: updateData,
 
     // Filter engine
     filters: filters,

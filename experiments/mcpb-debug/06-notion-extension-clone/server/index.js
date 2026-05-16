@@ -17,7 +17,7 @@ if (!NOTION_TOKEN) {
 const notion = new Client({ auth: NOTION_TOKEN });
 
 const server = new Server(
-  { name: "notion-extension", version: "0.5.0" },
+  { name: "mcpb-debug-notion-extension-clone", version: "0.0.1" },
   { capabilities: { tools: {} } }
 );
 
