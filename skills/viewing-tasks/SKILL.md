@@ -31,7 +31,7 @@ The two modes use the same `Task` data shape and the same set of view renderers 
 
 ## Cowork Live Artifact Mode
 
-In Cowork, the dashboard is a single Live Artifact (`id = "waggle-tasks"`) that bundles all four view renderers with a tab strip at the top. The artifact fetches Notion data itself via `mcp__Notion_Extension_for_Waggle__notion-query`; refresh is driven by Cowork's built-in ↻ button or the in-page refresh, both of which re-run the artifact JS.
+In Cowork, the dashboard is a single Live Artifact (`id = "waggle-tasks"`) that bundles all four view renderers with a tab strip at the top. The artifact fetches Notion data itself via the **notion-query** tool from the notion-extension MCP; refresh is driven by Cowork's built-in ↻ button or the in-page refresh, both of which re-run the artifact JS.
 
 ### Steps
 
@@ -39,7 +39,9 @@ In Cowork, the dashboard is a single Live Artifact (`id = "waggle-tasks"`) that 
 
 2. Determine the assignee to scope the artifact to. By default this is `current_user.id` (the person opening the artifact almost always wants their own open tasks, not the entire workspace). If the user has explicitly asked to view another person's tasks ("show Alice's board", "build a dashboard for the platform team lead"), resolve that person via the `looking-up-members` skill and use their Notion user ID instead.
 
-3. Generate the bundled HTML. Pass the assignee ID as the 4th positional argument — the bundle will server-side filter to that person AND exclude Done/Cancelled at the Notion query layer:
+3. **Resolve the Notion-query MCP tool name.** Look through your available MCP tools and find the one whose unqualified name is `notion-query` and that comes from the notion-extension MCP (its full name typically looks like `mcp__notion-extension__notion-query`, but the exact prefix depends on the installed extension version's manifest — never hardcode it). Use that exact, full tool name as the 5th argument to the generator below **and** as the value in the `mcp_tools` array when calling `create_artifact` / `update_artifact`. If you cannot find such a tool, surface the failure to the user and stop — the artifact cannot operate without it.
+
+4. Generate the bundled HTML. The 4th argument is the assignee Notion user ID; the 5th argument is the resolved MCP tool name from Step 3. The bundle will server-side filter to that assignee AND exclude Done/Cancelled at the Notion query layer:
 
    ```bash
    bash "${CLAUDE_SKILL_DIR}/scripts/generate-cowork-artifact.sh" \
@@ -47,51 +49,53 @@ In Cowork, the dashboard is a single Live Artifact (`id = "waggle-tasks"`) that 
      "<current_team.id or empty>" \
      "<current_team.name or empty>" \
      "<assignee notion user id, e.g. current_user.id>" \
+     "<the full MCP tool name you resolved in Step 3>" \
      > /tmp/waggle-tasks.html
    ```
 
    Pass an empty string for the 4th argument only if the user has explicitly asked for an unscoped view across all assignees; the bundle then shows all open tasks with an informational banner. Status exclusion (Done + Cancelled) is always applied — these terminal states are never useful in the active dashboard.
 
-4. Call `mcp__cowork__list_artifacts()` and check whether the response includes an entry with `id == "waggle-tasks"`.
+5. Call `mcp__cowork__list_artifacts()` and check whether the response includes an entry with `id == "waggle-tasks"`.
 
-5. **If the artifact already exists**, refresh it in place via `update_artifact` (don't create a duplicate):
+6. **If the artifact already exists**, refresh it in place via `update_artifact` (don't create a duplicate):
 
    ```
    mcp__cowork__update_artifact({
      id: "waggle-tasks",
      html_path: "/tmp/waggle-tasks.html",
      update_summary: "[REFRESH] regenerated against latest schema / team / assignee scope",
-     mcp_tools: ["mcp__Notion_Extension_for_Waggle__notion-query"]
+     mcp_tools: ["<the full MCP tool name you resolved in Step 3>"]
    })
    ```
 
    This re-bakes the latest `databaseId` / `currentTeam` / `assigneeUserId` and picks up any code changes since the last registration. The user gets the Cowork approval prompt on update.
 
-6. **If the artifact does not exist**, register it via `create_artifact`:
+7. **If the artifact does not exist**, register it via `create_artifact`:
 
    ```
    mcp__cowork__create_artifact({
      id: "waggle-tasks",
      html_path: "/tmp/waggle-tasks.html",
      description: "Waggle Tasks Dashboard — Kanban / List / Calendar / Gantt",
-     mcp_tools: ["mcp__Notion_Extension_for_Waggle__notion-query"]
+     mcp_tools: ["<the full MCP tool name you resolved in Step 3>"]
    })
    ```
 
-7. Clean up the temp file: `rm -f /tmp/waggle-tasks.html`. Tell the user to open the **waggle-tasks** Live Artifact panel in the Cowork sidebar (or, on update, reload the existing panel).
+8. Clean up the temp file: `rm -f /tmp/waggle-tasks.html`. Tell the user to open the **waggle-tasks** Live Artifact panel in the Cowork sidebar (or, on update, reload the existing panel).
 
 ### Cowork-mode behavior
 
 - The artifact bundles Kanban / List / Calendar / Gantt; the active tab is persisted per-user in `localStorage` (`waggle-tasks-active-tab-v1`).
-- Each artifact reload re-fetches via `mcp__Notion_Extension_for_Waggle__notion-query` (paginated, cap 1000 rows). The fetch is server-side filtered to the baked `assigneeUserId` and always excludes `Status == Done` / `Status == Cancelled`; the bundled `filter-bar.js` narrows further on the client. The status badge reads "Live (Cowork)" when the fetch succeeds. To switch the bound assignee, re-run `/viewing-tasks` with the new person's name — the skill regenerates and calls `update_artifact` with the new scope.
+- Each artifact reload re-fetches via the resolved notion-query MCP tool (paginated, cap 1000 rows). The fetch is server-side filtered to the baked `assigneeUserId` and always excludes `Status == Done` / `Status == Cancelled`; the bundled `filter-bar.js` narrows further on the client. The status badge reads "Live (Cowork)" when the fetch succeeds. To switch the bound assignee, re-run `/viewing-tasks` with the new person's name — the skill regenerates and calls `update_artifact` with the new scope.
 - The artifact is **read-only**. Mutating Notion tools are deliberately not declared in `mcp_tools` yet; inline-edit UI will come in a later skill release and will widen `mcp_tools` via `update_artifact`.
-- **Windows cold-start (GitHub Issue #55788)**: on Windows the artifact's first call to `callMcpTool` may fail with HTTP 400 in a cold-start state. Workaround: ask the user to invoke any Notion MCP tool from the Cowork chat once before opening the artifact, then reload the panel. Mac is unaffected.
+- **Cold-start race (GitHub Issue #55788)**: on either Windows or macOS the artifact's first call to `callMcpTool` may fail with HTTP 400 in a cold-start state. Workaround: ask the user to invoke any Notion MCP tool from the Cowork chat once before opening the artifact, then reload the panel.
 - Custom user-defined views are managed by the `managing-views` skill and registered as separate `waggle-view-<slug>` artifacts.
 
 ### Troubleshooting
 
 - **"Cowork runtime unavailable" banner** in the artifact: the cold-start race fired. Reload the panel, or have the user run any Notion MCP tool from chat first.
 - **"Failed to load tasks: ..."**: open DevTools on the artifact panel (right-click → Inspect). Network tab shows the `callMcpTool` request; Console shows any JS errors. Verify the baked `databaseId` matches the active `tasksDatabaseId`.
+- **`Tool call failed: 400` from the artifact (with chat-mode calls succeeding)**: known Cowork-platform issue with extension tool prefixes that contain uppercase letters or underscores. The prefix is derived from the extension manifest's `display_name`; a manifest with a `display_name` containing whitespace produces a `mcp__<UpperCase_With_Underscores>__...` tool name that the Live Artifact bridge currently rejects, even though chat-mode calls work. Mitigation: install notion-extension v0.5.0+ which drops `display_name` and yields a `mcp__notion-extension__...` prefix that the bridge accepts. Older v0.4.x installs keep working from chat but not from Live Artifact.
 - **Dashboard shows stale data**: click the Cowork built-in ↻, which re-executes the artifact JS and re-fetches.
 - **Stale artifact (schema changed, wrong team, wrong assignee)**: re-run `/viewing-tasks` — the skill regenerates and calls `update_artifact` with the latest `databaseId` / team / assignee binding.
 - **"My dashboard is empty / shows the wrong person's tasks"**: the baked `assigneeUserId` may not match the user's expectations. Re-run `/viewing-tasks` (defaults to `current_user.id`) or `/viewing-tasks <name>` to scope to someone else. To see everyone, ask for an unscoped regeneration explicitly.

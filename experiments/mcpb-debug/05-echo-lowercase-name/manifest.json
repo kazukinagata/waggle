@@ -1,0 +1,28 @@
+{
+  "manifest_version": "0.3",
+  "name": "mcpb-debug-echo-lowercase",
+  "version": "0.0.1",
+  "description": "Same as 01-echo-baseline but with no display_name and an all-lowercase hyphenated name. Tests whether the Cowork Live Artifact 400 is triggered by uppercase letters / underscores in the tool prefix (which derive from display_name).",
+  "author": {
+    "name": "Kazuki Nagata"
+  },
+  "server": {
+    "type": "node",
+    "entry_point": "server/index.js",
+    "mcp_config": {
+      "command": "node",
+      "args": ["${__dirname}/server/index.js"]
+    }
+  },
+  "tools": [
+    {
+      "name": "echo_test",
+      "description": "Echo back the input string."
+    }
+  ],
+  "keywords": ["debug", "echo", "mcpb", "waggle"],
+  "license": "MIT",
+  "compatibility": {
+    "platforms": ["darwin", "win32", "linux"]
+  }
+}

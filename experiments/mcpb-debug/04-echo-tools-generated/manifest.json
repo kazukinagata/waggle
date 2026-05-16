@@ -1,0 +1,24 @@
+{
+  "manifest_version": "0.3",
+  "name": "mcpb-debug-echo-tools-generated",
+  "display_name": "MCPB Debug Echo Tools Generated",
+  "version": "0.0.1",
+  "description": "Same as 01-echo-baseline but uses tools_generated:true instead of an explicit tools array (matching sh-mcp-auth-gateway). Tests whether tools_generated is the trigger for the Cowork Live Artifact 400.",
+  "author": {
+    "name": "Kazuki Nagata"
+  },
+  "server": {
+    "type": "node",
+    "entry_point": "server/index.js",
+    "mcp_config": {
+      "command": "node",
+      "args": ["${__dirname}/server/index.js"]
+    }
+  },
+  "tools_generated": true,
+  "keywords": ["debug", "echo", "mcpb", "waggle"],
+  "license": "MIT",
+  "compatibility": {
+    "platforms": ["darwin", "win32", "linux"]
+  }
+}

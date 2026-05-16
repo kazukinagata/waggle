@@ -38,6 +38,10 @@ Pick the operation's transport based on `execution_environment`:
 
 In both modes the local HTML at `~/.waggle/views/<slug>.html` remains the canonical source — Cowork operations regenerate from it via `generate-cowork-custom-artifact.sh`.
 
+## Resolving the Notion-query MCP tool name (Cowork operations only)
+
+Before any `cowork` operation that calls `generate-cowork-custom-artifact.sh` or `create_artifact` / `update_artifact`, look through your available MCP tools and find the one whose unqualified name is `notion-query` and that comes from the notion-extension MCP. Its full name typically looks like `mcp__notion-extension__notion-query`, but the exact prefix depends on the installed extension version's manifest — never hardcode it. Use that exact, full tool name as the 6th argument to the generator **and** as the value in the `mcp_tools` array when registering the artifact with Cowork. If no such tool is available, surface the failure and stop — the artifact cannot operate without it. Subsequent sections refer to this as "the resolved notion-query tool name".
+
 ## Operations
 
 ### Create
@@ -51,13 +55,14 @@ When the user asks to create a custom view (e.g., "create a view showing blocked
 **Then, depending on `execution_environment`**:
 
 - **`cli`** / **`claude-desktop`**: confirm creation and provide the URL `http://localhost:3456/custom/<slug>.html`. Open in the browser using platform detection (see viewing-tasks skill).
-- **`cowork`**: resolve `tasksDatabaseId` (and optional `current_team`) from `headless_config`. Determine the assignee to scope the view to — default to `current_user.id`; if the user explicitly asked for another person's view ("Alice's blocked tasks"), resolve via the `looking-up-members` skill and pass that Notion user ID. The generator bakes the assignee + a fixed `Status != Done`/`Cancelled` exclusion into the live-fetch adapter so the artifact's Notion query is scoped at the source:
+- **`cowork`**: resolve `tasksDatabaseId` (and optional `current_team`) from `headless_config`. Determine the assignee to scope the view to — default to `current_user.id`; if the user explicitly asked for another person's view ("Alice's blocked tasks"), resolve via the `looking-up-members` skill and pass that Notion user ID. Also resolve the notion-query MCP tool name (see "Resolving the Notion-query MCP tool name" above) — required as the 6th argument. The generator bakes the assignee + a fixed `Status != Done`/`Cancelled` exclusion into the live-fetch adapter so the artifact's Notion query is scoped at the source:
 
   ```bash
   bash "${CLAUDE_SKILL_DIR}/scripts/generate-cowork-custom-artifact.sh" \
     "<slug>" "<tasksDatabaseId>" \
     "<current_team.id or empty>" "<current_team.name or empty>" \
     "<assignee notion user id, e.g. current_user.id>" \
+    "<the resolved notion-query tool name>" \
     > /tmp/waggle-view-<slug>.html
   ```
 
@@ -68,7 +73,7 @@ When the user asks to create a custom view (e.g., "create a view showing blocked
     id: "waggle-view-<slug>",
     html_path: "/tmp/waggle-view-<slug>.html",
     description: "<short description from user's request>",
-    mcp_tools: ["mcp__Notion_Extension_for_Waggle__notion-query"]
+    mcp_tools: ["<the resolved notion-query tool name>"]
   })
   ```
 
@@ -138,13 +143,14 @@ When the user asks to regenerate or update a custom view:
 **Then, depending on `execution_environment`**:
 
 - **`cli`** / **`claude-desktop`**: the localhost server serves the updated file on next browser refresh.
-- **`cowork`**: re-run the cowork generator, then `list_artifacts` and dispatch on whether the artifact already exists — `update_artifact` if so, `create_artifact` if not. The fallback to `create_artifact` matters when the user previously deleted the view (which only sets a stub HTML) or when the local file exists but was never registered. **Assignee binding caveat**: Cowork's `list_artifacts` does not return the `assigneeUserId` baked into a previously-registered artifact, so the original scoping is irrecoverable at regenerate time. If the user originally scoped this custom view to someone other than themselves (e.g., Alice) and then asks for a plain "regenerate" without naming the assignee, the default below silently re-scopes to `current_user.id`. When in doubt, confirm with the user before defaulting — or have them re-state the assignee on the regenerate command (`/managing-views regenerate <slug> for Alice`). By default pass `current_user.id` as the 5th positional, or the Notion user ID of an explicitly-named person via the `looking-up-members` skill:
+- **`cowork`**: re-run the cowork generator, then `list_artifacts` and dispatch on whether the artifact already exists — `update_artifact` if so, `create_artifact` if not. The fallback to `create_artifact` matters when the user previously deleted the view (which only sets a stub HTML) or when the local file exists but was never registered. **Assignee binding caveat**: Cowork's `list_artifacts` does not return the `assigneeUserId` baked into a previously-registered artifact, so the original scoping is irrecoverable at regenerate time. If the user originally scoped this custom view to someone other than themselves (e.g., Alice) and then asks for a plain "regenerate" without naming the assignee, the default below silently re-scopes to `current_user.id`. When in doubt, confirm with the user before defaulting — or have them re-state the assignee on the regenerate command (`/managing-views regenerate <slug> for Alice`). By default pass `current_user.id` as the 5th positional, or the Notion user ID of an explicitly-named person via the `looking-up-members` skill. Also resolve the notion-query MCP tool name (see "Resolving the Notion-query MCP tool name" above) for the 6th positional:
 
   ```bash
   bash "${CLAUDE_SKILL_DIR}/scripts/generate-cowork-custom-artifact.sh" \
     "<slug>" "<tasksDatabaseId>" \
     "<current_team.id or empty>" "<current_team.name or empty>" \
     "<assignee notion user id, e.g. current_user.id>" \
+    "<the resolved notion-query tool name>" \
     > /tmp/waggle-view-<slug>.html
   ```
 
@@ -157,7 +163,7 @@ When the user asks to regenerate or update a custom view:
     id: "waggle-view-<slug>",
     html_path: "/tmp/waggle-view-<slug>.html",
     update_summary: "[FEAT] <one-line summary of changes>",
-    mcp_tools: ["mcp__Notion_Extension_for_Waggle__notion-query"]
+    mcp_tools: ["<the resolved notion-query tool name>"]
   })
   ```
 
@@ -168,7 +174,7 @@ When the user asks to regenerate or update a custom view:
     id: "waggle-view-<slug>",
     html_path: "/tmp/waggle-view-<slug>.html",
     description: "<short description from user's request>",
-    mcp_tools: ["mcp__Notion_Extension_for_Waggle__notion-query"]
+    mcp_tools: ["<the resolved notion-query tool name>"]
   })
   ```
 

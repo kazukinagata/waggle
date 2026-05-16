@@ -1,7 +1,7 @@
 {
-  "name": "notion-extension",
-  "version": "0.5.0",
-  "description": "Notion MCP server for Waggle — database queries and relation updates",
+  "name": "mcpb-debug-notion-extension-clone",
+  "version": "0.0.1",
+  "description": "Functional clone of providers/notion/extension for prefix-casing fix verification",
   "type": "module",
   "main": "server/index.js",
   "license": "MIT",

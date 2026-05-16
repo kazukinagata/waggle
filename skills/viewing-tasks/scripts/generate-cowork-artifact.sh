@@ -3,18 +3,24 @@
 #
 # Bundles the four view HTMLs (kanban / list / calendar / gantt) into a single
 # Cowork Live Artifact. The output is a self-contained HTML document that
-# fetches Notion data via window.cowork.callMcpTool("...notion-query", ...)
+# fetches Notion data via window.cowork.callMcpTool(<mcp_tool_name>, ...)
 # and renders one of the four views via a top tab strip.
 #
 # Usage:
-#   generate-cowork-artifact.sh <tasksDatabaseId> [team_id] [team_name] [assignee_user_id]
+#   generate-cowork-artifact.sh <tasksDatabaseId> <team_id> <team_name> <assignee_user_id> <mcp_tool_name>
 #
 # Output: writes the standalone HTML to stdout.
 #
-# When [assignee_user_id] is provided, the bundle's runtime fetch is scoped
+# <team_id> / <team_name> / <assignee_user_id> accept empty string. <mcp_tool_name>
+# is REQUIRED — the caller (the SKILL.md flow run by Claude) must resolve the
+# Notion-query MCP tool from its available tools and pass the exact full name
+# (e.g. mcp__notion-extension__notion-query). Hardcoding it here would break
+# any user whose installed extension version exposes a different prefix.
+#
+# When <assignee_user_id> is provided, the bundle's runtime fetch is scoped
 # server-side to that assignee (people.contains). Status is always restricted
 # to non-terminal — Done and Cancelled are excluded by a fixed select clause.
-# When [assignee_user_id] is empty, the Assignee predicate is omitted (degraded
+# When <assignee_user_id> is empty, the Assignee predicate is omitted (degraded
 # unscoped mode); the status exclusion still applies.
 #
 # See skills/viewing-tasks/SKILL.md "Cowork Live Artifact Mode" for the
@@ -23,10 +29,19 @@
 
 set -euo pipefail
 
-DB_ID="${1:?Usage: generate-cowork-artifact.sh <tasksDatabaseId> [team_id] [team_name] [assignee_user_id]}"
+USAGE="Usage: generate-cowork-artifact.sh <tasksDatabaseId> <team_id> <team_name> <assignee_user_id> <mcp_tool_name>"
+DB_ID="${1:?$USAGE}"
 TEAM_ID="${2:-}"
 TEAM_NAME="${3:-}"
 ASSIGNEE_USER_ID="${4:-}"
+MCP_TOOL_NAME="${5:-}"
+if [ -z "$MCP_TOOL_NAME" ]; then
+  echo "Error: 5th argument <mcp_tool_name> is required and must be non-empty." >&2
+  echo "       Pass the full MCP tool name your environment exposes" >&2
+  echo "       (e.g. mcp__notion-extension__notion-query). The caller is expected" >&2
+  echo "       to resolve this from the available MCP tools rather than hardcode." >&2
+  exit 1
+fi
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 STATIC_DIR="$SCRIPT_DIR/../server/static"
@@ -150,13 +165,28 @@ rewrite_view_ids() {
 # stores keyboard state in one singleton, so bundling four views would have
 # the last view's call clobber earlier ones. The bundled artifact installs
 # a single tab-aware keyboard binding later; per-view calls must be stripped.
+#
+# Implementation note: a naive "stop at the first `})` followed by `;`" rule
+# terminates inside nested function expressions (e.g. `getTaskElement:
+# function () { ... }` lines), leaving the rest of the block as a syntax
+# fragment in the bundle. Track brace depth instead and end stripping only
+# when depth returns to 0 on a line containing the closing `);`.
 strip_init_keyboard() {
   awk '
+    function count_chars(s, c,   tmp) { tmp=s; gsub("[^" c "]", "", tmp); return length(tmp) }
     /W\.initKeyboard[[:space:]]*\(/ {
       in_keyboard=1
+      depth = count_chars($0, "{") - count_chars($0, "}")
+      # Single-line form `W.initKeyboard({...});` closes on the trigger line
+      # itself — depth returns to 0 immediately. Without this guard, in_keyboard
+      # stays 1 and the next line is dropped even though we are already past
+      # the keyboard block.
+      if (depth <= 0) { in_keyboard=0 }
+      next
     }
     in_keyboard {
-      if (match($0, /\}\)[[:space:]]*;/)) {
+      depth += count_chars($0, "{") - count_chars($0, "}")
+      if (depth <= 0 && /\)[[:space:]]*;/) {
         in_keyboard=0
       }
       next
@@ -308,16 +338,18 @@ db = sys.argv[1]
 team_id = sys.argv[2] or ""
 team_name = sys.argv[3] or ""
 assignee_user_id = sys.argv[4] or ""
+mcp_tool_name = sys.argv[5]
 team = {"id": team_id, "name": team_name} if (team_id and team_name) else None
 cfg = {
     "databaseId": db,
     "currentTeam": team,
     "assigneeUserId": assignee_user_id or None,
+    "mcpToolName": mcp_tool_name,
 }
 print("<script>")
 print("window.__COWORK_QUERY_CONFIG__ = " + json.dumps(cfg, ensure_ascii=False) + ";")
 print("</script>")
-' "$DB_ID" "$TEAM_ID" "$TEAM_NAME" "$ASSIGNEE_USER_ID"
+' "$DB_ID" "$TEAM_ID" "$TEAM_NAME" "$ASSIGNEE_USER_ID" "$MCP_TOOL_NAME"
 
   cat <<'COWORK_ADAPTER'
 <script>
@@ -437,8 +469,17 @@ print("</script>")
     return { and: clauses };
   }
 
+  function getMcpToolName() {
+    var cfg = window.__COWORK_QUERY_CONFIG__ || {};
+    if (!cfg.mcpToolName) {
+      throw new Error('mcpToolName missing from baked config — regenerate the artifact via /viewing-tasks.');
+    }
+    return cfg.mcpToolName;
+  }
+
   async function paginatedQuery(databaseId, assigneeUserId) {
     var filter = buildFilter(assigneeUserId);
+    var toolName = getMcpToolName();
     var rows = [];
     var cursor;
     var truncated = false;
@@ -448,7 +489,7 @@ print("</script>")
       if (loops > 20) break;
       var args = { database_id: databaseId, page_size: PAGE_SIZE, filter: filter };
       if (cursor) args.start_cursor = cursor;
-      var res = await window.cowork.callMcpTool('mcp__Notion_Extension_for_Waggle__notion-query', args);
+      var res = await window.cowork.callMcpTool(toolName, args);
       var data = extractJson(res);
       var results = data.results || [];
       for (var i = 0; i < results.length && rows.length < MAX_ROWS; i++) rows.push(results[i]);
@@ -694,12 +735,31 @@ if [ "$per_view_init_keyboard" -ne 0 ]; then
   exit 1
 fi
 
+# Catches the case where strip_init_keyboard terminated mid-block (e.g. on a
+# nested `},`) and left the inner property definitions in the bundle. After a
+# correct strip, property-style `getTaskElement: function (...)` never appears:
+# shared.js defines it as `getTaskElement: null` and assigns via `keyboardState
+# .getTaskElement = config.getTaskElement`; the bundle-level keyboard binding
+# uses `getTaskElement: activeTaskElement`. The only way to introduce a
+# `getTaskElement: function` line is to leak a per-view template fragment.
+orphan_keyboard_props=$(grep -cE '^[[:space:]]+getTaskElement:[[:space:]]+function' "$OUT" || true)
+if [ "$orphan_keyboard_props" -ne 0 ]; then
+  echo "Self-test FAILED: $orphan_keyboard_props orphan 'getTaskElement: function' line(s) — strip_init_keyboard left fragments" >&2
+  grep -nE '^[[:space:]]+getTaskElement:[[:space:]]+function' "$OUT" >&2 || true
+  exit 1
+fi
+
 # Filter wiring: the baked config must carry the assigneeUserId key, and the
 # adapter's buildFilter must include the fixed Done/Cancelled exclusions. If
 # any future refactor drops the filter, these assertions fire so the artifact
 # can never silently revert to "fetch every row in the workspace".
 if ! grep -q '"assigneeUserId"' "$OUT"; then
   echo "Self-test FAILED: config block missing assigneeUserId key" >&2
+  exit 1
+fi
+
+if ! grep -q '"mcpToolName"' "$OUT"; then
+  echo "Self-test FAILED: config block missing mcpToolName key" >&2
   exit 1
 fi
 
