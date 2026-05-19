@@ -4,6 +4,27 @@ All notable changes to the Waggle project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [2.8.1] - 2026-05-19
+
+### Changed (breaking)
+
+- **`Issuer` is now provider-auto-populated.** The core field switches from a skill-set `person[]` to a provider-managed value populated automatically at task-creation time. Skills MUST NOT include `Issuer` in their create payloads. Motivation: telemetry on a 100-task sample showed ~27% of tasks ended up with empty `Issuer` because the old design required every skill / intake / automation path to remember to set it explicitly, and several paths reliably forgot (scheduled tasks where `current_user` failed to resolve, third-party automations writing directly to the data store, intake-template payload omissions, manual Notion-UI creates). Centralizing the responsibility at the provider boundary eliminates every one of those paths in one move. See `skills/waggle-protocol/SKILL.md` § Issuer Auto-Populate Contract.
+- **Notion provider: `Issuer` column type `PERSON` → `CREATED_BY`.** `notion-provider/SKILL.md` auto-repair DDL now creates a `CREATED_BY`-typed Issuer on fresh databases. Existing v2.7.x databases keep their old `PERSON` column; auto-repair will NOT replace it because the change is destructive. Operators upgrading must run the migration manually — see `providers/notion/skills/notion-provider/SKILL.md` § Migration Guide: v2.7.x → v2.8.1. The migration's trade-offs are explicit in that guide: existing Issuer values are lost (Notion back-fills the new column from each page's `created_by` metadata, surfacing the actual creator rather than any deliberate "issuer override"); the people-array shape becomes single-user; the proxy / "on behalf of" workflow no longer survives. The recommended replacement for that workflow is setting `Assignee` (rather than overloading `Issuer`).
+- **SQLite/Turso providers: `Issuer` populated by the Create Task INSERT template.** The `issuer TEXT DEFAULT ''` column in `init-db.sh` is unchanged, but the provider SKILL.md Create Task examples now substitute `${current_user.id}` into the INSERT directly. Callers do not pass Issuer. A precondition check halts the INSERT if `current_user.id` resolves to a fallback sentinel (`"local"` or `"unknown"`) — this enforces the "no anonymous tasks" rule and prevents the empty/sentinel-valued Issuer failure mode at the source. SQLite/Turso filter recipes for "owned by user via Issuer fallback" now use `t.issuer = '<user_id>'` exact match instead of array-contains, since the column is now a single-value TEXT.
+- **Filter syntax for Notion Issuer queries**: shifts from `"Issuer","people":{...}` to `"Issuer","created_by":{...}` to match the new column type. Operator names (`contains`, `is_empty`) are unchanged. `running-daily-tasks` does not embed this syntax — it asks the active provider for the filter — so the change is confined to the Notion provider SKILL.md filter recipes.
+
+### Changed (non-breaking)
+
+- `skills/managing-tasks/references/task-creation-flow.md` — the "Issuer (auto-populated, write-once)" guidance is rewritten to instruct skills to NOT set Issuer in create payloads.
+- `skills/ingesting-messages/references/task-creation-templates.md` — the Common Fields table loses its `| Issuer | [current_user] |` row, replaced by a note explaining that the provider auto-populates.
+- `skills/assigning-to-others/SKILL.md` + `skills/delegating-tasks/SKILL.md` — the "Issuer is preserved" rule is now reframed: enforcement moves from the skill to the provider boundary (Notion's `created_by` is read-only; SQLite/Turso Update Task templates do not include `issuer`). Skill-side behavior is now simply "don't pass Issuer in update payloads," which falls out naturally from following the provider templates.
+- `skills/validating-fields/SKILL.md` Construction Guide — Notion read path changes from `.properties.Issuer.people | length > 0` to `(.properties.Issuer.created_by.id // null) != null`. SQLite/Turso read path tightened from a length-based check to an explicit null/empty check. Canonical JSON contract is unchanged (`issuer` is still a boolean).
+- `skills/monitoring-tasks/scripts/analyze-tasks.sh` — `has_issuer` and `issuer_ids` extractions updated to the new Notion shape. Downstream set-difference logic for "assigned by someone else" detection is unchanged because it works regardless of whether `issuer_ids` has 0 or 1 element.
+
+### Migration
+
+Operators with an existing v2.7.x Notion database MUST run the manual migration in `providers/notion/skills/notion-provider/SKILL.md` § Migration Guide before upgrading skills. Fresh databases get the correct column type automatically via auto-repair. SQLite/Turso databases do not need migration — the schema is unchanged, only the INSERT template guidance changed.
+
 ## [2.8.0] - 2026-05-19
 
 ### Added
