@@ -11,3 +11,4 @@ dist/
 # evaluations are about real production tasks and should not be tracked in
 # source control. See docs/quality-calibration.md for the procedure.
 calibration/
+docs/calibration-labels.csv
