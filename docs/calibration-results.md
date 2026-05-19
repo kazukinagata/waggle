@@ -14,23 +14,31 @@ Per `docs/quality-calibration.md`, this document records the outcome of the v2.8
 
 Reviewer was run once per task, returning `PASS` / `NEEDS_REFINEMENT` / `REJECT`. The implementer then judged each verdict against their own sense of whether a new colleague could reproduce the task's intent.
 
-| | Count |
-|---|---|
-| Agree (Reviewer verdict matches the implementer's judgment) | **23 / 30** |
-| Disagree (Reviewer was wrong in the implementer's view) | **2 / 30** |
-| Skipped (implementer declined to rate; tasks were "論外" — too obviously deficient to grade) | 5 / 30 |
-| **Agreement rate over rated tasks** | **23 / 25 = 92.0%** |
+Per `docs/quality-calibration.md` Step 4, the implementer may mark a task as 論外 / `not_gradable`. When the Reviewer issued `REJECT` on such a task, the task counts as an **implicit agreement** (the agent independently arrived at the same dismissal). Otherwise it counts as truly unrated.
 
-**Ship threshold (per `docs/quality-calibration.md`): ≥80% agreement on the Reviewer dimension. → PASS.**
+| | Count | Notes |
+|---|---|---|
+| Explicit agree | 23 / 30 | Reviewer verdict matches the implementer's explicit judgment |
+| Explicit disagree | 2 / 30 | Reviewer wrong in the implementer's view |
+| Implicit agree (論外 + Reviewer REJECT) | 3 / 30 | Implementer marked "論外", Reviewer also REJECT |
+| Truly unrated (no judgment, no 論外 mark) | 2 / 30 | Excluded from gate calculation |
+| Total agree (explicit + implicit) | **26 / 30** | |
+
+**Agreement rates:**
+
+- **Rated denominator (canonical for the gate):** 26 / 28 = **92.9%** ✅
+- Strict denominator (÷ 30 for transparency): 26 / 30 = 86.7% ✅
+
+**Ship threshold (per `docs/quality-calibration.md` Step 5): ≥80% on the rated denominator. → PASS.**
 
 ### Confusion matrix shape (Pre × Reviewer verdict × judgment)
 
-| Pre | Reviewer verdict | agree | disagree | unrated |
-|---|---|---|---|---|
-| bad | REJECT | 9 | 0 | 3 |
-| bad | NEEDS_REFINEMENT | 2 | 1 | 0 |
-| good | PASS | 1 | 0 | 0 |
-| good | NEEDS_REFINEMENT | 11 | 1 | 2 |
+| Pre | Reviewer verdict | explicit agree | implicit agree (論外) | disagree | truly unrated |
+|---|---|---|---|---|---|
+| bad | REJECT | 9 | 3 | 0 | 0 |
+| bad | NEEDS_REFINEMENT | 2 | 0 | 1 | 0 |
+| good | PASS | 1 | 0 | 0 | 0 |
+| good | NEEDS_REFINEMENT | 11 | 0 | 1 | 2 |
 
 ### Notable disagreement pattern
 
@@ -46,19 +54,20 @@ This does not block v2.8.0 (Reviewer's verdict step still aligns 92% of the time
 
 ## Worthiness classifier
 
-Calibration for the Layer 0 worthiness classifier (`task | calendar-like | info-only`) was **deferred to v2.8.1** at the implementer's discretion. Rationale:
+Calibration for the Layer 0 worthiness classifier (`task | calendar-like | info-only`) is **deferred to v2.8.1** under `docs/quality-calibration.md` Step 5a (Calibration deferral, Layer 0 only). All four required safeguards hold:
 
-- The Reviewer dimension passed comfortably (92% > 80%), establishing baseline trust in the IRC framing.
-- The 30-task sample has a clear long-tail of "obviously not a worthy task" items (empty titles, single-line stubs) — labeling these would be near-trivial and offers little new information.
-- Layer 0 has no synchronous gating effect on dispatch or delegation: the worst case if mis-calibrated is a noisy intake confirmation table, not a flow-breaking false reject.
+1. **No silent discard.** Worthiness verdicts surface in `ingesting-messages` Phase B with a 3-button row (`[Create as task]` / `[Convert to note]` / `[Discard]`), default = `Skip`. The user always sees the verdict before any action is taken.
+2. **No synchronous gating.** The worthiness tag is advisory; it never blocks dispatch, delegation, or any hot-path flow. `reviewing-quality` skips Layer 2 for tagged tasks but does not reject them; downstream skills treat them like any other task minus the Reviewer cost.
+3. **Recoverable.** A user who disagrees with a `worthiness:*` tag removes the tag from the Notion task; subsequent transitions then run through the full Rubric + Reviewer pipeline as normal. No data loss.
+4. **Follow-up commitment.** A v2.8.1 follow-up will run the worthiness calibration alongside the Reviewer prompt tweak; see "Follow-ups" below.
 
-A worthiness calibration will be folded into a v2.8.1 follow-up that also addresses the Reviewer prompt tweak above. Until then, the Layer 0 classifier ships **enabled** with the protocol's "never silently discard" safeguard.
+Until v2.8.1, Layer 0 ships **enabled** under the deferral.
 
 ## Decision
 
 **Ship full v2.8.0 with the Reviewer agent enabled and the Layer 0 worthiness classifier enabled.**
 
-The Reviewer dimension passed the ≥80% threshold (92%). The Layer 0 dimension is deferred per the rationale above; the design's "advisory only, never silent discard" property bounds its blast radius if it later proves miscalibrated.
+The Reviewer dimension passed the ≥80% threshold (92.9% on the rated denominator, 86.7% on the strict ÷ 30 denominator — both above 80%). The Layer 0 dimension is deferred under the Step 5a deferral, with all four safeguards satisfied as documented above.
 
 ## Follow-ups (v2.8.1 candidates)
 

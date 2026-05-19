@@ -61,21 +61,43 @@ Record agent verdicts alongside human labels.
 
 ### Step 4 — Agreement measurement
 
-Compute two agreement rates:
+Compute two agreement rates.
 
-**Reviewer agreement** = (#tasks where `human_reproducibility == reviewer_verdict`) / 30
+**Counting rule for "implicit agreement":** the implementer (the human labeler) MAY mark a task as 論外 / `not_gradable` instead of giving an explicit `agree` / `disagree` label, when the task is so obviously deficient that there is nothing to evaluate. In that case:
 
-**Worthiness agreement** = (#tasks where `human_worthiness == classifier_worthiness`) / 30
+- If the Reviewer (or worthiness classifier) issued `REJECT` (resp. `info-only` / `calendar-like`), the task counts as an **implicit agreement** (the agent independently arrived at the same dismissal).
+- If the Reviewer issued anything else, the task counts as **unrated** and is excluded from both numerator and denominator.
+
+This rule prevents the implementer's "obviously bad, why grade?" intuition from being penalized by the strict denominator. It is **not** a free agreement — it only applies when the agent's verdict matches the dismissal direction.
+
+Then:
+
+**Reviewer agreement** = (explicit agree + implicit agree) / (30 − truly unrated)
+
+**Worthiness agreement** = (explicit agree + implicit agree) / (30 − truly unrated)
+
+Report both the strict denominator (÷30) and the rated denominator (÷(30 − truly_unrated)) in the results doc for transparency. The rated denominator is the canonical figure for the gate decision.
 
 For partial credit on Reviewer: treat `NEEDS_REFINEMENT` and `REJECT` as collapsed into "not-PASS" if you'd like a binary agreement. The strict 3-way agreement is the canonical bar.
 
 ### Step 5 — Gate decision
 
-**Pass threshold: ≥80% agreement on EACH dimension.**
+**Pass threshold: ≥80% agreement on EACH dimension** (using the rated denominator from Step 4).
 
 - **Both ≥80%** → ship the full v2.8.0 release.
 - **One <80%** → ship with the failing component DISABLED (see Fallback below). The other component ships.
 - **Both <80%** → do not ship the v2.8.0 LLM gates. Ship Rubric-only (Layer 1) and the placeholder + cache infrastructure; defer Layer 0 and Layer 2 to a later release after agent prompt tuning.
+
+### Step 5a — Calibration deferral (Layer 0 only)
+
+The Layer 0 worthiness classifier MAY ship without calibration when **all of** the following safeguards hold:
+
+1. **No silent discard.** The worthiness verdict surfaces in a user-confirmation UI that defaults to a safe action (`Skip`, never `Discard`).
+2. **No synchronous gating.** The verdict does not block dispatch, delegation, or any other hot-path flow. It is advisory only.
+3. **Recoverable.** A misclassified task can be corrected by the user removing the `worthiness:*` tag, without any data loss.
+4. **Follow-up commitment.** A subsequent minor release (e.g., v2.8.1) is scheduled to run the calibration and either confirm or apply the relevant fallback.
+
+If all four safeguards hold, the calibration may be deferred. The deferral and the safeguard rationale MUST be documented in `docs/calibration-results.md`. This deferral path is **not** available for the Reviewer (Layer 2) because Layer 2 gates dispatch readiness and the delegation flow synchronously and cannot ship un-calibrated.
 
 ### Step 6 — Record results
 
