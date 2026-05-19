@@ -12,6 +12,8 @@ user-invocable: false
 This shared skill provides a deterministic bash+jq validation script for task status transitions.
 It enforces required fields as hard-block errors and recommends optional fields as warnings.
 
+In v2.8.0 it also hosts the **Quality Rubric (Layer 1)** — a deterministic AC/EP content check applied at Ready transitions. See `references/quality-rubric.md` for the full rule set. The script itself remains LLM-free; Rubric evaluation is regex/length heuristics only.
+
 ## How to Invoke This Skill
 
 Other skills invoke this one via natural language — e.g., "Invoke the `validating-fields` skill to validate the task fields for target status Ready". When the agent receives that instruction, it loads this SKILL.md and follows the steps below.
@@ -149,17 +151,31 @@ This prevents retroactive invalidation of historical Done tasks while still enfo
 
 The cutoff date is hardcoded in `scripts/validate-task-fields.sh` as `$agent_output_required_from`. Update it only when introducing a similar migration — otherwise keep it stable.
 
-## Semantic AC Check
+## Quality Rubric (Layer 1, v2.8.0+)
 
-AC text is scanned for at least one verifiable condition indicator:
-- **Command**: `npm`, `curl`, `git`, `python`, `bash`, `test`, `run`, `build`, `deploy`
-- **File path**: contains `/` or common extensions (`.ts`, `.js`, `.py`, `.md`, `.html`, `.css`)
-- **Numeric threshold**: digits followed by `%`, `ms`, `s`, `count`, `times`, `items`
-- **Explicit state**: `returns`, `displays`, `creates`, `exists`, `passes`, `fails`, `contains`, `shows`, `generates`, `sends`, `receives`, `confirms`, `records`, `updates`
+The Rubric formalizes the previous "semantic AC check" into 4 AC rules + 5 EP rules. See `references/quality-rubric.md` for the canonical definitions:
 
-If none found -> error: "AC lacks verifiable conditions. Include commands, file paths, metrics, or observable outcomes."
+| Rule | Field | Summary |
+|---|---|---|
+| R-AC1 | AC | each criterion has ≥1 verifiable indicator (command / path / numeric+unit / observable verb / URL / code token) |
+| R-AC2 | AC | criteria are not echo-of-title (token-overlap heuristic) |
+| R-AC3 | AC | criteria are grounded in source material or `[INFERRED]` prefixed |
+| R-AC4 | AC | no `[DRAFT-AC]` / `[NEEDS-REFINE]` placeholder at Ready+ |
+| R-EP1 | EP | 3–7 numbered steps |
+| R-EP2 | EP | average step length ≥30 chars, each step has action verb + target |
+| R-EP3 | EP | ≥1 concrete artifact (file path / command / branch / URL / PR# / DB query) |
+| R-EP4 | EP | when Executor is AI, Working Directory is set and EP paths align with it |
+| R-EP5 | EP | no `[DRAFT-EP]` / `[NEEDS-REFINE]` placeholder at Ready+ |
 
-This is a heuristic backstop, not a perfect quality gate. It catches worst-case garbage but not subtle gaps.
+The validation script applies these rules at every Ready (and beyond) transition.
+
+### Worthiness tag skip
+
+Tasks with `Tags` containing `worthiness:calendar-like` or `worthiness:info-only` are exempt from the AC/EP Rubric (R-AC1..R-AC3, R-EP1..R-EP4). R-AC4 + R-EP5 (no `[DRAFT-*]` / `[NEEDS-REFINE]` placeholder remaining in AC or EP) still apply universally. Worthiness-tagged tasks also skip Layer 2 entirely per the protocol Quality Spec.
+
+## `find_quality_debt` (shared API)
+
+When invoked with a list of Ready+ tasks, `validating-fields` can also return a categorized debt report (used by `monitoring-tasks` and `running-daily-tasks` Step 2.6). See `references/quality-rubric.md` for the output shape.
 
 ## Code Task Detection
 

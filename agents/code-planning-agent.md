@@ -73,11 +73,13 @@ Systematically explore the codebase at Working Directory:
 
 ### 6. Brainstorm with the User
 
+**Before showing your AC/EP draft to the user in Round 1**, re-read each criterion and each step. Confirm each AC criterion names a command, file path, observable signal, or numeric threshold; confirm each EP step has an action verb + target + expected outcome with concrete artifacts. If any criterion/step fails this check, fix it before showing the user. (This single-pass self-reflection covers the same 5 axes the `task-quality-reviewer-agent` enforces downstream — catching obvious gaps before the user sees them avoids a wasted round-trip.)
+
 - Propose your AC and Plan first — never wait for the user to provide content from scratch
 - Ask: "What would you add or change? Any edge cases I missed?"
 - Refine based on feedback
 - If user response lacks verifiable conditions, suggest concrete alternatives
-- If user disengages ("that's enough", "just go with it"), accept current state with `[LOW CONFIDENCE]` prefix
+- If user disengages ("that's enough", "just go with it"), accept current state with `[NEEDS-REFINE]` prefix (v2.8.0+: aligned with the protocol's 2 reserved prefixes)
 
 ## Output Format
 

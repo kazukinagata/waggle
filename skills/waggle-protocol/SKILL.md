@@ -20,7 +20,7 @@ Agents discover tasks, claim them, execute, and hand off results. The backing da
 
 ## Core Fields
 
-Every Waggle-compatible task board MUST support these 15 fields:
+Every Waggle-compatible task board MUST support these 16 fields:
 
 | Field | Type | Description |
 |---|---|---|
@@ -39,6 +39,7 @@ Every Waggle-compatible task board MUST support these 15 fields:
 | Agent Output | rich_text | Execution result written by the agent on completion |
 | Error Message | rich_text | Written on failure only |
 | Issuer | person[] | Who created/initiated this task. Auto-populated. Write-once |
+| Quality Verdict | rich_text | Cached Reviewer verdict (PASS/NEEDS_REFINEMENT/REJECT). See Quality Spec below. v2.8.0+ |
 
 ### Extended Fields (optional)
 
@@ -87,8 +88,8 @@ Any → Cancelled
 
 | From | To | Condition |
 |---|---|---|
-| Backlog | Ready | Description, Acceptance Criteria, Assignee, and Execution Plan are all non-empty |
-| Ready | In Progress | Executor is assigned. Dispatched At is recorded |
+| Backlog | Ready | Description, Acceptance Criteria, Assignee, and Execution Plan are all non-empty AND Rubric (Layer 1) passes AND Quality Verdict cache satisfies dispatch readiness (see Dispatch Readiness Check + Quality Spec below) |
+| Ready | In Progress | Executor is assigned. Dispatched At is recorded. Dispatch Readiness Check passes |
 | In Progress | In Review | Requires Review = true. Agent Output is recorded |
 | In Progress | Done | Requires Review = false. Agent Output is recorded |
 | In Progress | Blocked | Error occurred or dependency unresolved. Error Message is recorded |
@@ -111,8 +112,96 @@ Before transitioning a task from Ready → In Progress, the orchestrator MUST ve
 | Acceptance Criteria | Non-empty, contains testable conditions |
 | Execution Plan | Non-empty |
 | Working Directory | Non-empty AND the directory exists on the filesystem |
+| Quality Verdict (v2.8.0+) | Cache PASS preferred; cache miss / fail surfaces 2-choice prompt. Live Reviewer invocation is forbidden at dispatch (hot path) |
 
 If any check fails, the orchestrator MUST NOT dispatch. Instead, it should prompt the user to fill the missing information.
+
+## Quality Spec (v2.8.0+)
+
+Waggle v2.8.0 introduces a 3-layer quality gate system to ensure agent-reproducible task specs.
+
+### Layer 0: Task-Worthiness Advisory
+
+Applied at intake (`ingesting-messages` Phase A) only. Classifies whether an incoming item is task-shaped.
+
+| Verdict | Meaning |
+|---|---|
+| `task` | Actionable work; proceeds to Layer 1/2 |
+| `calendar-like` | Recurring meeting / pure attendance; should not be a task. Advisory only |
+| `info-only` | FYI / handled / single-fact message; should not be a task. Advisory only |
+
+**Waggle never silently discards user-created items.** Layer 0 surfaces a suggestion in the intake confirmation table; the user always has the final say via `[Create as task] / [Convert to note] / [Discard]`. Items chosen as `[Create as task]` are tagged `worthiness:calendar-like` or `worthiness:info-only` and skip Layer 1/2 for the rest of their lifecycle.
+
+### Layer 1: Rubric (deterministic)
+
+Applied at every status transition into Ready or beyond. No LLM involvement.
+
+**AC rules** (each failing rule contributes to verdict):
+
+| Rule | Check |
+|---|---|
+| R-AC1 | Each criterion contains ≥1 verifiable indicator (command, file path, numeric threshold + unit, observable verb, URL, code token) |
+| R-AC2 | Criteria are not just a verb-form restatement of the Title (no "echo-of-title") |
+| R-AC3 | Criteria are grounded in the original task description or are explicitly prefixed `[INFERRED]` |
+| R-AC4 | No reserved placeholder remains (`[DRAFT-AC]`, `[NEEDS-REFINE]`) |
+
+**EP rules**:
+
+| Rule | Check |
+|---|---|
+| R-EP1 | 3–7 numbered steps. <3 too thin; >7 → suggest split |
+| R-EP2 | Each step averages ≥30 characters and contains an action verb + target + outcome |
+| R-EP3 | EP overall contains ≥1 concrete artifact (file path, command, branch, URL, PR number, etc.) |
+| R-EP4 | When `Executor` is AI (cli / claude-code / claude-desktop / cowork), `Working Directory` is set and the EP references paths consistent with it |
+
+### Layer 2: Intent Reproducibility Check (LLM)
+
+The `task-quality-reviewer-agent` evaluates a task spec along 5 axes from the perspective of "a new colleague handed only this spec, with access to the team's tools — can they reproduce the issuer's intent?":
+
+| Axis | Question |
+|---|---|
+| Goal clarity | Can the desired end state be described in one sentence after reading? |
+| Boundary clarity | Is scope clear; where does the task stop? |
+| Verifiability | How do I know I'm done? Is there a checkable signal? |
+| Reproducibility | Are tools/paths/commands/datasets named? |
+| Hidden context | Is there organizational knowledge the issuer assumed but didn't write down? |
+
+Verdict (rules applied in order — first match wins):
+- `REJECT` — ≥1 axis ✗ (fundamental rewrite required)
+- `NEEDS_REFINEMENT` — ≥1 axis △ and no ✗ (specific suggested fixes can elevate to PASS; the number of △ axes is informational only)
+- `PASS` — all 5 axes ◯
+
+### Reserved Placeholder Prefixes
+
+Exactly 2 prefixes are reserved at the protocol level:
+
+| Prefix | Meaning |
+|---|---|
+| `[DRAFT-AC]` / `[DRAFT-EP]` | Field is intentionally an empty stub; refinement pending |
+| `[NEEDS-REFINE]` | Reviewer returned NEEDS_REFINEMENT or REJECT; field needs work before promotion |
+
+Skills MUST NOT introduce additional reserved prefixes. Other tags (e.g., `worthiness:*`) live on the `Tags` field, not as title or AC prefixes.
+
+### Quality Verdict Cache Format (v1)
+
+The `Quality Verdict` core field stores at most one line in the format:
+
+```
+{verdict} hash=<sha256(Title|Description|AC|EP)[:8]> @<iso8601> v1 [suppressed-until=<iso8601>]
+```
+
+- `verdict` ∈ `PASS`, `NEEDS_REFINEMENT`, `REJECT`
+- `hash` is a content fingerprint over the first 8 hex chars of SHA-256 of `Title|Description|AC|EP` (pipe-delimited). Any edit to those fields invalidates the cache automatically.
+- `suppressed-until` (optional) freezes re-review for 7 days after 2 consecutive same-axis failures (anti-grinding guard).
+- `v1` is the format version. Future versions remain parse-compatible.
+
+Live Reviewer invocation is allowed at: `planning-tasks`, `ingesting-messages` Phase A.5, `running-daily-tasks` Step 2.6, `delegating-tasks` (cache miss), `monitoring-tasks --deep`.
+
+Live Reviewer invocation is **forbidden** at: `executing-tasks` dispatch (cache-only), `managing-tasks` pre-Ready (cache-only). These are hot paths.
+
+### Calibration Requirement
+
+Before a Waggle release that ships the Reviewer agent or Layer 0 classifier, implementations MUST measure agreement against hand-labeled samples. Recommended bar: ≥80% on 30 hand-labeled tasks. Below threshold, the affected layer ships disabled.
 
 ## Provider Interface
 

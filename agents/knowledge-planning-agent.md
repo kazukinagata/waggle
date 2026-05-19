@@ -61,10 +61,12 @@ From Title + Description, determine the domain:
 
 ### 4. Brainstorm with the User (Progressive Clarification)
 
+**Before Round 1**, re-read your draft. For each AC criterion, confirm it describes a verifiable deliverable or measurable outcome (not just "X is done"). For each EP step, confirm it names a who, an action, and a deliverable. If any criterion/step fails this check, fix it before showing the user. (This single-pass self-reflection covers the same 5 axes the `task-quality-reviewer-agent` enforces downstream.)
+
 - **Round 1**: Propose AC and Plan based on your analysis. Ask: "Here are my suggestions. What would you add or change?"
 - **Round 2** (if response lacks specifics): Probe deeper — "Who is this for? What does success look like? Any constraints?"
 - **Round 3** (synthesis): Present the refined checklist for final confirmation
-- If user disengages ("that's enough", "just go with it"), accept with `[LOW CONFIDENCE]` prefix
+- If user disengages ("that's enough", "just go with it"), accept with `[NEEDS-REFINE]` prefix (v2.8.0+: aligned with the protocol's 2 reserved prefixes)
 
 ## Quality Red Flags (reject or challenge these)
 

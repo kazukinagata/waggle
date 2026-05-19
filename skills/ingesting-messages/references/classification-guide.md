@@ -1,5 +1,36 @@
 # Message Classification Guide
 
+## Two-dimensional classifier output (v2.8.0+)
+
+Phase A classification returns **two dimensions per message** in one LLM call (no additional pass):
+
+1. **Category**: `A` (Hearing Needed) | `B` (Self-Action) | `C` (Delegate)
+2. **Worthiness**: `task` | `calendar-like` | `info-only`
+
+The worthiness dimension answers "should this even be a task?". The category dimension answers "if it becomes a task, who handles it?".
+
+### Worthiness heuristics
+
+| Verdict | Signals |
+|---|---|
+| `task` | Default. Message describes an actionable change, a deliverable, a question requiring an answer with persistence value, or a piece of work with a definable scope. |
+| `calendar-like` | Title or body matches bare attendance verbs (`参加`, `出席`, `attend`) without any preparation/output verb (`準備`, `資料作成`, `prep`). Examples: "GP定例", "Growth Meetup参加", "全体MTG". The message names a recurring or scheduled meeting and contains no deliverable. |
+| `info-only` | Short single-fact messages with no implicit action: "〜しました" (already done), "FYI", "〜の件です" (heads-up). The sender is informing, not asking. |
+
+### Confidence and grounding
+
+For each classification, attach a one-sentence reason. The reason MUST cite a token, phrase, or pattern from the original message. Speculative classifications (no clear signal) default to `task` — Waggle never silently re-routes a message away from being a task without evidence.
+
+### Routing rules
+
+| Worthiness | Phase A.5 (Reviewer) | Phase B (user confirmation) default | Notes |
+|---|---|---|---|
+| `task` | Run for Category B; skip for Category A/C | `[Create as task]` | Normal path |
+| `calendar-like` | **Skip** for all categories | `[Skip]` | If user picks `[Create as task]`, tag `worthiness:calendar-like` is added |
+| `info-only` | **Skip** for all categories | `[Skip]` | If user picks `[Create as task]`, tag `worthiness:info-only` is added |
+
+**Waggle never silently discards user messages.** Even worthiness-flagged items appear in the Phase B confirmation table with the user's three choices: `[Create as task]`, `[Convert to note]`, `[Discard]`.
+
 ## 3 Categories
 
 | Category | Criteria | Action |

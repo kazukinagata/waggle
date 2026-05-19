@@ -363,11 +363,18 @@ Apply the same detection and reading pattern using equivalent attachment/file AP
 
 ---
 
-## Step 2: Classify Messages (3 Categories)
+## Step 2: Classify Messages (Category × Worthiness)
 
-Classify each message into A (Hearing Needed), B (Self-Action), or C (Delegate). When `thread_context` is available, use it alongside the message text to improve classification accuracy. When `attachment_info` is available and contains successfully read image descriptions, treat those descriptions as part of the message content for classification purposes. For example, a message saying "fix this" with an attached screenshot of a bug (successfully described) should be classified as Category B if the description provides enough context to act on. For the full classification heuristics, examples, and confirmation flow, follow `references/classification-guide.md` in this directory.
+Classify each message along **two dimensions** in a single LLM call (v2.8.0+):
 
-When classification is unclear, treat as Category A (safe default).
+1. **Category**: A (Hearing Needed) | B (Self-Action) | C (Delegate)
+2. **Worthiness** (Layer 0): `task` | `calendar-like` | `info-only`
+
+When `thread_context` is available, use it alongside the message text. When `attachment_info` is available and contains successfully read image descriptions, treat those descriptions as part of the message content. For example, a message saying "fix this" with an attached screenshot of a bug (successfully described) should be classified as Category B / worthiness=task if the description provides enough context to act on.
+
+For the full classification heuristics, worthiness rules, examples, and confirmation flow, follow `references/classification-guide.md` in this directory.
+
+When classification is unclear, treat as Category A (safe default). When worthiness is unclear, treat as `task` (never silently downgrade a message to non-task).
 
 ---
 
@@ -514,39 +521,62 @@ Generate the following draft fields:
    - **Negation-aware**: "this is **not** urgent", "**not** a blocker", "急ぎではない", "I **don't** think this is urgent" must NOT match Urgent. The LLM must read the surrounding 1-2 clauses before classifying, not pattern-match on the keyword in isolation.
    - If no clear signal in either direction → leave Priority unset; the Ready validator will warn but not block.
 
-### Phase A.5: Validate Generated Fields (deterministic gate)
+### Phase A.5: Validate Generated Fields (deterministic gate + Reviewer)
 
-Before showing the auto-generated draft to the user, invoke the `validating-fields` skill with the generated task data and target status `"Ready"`. It will return `{valid, errors, warnings}`.
+Before showing the auto-generated draft to the user:
 
-No auto-retry. If validation fails:
-- Mark the draft as `[LOW CONFIDENCE]` in the Phase B display
-- Surface the specific errors alongside the draft so the user understands why it is flagged
-- Offer the user a fast path to provide manual AC/EP in Phase B
+1. **Skip-path check** — if the message was classified `worthiness=calendar-like` or `worthiness=info-only`, skip this entire phase. The Phase B confirmation table will default the row to `[Skip]` and the user decides whether to `[Create as task]`, `[Convert to note]`, or `[Discard]` (see "Phase B" below). No Reviewer cost is incurred for non-task items.
 
-Auto-retry with a "stricter prompt" is intentionally avoided because it introduces non-determinism, cost inflation, and potential infinite loops when the underlying message genuinely lacks enough information. It is cheaper and more honest to show the low-confidence draft to the user and let them correct it.
+2. **Rubric (Layer 1)** — invoke the `validating-fields` skill with the generated task data and target status `"Ready"`. It returns `{valid, errors, warnings}`.
+
+3. **Reviewer (Layer 2, v2.8.0+)** — if Rubric passes, invoke the `reviewing-quality` skill in `live` mode. **Important**: at this stage the task does not exist yet (Step 3 creates it). Pass the generated draft fields directly to `reviewing-quality`; receive the verdict **in memory** for use in Phase B's display, and persist the verdict to the new task's `Quality Verdict` field **as part of Step 3's task creation** (one `create_task` call carrying Title / Description / AC / EP / Status / Quality Verdict in a single payload), not as a separate write.
+
+   Branch on the verdict:
+   - `PASS` → display the draft normally in Phase B.
+   - `NEEDS_REFINEMENT` or `REJECT` → mark the draft `[NEEDS-REFINE]` in the Phase B display, surface the Reviewer's specific gaps and suggested fixes inline, and let the user decide what to do in Phase B.
+
+If Rubric fails (`valid: false`), do NOT spawn the Reviewer — the draft is marked `[NEEDS-REFINE]` and the Rubric errors are surfaced. (Rubric is the cheap pre-filter; the protocol forbids spending Reviewer dollars on tasks that already fail the deterministic check.)
+
+If the user edits the draft in Phase B, the in-memory verdict is invalidated — at task-creation time in Step 3, persist `Quality Verdict` only if the displayed AC/EP were accepted unchanged. For edited tasks, leave `Quality Verdict` empty; the next Ready transition (via `planning-tasks` or `running-daily-tasks` Step 2.6) will compute a fresh verdict on the actual content.
+
+No auto-retry. Auto-retry with a "stricter prompt" is intentionally avoided because it introduces non-determinism, cost inflation, and potential infinite loops when the underlying message genuinely lacks enough information. It is cheaper and more honest to show the low-confidence draft to the user and let them correct it.
 
 ### Phase B: User Confirmation (paginated batch)
 
 Present Category B messages in pages of up to **5 messages per `AskUserQuestion` call**. If more than 5 messages exist, split into multiple pages.
 
 Within each page, **rank messages** so the ones most likely to need the user's attention appear first:
-1. Drafts marked `[LOW CONFIDENCE]` (Phase A.5 validation failed)
-2. Drafts whose AC contains any `[INFERRED]` prefixes
-3. Longer / more complex messages (more entities referenced)
-4. Higher inferred priority (Urgent → High → Medium → Low → unset)
+1. Drafts marked `worthiness:calendar-like` / `worthiness:info-only` (Layer 0 flagged)
+2. Drafts marked `[NEEDS-REFINE]` (Phase A.5 Rubric or Reviewer flagged)
+3. Drafts whose AC contains any `[INFERRED]` prefixes
+4. Longer / more complex messages (more entities referenced)
+5. Higher inferred priority (Urgent → High → Medium → Low → unset)
 
 For each page, present the following top-level options:
 
-- **[Accept all high-confidence]** — auto-accept every message in the page that is not LOW CONFIDENCE and has no `[INFERRED]` criteria. Single click, whole batch moves.
+- **[Accept all clean]** — auto-accept every message in the page that has no worthiness flag, no `[NEEDS-REFINE]` mark, and no `[INFERRED]` criteria. Single click, whole batch moves.
 - **[Review individually]** — walk through each message with per-message options.
 - **[Skip batch]** — create every message in the page with the original message text only, no auto-generated AC/EP/Priority.
 
-When the user chooses "Review individually", each message gets these per-message options:
+When the user chooses "Review individually", **worthiness-flagged** messages (`calendar-like` / `info-only`) get this 3-way prompt (default = Skip):
+
+- **[Skip]** (default) — do not create a task. Mark the source message as processed so it does not re-surface next run.
+- **[Create as task]** — create the task anyway. Add the `worthiness:calendar-like` (or `info-only`) tag and the classifier's reason to `Context`. This task will skip Layer 1/2 evaluation for the rest of its lifecycle, but per the protocol can still be delegated or executed normally.
+- **[Convert to note]** — file as a Notion note (sub-page) instead of a task. (Out of scope for v2.8.0 — falls back to Skip if no note destination is configured. Logged in Step 5's `⚠️ Fallback events:` section.)
+
+For normal (worthiness=task) messages, each gets these per-message options:
 
 - **[Accept]** — use the auto-generated draft exactly as shown. `[INFERRED]` prefixes remain in the saved AC as an audit trail.
-- **[Edit]** — user rewrites the AC/EP/Priority inline. The edited result is NOT re-run through Phase A.5 (the user's manual input is treated as authoritative).
+- **[Edit]** — user rewrites the AC/EP/Priority inline. The edited result is treated as authoritative (user-edits are NOT re-run through Reviewer — only the Rubric check applies on the next Ready transition).
 - **[Manual]** — discard the auto-generated draft and capture manual AC/EP/Priority from scratch via `AskUserQuestion` sub-prompts.
 - **[Skip]** — create with message content only (no AC/EP/Priority). Useful when the task is genuinely trivial or the user wants to plan it later via `planning-tasks`.
+
+**Placeholder rule for empty AC/EP after Phase B (v2.8.0+)**: at task-creation time in Step 3, never write a literally empty `Acceptance Criteria` or `Execution Plan`. If after Phase B the resolved field is empty (e.g., the user picked `[Skip]` for a worthiness-flagged item, picked `[Create as task]` for a `calendar-like` / `info-only` row, picked `[Manual]` without filling fields, or otherwise short-circuited the draft), insert the appropriate placeholder:
+
+- AC empty → `[DRAFT-AC] Original message: "{message_text_snippet}"`
+- EP empty → `[DRAFT-EP] 1. Refine this plan with /planning-tasks 2. ...`
+
+These placeholders ensure the task appears in `monitoring-tasks`'s `DRAFT placeholders` debt list and in `running-daily-tasks` Step 2 refinement, so worthiness-tagged tasks that exempt from the `SHALLOW_AC` / `EMPTY_AC_READY_PLUS` monitoring categories are still visible to at least one safety net. Worthiness-tagged tasks remain exempt from the Rubric R-AC1..R-AC3 / R-EP1..R-EP3 checks at Ready transitions, but R-AC4 + R-EP5 (no `[DRAFT-*]` placeholder remaining) still applies, so the user MUST remove the placeholder before promoting the task — they cannot accidentally promote an empty worthiness-tagged task to Ready.
 
 ### Phase C: Category C — Manual Ask Only
 
@@ -557,6 +587,8 @@ Category C tasks are delegations. The delegating user knows what they want from 
 - **Due Date**: Any deadline?
 
 If there are multiple Category C messages, batch them into a single `AskUserQuestion` call. If the user replies "as-is" or equivalent, proceed with only the information from the original message. Incorporate answers into the task fields when creating tasks in Step 3.
+
+**v2.8.0+**: If after the manual ask the AC or EP is still empty, fill it with the `[DRAFT-AC]` / `[DRAFT-EP]` placeholder (per the protocol). The task remains in Backlog and shows up in the `running-daily-tasks` Step 2 refinement queue. Do not invoke Reviewer for Category C at intake — the recipient (when they accept the task) will decide whether to refine it.
 
 ---
 

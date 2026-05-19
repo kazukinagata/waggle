@@ -117,8 +117,10 @@ When the user says "decompose task X", "break down X into subtasks", or similar:
    - `Priority`: inherit from parent (user can override per-subtask)
    - `Tags`: inherit from parent
    - `Executor`: ask per-subtask (different subtasks may need different executors)
+   - **`Acceptance Criteria` / `Execution Plan`: do NOT inherit (v2.8.0+)** — parent AC/EP describes the parent's outcome; copying it into a subtask creates a misleading spec. Initialize the child with `[DRAFT-AC]` and `[DRAFT-EP]` placeholders instead, and recommend running `/planning-tasks` on each new subtask before promotion.
 4. Create each subtask with `parentTask = X.id`
 5. After all subtasks are created, run status cascading check (if parent was Done, revert to In Progress)
+6. **Suggest planning (v2.8.0+)**: surface a one-line note "Run `/planning-tasks` on the new subtasks before promoting them to Ready" so the user knows the placeholders are awaiting refinement.
 
 ## Task Creation Questioning Flow
 
@@ -150,9 +152,15 @@ Do not skip fields — ask for each one unless the user has already explicitly p
 4. **Context**: Ask "Is there any background information, constraints, or related context the
    executor should know?" (e.g., existing PRs, design docs, prior decisions)
 
-**Multi-round questioning**: For AC and Execution Plan, if the user's response lacks verifiable conditions (no commands, file paths, metrics, or observable outcomes), propose 3 concrete options and brainstorm together. If the user disengages, accept with `[LOW CONFIDENCE]` tag.
+**Multi-round questioning**: For AC and Execution Plan, if the user's response lacks verifiable conditions (no commands, file paths, metrics, or observable outcomes), propose 3 concrete options and brainstorm together. If the user disengages, accept with `[NEEDS-REFINE]` prefix (v2.8.0+: aligned with the protocol's 2 reserved prefixes).
 
 **Auto-planning shortcut**: If the user says "auto" or "generate" for AC or Execution Plan, propose AC and Execution Plan based on the Description. If Description is too vague (no nouns, no context), ask the user to elaborate first.
+
+**"Defer" shortcut (v2.8.0+)**: If the user says "later" or "defer" for AC or Execution Plan, do NOT save the field empty. Insert the appropriate placeholder:
+- AC empty → `[DRAFT-AC] {one-line summary of the user's intent}` (intent summary can be the Title or the user's verbatim deferral note)
+- EP empty → `[DRAFT-EP] 1. Refine this plan with /planning-tasks 2. ...`
+
+These placeholders trip the Rubric's R-AC4 check so the task can never be promoted to Ready until they are resolved.
 
 ## Pre-Creation Checklist (hard gate)
 
@@ -161,11 +169,11 @@ Before calling the provider's create API, verify ALL of the following have been 
 | # | Field | Confirmed? |
 |---|---|---|
 | 1 | Description (≥50 tokens, specific enough for agent execution) | |
-| 2 | Acceptance Criteria (verifiable conditions) | |
-| 3 | Execution Plan (numbered steps with actions and expected outcomes) | |
+| 2 | Acceptance Criteria (verifiable conditions, or `[DRAFT-AC]` placeholder) | |
+| 3 | Execution Plan (numbered steps with actions and expected outcomes, or `[DRAFT-EP]` placeholder) | |
 | 4 | Context (asked — may be empty if user says "none") | |
 
-**Do NOT create the task until all 4 rows are confirmed.** If any field was skipped or not yet asked, go back and ask before proceeding.
+**Do NOT create the task with literally empty AC or EP fields.** If the user wants to defer, insert the appropriate `[DRAFT-*]` placeholder (see "Defer shortcut" above).
 
 ## Status Auto-Determination at Creation
 

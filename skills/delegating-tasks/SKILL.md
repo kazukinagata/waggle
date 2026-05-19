@@ -36,14 +36,21 @@ If the user did not specify a task clearly:
    - 2–5 matches → present the list and ask the user to select one.
    - Team name match (lookup returns `teamMatch: true`): inform "'{query}' is a team name. Assignee must be exactly 1 person. Which member of {teamName} should this be delegated to?" and present the team's member list for selection.
 
-## Step 3b: Content Quality Check
+## Step 3b: Content Quality Check (v2.8.0+: live cache-aware Reviewer)
 
-Before delegating, verify task content is sufficient for the recipient's agent to execute:
-- If Acceptance Criteria is empty or under 20 characters: ask the user to provide
-  completion conditions before delegating.
-- If Description is empty: ask the user to provide a description before delegating.
+Delegation is a low-frequency, high-impact action — handing work to someone else. v2.8.0 strengthens this step to catch tasks that bypassed the quality gates (e.g., Notion UI direct edits) before they reach the recipient.
 
-These are non-blocking suggestions. Proceed with delegation if the user confirms.
+Invoke the `assigning-to-others` skill at the field-reset point in Step 4. That skill now performs a **live, cache-aware** Reviewer check via `reviewing-quality`:
+
+- Cache hit + PASS → delegation proceeds silently (99% of the case, no LLM wait).
+- Cache hit + NEEDS_REFINEMENT / REJECT → surface gaps; ask `[Refine via /planning-tasks] [Delegate anyway]`.
+- Cache miss → **live Reviewer invocation** (~10–20s). delegation is rare enough that this latency is acceptable. After the Reviewer returns, branch on its verdict the same way.
+
+Legacy non-LLM checks (kept as fast pre-checks):
+- If Acceptance Criteria is empty or under 20 characters: still prompt the user.
+- If Description is empty: still prompt the user.
+
+These remain non-blocking suggestions; the user can override with `[Delegate anyway]`.
 
 ## Step 4: Update the Task
 

@@ -6,3 +6,9 @@ dist/
 
 # Desktop Extension build artifacts — regenerated via `npx @anthropic-ai/mcpb pack .`
 *.mcpb
+
+# Calibration outputs (v2.8.0 ship-blocker artifacts). Per-task reviewer
+# evaluations are about real production tasks and should not be tracked in
+# source control. See docs/quality-calibration.md for the procedure.
+calibration/
+docs/calibration-labels.csv

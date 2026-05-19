@@ -1,0 +1,392 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>Waggle v2.8.0 Quality Gates</title>
+<style>
+body { font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Yu Gothic", sans-serif; margin: 24px; color: #1a1a1a; background: #fafafa; max-width: 1100px; }
+h1 { font-size: 22px; border-bottom: 2px solid #1a1a1a; padding-bottom: 6px; }
+h2 { font-size: 17px; margin-top: 40px; border-left: 4px solid #1a1a1a; padding-left: 10px; }
+.legend { display: flex; flex-wrap: wrap; gap: 14px 22px; font-size: 13px; margin: 12px 0 20px 0; padding: 12px; background: #fff; border: 1px solid #d0d0d0; border-radius: 6px; }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.dot { width: 14px; height: 14px; border-radius: 3px; display: inline-block; border: 1px solid rgba(0,0,0,.1); }
+.dot.layer0 { background: #f4a261; }
+.dot.layer1 { background: #2a9d8f; }
+.dot.layer2 { background: #e76f51; }
+.dot.cache  { background: #264653; }
+.dot.bypass { background: #9b2226; }
+.dot.new    { background: #fff; border: 2px dashed #d62828; }
+table { border-collapse: collapse; width: 100%; font-size: 13px; margin-bottom: 16px; background: #fff; }
+th, td { border: 1px solid #d0d0d0; padding: 8px 10px; text-align: left; vertical-align: top; }
+th { background: #efefef; font-weight: 600; }
+.tag { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 11px; color: #fff; margin-right: 4px; white-space: nowrap; }
+.tag.layer0 { background: #f4a261; }
+.tag.layer1 { background: #2a9d8f; }
+.tag.layer2 { background: #e76f51; }
+.tag.cache  { background: #264653; }
+.tag.bypass { background: #9b2226; }
+.tag.none   { background: #adb5bd; }
+.svg-wrap { background: #fff; border: 1px solid #d0d0d0; border-radius: 8px; padding: 12px; margin-bottom: 16px; overflow-x: auto; }
+.note { font-size: 12px; color: #555; margin-top: 6px; }
+svg text { font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Yu Gothic", sans-serif; }
+</style>
+</head>
+<body>
+
+<h1>Waggle v2.8.0 — Quality Gates &amp; Skill Dependency</h1>
+
+<div class="legend">
+  <span><span class="dot layer0"></span> Layer 0: Worthiness</span>
+  <span><span class="dot layer1"></span> Layer 1: Rubric (deterministic)</span>
+  <span><span class="dot layer2"></span> Layer 2: Reviewer (LLM, live)</span>
+  <span><span class="dot cache"></span> Cache-only Reviewer check</span>
+  <span><span class="dot bypass"></span> Bypass risk</span>
+  <span><span class="dot new"></span> v2.8.0 で新規 / 変更</span>
+</div>
+
+<h2>1. 各経路と通過する品質ゲート</h2>
+<table>
+<tr><th>経路</th><th>Layer 0</th><th>Layer 1 (Rubric)</th><th>Layer 2 (Reviewer)</th><th>備考</th></tr>
+<tr><td>ingesting-messages Phase A (intake 分類)</td><td><span class="tag layer0">classify</span></td><td>—</td><td>—</td><td>worthiness ≠ task → Layer 1/2 全 skip</td></tr>
+<tr><td>ingesting-messages Phase A.5 (auto-gen, Cat B のみ)</td><td>—</td><td><span class="tag layer1">always</span></td><td><span class="tag layer2">live</span></td><td>worthiness = task のみ</td></tr>
+<tr><td>ingesting-messages Phase B (user 確認テーブル)</td><td>—</td><td><span class="tag layer1">always</span></td><td><span class="tag none">skip</span></td><td>user-edits authoritative</td></tr>
+<tr><td>planning-tasks</td><td>—</td><td><span class="tag layer1">always</span></td><td><span class="tag layer2">live</span></td><td>Round 1/2 ブレインストーミング後に Reviewer</td></tr>
+<tr><td>managing-tasks pre-Ready (全 Executor)</td><td>—</td><td><span class="tag layer1">always</span></td><td><span class="tag cache">cache-only</span></td><td>worthiness:* タグ付きのみ Reviewer skip</td></tr>
+<tr><td>executing-tasks dispatch</td><td>—</td><td><span class="tag layer1">always</span></td><td><span class="tag cache">cache-only</span></td><td>live 呼び出し禁止 (hot path)</td></tr>
+<tr><td>delegating-tasks → assigning-to-others</td><td>—</td><td><span class="tag layer1">always</span></td><td><span class="tag layer2">live, cache-aware</span></td><td>Notion UI bypass を確実に catch (cache miss 時は live 呼び出し)</td></tr>
+<tr><td>running-daily-tasks Step 1 (intake)</td><td colspan="4">ingesting-messages を invoke。同じゲート</td></tr>
+<tr><td>running-daily-tasks Step 2 (refine)</td><td colspan="4">planning-tasks を invoke。同じゲート</td></tr>
+<tr><td>running-daily-tasks Step 2.6 (health check)</td><td>—</td><td><span class="tag layer1">always</span></td><td><span class="tag layer2">live, cache-aware</span></td><td>cache hit 多用、Notion UI bypass を catch</td></tr>
+<tr><td>running-daily-tasks Step 3 (dispatch)</td><td colspan="4">executing-tasks を invoke。同じゲート</td></tr>
+<tr><td><b>Notion UI で直接編集 (bypass)</b></td><td>—</td><td><span class="tag bypass">未通過</span></td><td><span class="tag bypass">未通過</span></td><td>Step 2.6 / monitoring-tasks で事後検出</td></tr>
+<tr><td>monitoring-tasks (default)</td><td>—</td><td><span class="tag layer1">read-only</span></td><td><span class="tag none">skip</span></td><td>quality debt として Rubric fail を列挙</td></tr>
+<tr><td>monitoring-tasks --deep (opt-in)</td><td>—</td><td><span class="tag layer1">read-only</span></td><td><span class="tag layer2">live, batch</span></td><td>cache miss のみ走る</td></tr>
+</table>
+
+<h2>2. 典型フロー: 新規メッセージ → Ready → 実行</h2>
+<div class="svg-wrap">
+<svg viewBox="0 0 1040 820" width="100%" style="max-width:1040px">
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#333"/>
+    </marker>
+    <marker id="arr-red" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#9b2226"/>
+    </marker>
+  </defs>
+
+  <!-- Column header bands -->
+  <rect x="20" y="10" width="320" height="26" fill="#efefef" stroke="#d0d0d0"/>
+  <text x="180" y="28" text-anchor="middle" font-size="13" font-weight="600">主フロー (worthiness=task)</text>
+  <rect x="360" y="10" width="320" height="26" fill="#fff5e6" stroke="#d0d0d0"/>
+  <text x="520" y="28" text-anchor="middle" font-size="13" font-weight="600">Layer 0 で分岐 (worthiness ≠ task)</text>
+  <rect x="700" y="10" width="320" height="26" fill="#f8d7da" stroke="#d0d0d0"/>
+  <text x="860" y="28" text-anchor="middle" font-size="13" font-weight="600">Bypass (Notion UI 直編集)</text>
+
+  <!-- LEFT COLUMN: main flow -->
+  <!-- Step 1: Slack DM -->
+  <rect x="60" y="60" width="240" height="44" rx="6" fill="#fff" stroke="#1a1a1a" stroke-width="1.5"/>
+  <text x="180" y="87" text-anchor="middle" font-size="13" font-weight="600">Slack/Teams DM 受信</text>
+
+  <!-- Step 2: Phase A classifier -->
+  <rect x="60" y="130" width="240" height="56" rx="6" fill="#fef0e0" stroke="#f4a261" stroke-width="2"/>
+  <text x="180" y="153" text-anchor="middle" font-size="13" font-weight="600">ingesting-messages Phase A</text>
+  <text x="180" y="172" text-anchor="middle" font-size="11" fill="#555">classify: A/B/C × worthiness</text>
+  <rect x="305" y="142" width="48" height="20" rx="10" fill="#f4a261"/>
+  <text x="329" y="156" text-anchor="middle" font-size="10" fill="#fff" font-weight="600">L0</text>
+
+  <!-- Step 3: Phase A.5 -->
+  <rect x="60" y="210" width="240" height="56" rx="6" fill="#e6f4f1" stroke="#2a9d8f" stroke-width="2"/>
+  <text x="180" y="233" text-anchor="middle" font-size="13" font-weight="600">Phase A.5 (Cat B only)</text>
+  <text x="180" y="252" text-anchor="middle" font-size="11" fill="#555">auto-gen AC/EP → Rubric → Reviewer</text>
+  <rect x="305" y="216" width="48" height="20" rx="10" fill="#2a9d8f"/>
+  <text x="329" y="230" text-anchor="middle" font-size="10" fill="#fff" font-weight="600">L1</text>
+  <rect x="305" y="240" width="48" height="20" rx="10" fill="#e76f51"/>
+  <text x="329" y="254" text-anchor="middle" font-size="10" fill="#fff" font-weight="600">L2 live</text>
+
+  <!-- Step 4: Phase B -->
+  <rect x="60" y="290" width="240" height="56" rx="6" fill="#e6f4f1" stroke="#2a9d8f" stroke-width="2"/>
+  <text x="180" y="313" text-anchor="middle" font-size="13" font-weight="600">Phase B 確認 (user 編集)</text>
+  <text x="180" y="332" text-anchor="middle" font-size="11" fill="#555">user-authoritative, Rubric only</text>
+  <rect x="305" y="304" width="48" height="20" rx="10" fill="#2a9d8f"/>
+  <text x="329" y="318" text-anchor="middle" font-size="10" fill="#fff" font-weight="600">L1</text>
+
+  <!-- Step 5: Backlog -->
+  <rect x="60" y="370" width="240" height="44" rx="6" fill="#f0f0f0" stroke="#1a1a1a" stroke-width="1.5"/>
+  <text x="180" y="397" text-anchor="middle" font-size="13" font-weight="600">Notion: Backlog</text>
+
+  <!-- Step 6: planning-tasks -->
+  <rect x="60" y="440" width="240" height="56" rx="6" fill="#fde9e3" stroke="#e76f51" stroke-width="2"/>
+  <text x="180" y="463" text-anchor="middle" font-size="13" font-weight="600">planning-tasks (Round 1/2 + Reviewer)</text>
+  <text x="180" y="482" text-anchor="middle" font-size="11" fill="#555">PASS / NEEDS_REFINEMENT / REJECT</text>
+  <rect x="305" y="446" width="48" height="20" rx="10" fill="#2a9d8f"/>
+  <text x="329" y="460" text-anchor="middle" font-size="10" fill="#fff" font-weight="600">L1</text>
+  <rect x="305" y="470" width="48" height="20" rx="10" fill="#e76f51"/>
+  <text x="329" y="484" text-anchor="middle" font-size="10" fill="#fff" font-weight="600">L2 live</text>
+
+  <!-- Step 7: Ready -->
+  <rect x="60" y="520" width="240" height="44" rx="6" fill="#f0f0f0" stroke="#1a1a1a" stroke-width="1.5"/>
+  <text x="180" y="547" text-anchor="middle" font-size="13" font-weight="600">Notion: Ready</text>
+
+  <!-- Step 8: dispatch -->
+  <rect x="60" y="590" width="240" height="56" rx="6" fill="#dfe4ea" stroke="#264653" stroke-width="2"/>
+  <text x="180" y="613" text-anchor="middle" font-size="13" font-weight="600">executing-tasks dispatch</text>
+  <text x="180" y="632" text-anchor="middle" font-size="11" fill="#555">Rubric + cache-only Reviewer</text>
+  <rect x="305" y="596" width="48" height="20" rx="10" fill="#2a9d8f"/>
+  <text x="329" y="610" text-anchor="middle" font-size="10" fill="#fff" font-weight="600">L1</text>
+  <rect x="305" y="620" width="48" height="20" rx="10" fill="#264653"/>
+  <text x="329" y="634" text-anchor="middle" font-size="10" fill="#fff" font-weight="600">cache</text>
+
+  <!-- Step 9: task-agent -->
+  <rect x="60" y="670" width="240" height="44" rx="6" fill="#fff" stroke="#1a1a1a" stroke-width="1.5"/>
+  <text x="180" y="697" text-anchor="middle" font-size="13" font-weight="600">task-agent (実行)</text>
+
+  <!-- Step 10: Done -->
+  <rect x="60" y="740" width="240" height="44" rx="6" fill="#d4edda" stroke="#155724" stroke-width="1.5"/>
+  <text x="180" y="767" text-anchor="middle" font-size="13" font-weight="600">Notion: Done</text>
+
+  <!-- Arrows on left column -->
+  <line x1="180" y1="104" x2="180" y2="128" stroke="#333" stroke-width="1.5" marker-end="url(#arr)"/>
+  <line x1="180" y1="186" x2="180" y2="208" stroke="#333" stroke-width="1.5" marker-end="url(#arr)"/>
+  <line x1="180" y1="266" x2="180" y2="288" stroke="#333" stroke-width="1.5" marker-end="url(#arr)"/>
+  <line x1="180" y1="346" x2="180" y2="368" stroke="#333" stroke-width="1.5" marker-end="url(#arr)"/>
+  <line x1="180" y1="414" x2="180" y2="438" stroke="#333" stroke-width="1.5" marker-end="url(#arr)"/>
+  <line x1="180" y1="496" x2="180" y2="518" stroke="#333" stroke-width="1.5" marker-end="url(#arr)"/>
+  <line x1="180" y1="564" x2="180" y2="588" stroke="#333" stroke-width="1.5" marker-end="url(#arr)"/>
+  <line x1="180" y1="646" x2="180" y2="668" stroke="#333" stroke-width="1.5" marker-end="url(#arr)"/>
+  <line x1="180" y1="714" x2="180" y2="738" stroke="#333" stroke-width="1.5" marker-end="url(#arr)"/>
+
+  <!-- MIDDLE COLUMN: worthiness branch -->
+  <rect x="400" y="200" width="240" height="80" rx="6" fill="#fff5e6" stroke="#f4a261" stroke-width="2"/>
+  <text x="520" y="222" text-anchor="middle" font-size="13" font-weight="600">worthiness ≠ task</text>
+  <text x="520" y="240" text-anchor="middle" font-size="11" fill="#555">calendar-like / info-only</text>
+  <text x="520" y="258" text-anchor="middle" font-size="11" fill="#555">Phase A.5 (Layer 1/2) skip</text>
+  <text x="520" y="274" text-anchor="middle" font-size="11" fill="#555">Phase B 確認テーブルへ</text>
+
+  <rect x="400" y="310" width="240" height="80" rx="6" fill="#fff" stroke="#1a1a1a" stroke-width="1.5"/>
+  <text x="520" y="332" text-anchor="middle" font-size="13" font-weight="600">Phase B 確認テーブル</text>
+  <text x="520" y="350" text-anchor="middle" font-size="11" fill="#555">default: [Skip]</text>
+  <text x="520" y="366" text-anchor="middle" font-size="11" fill="#555">[Create as task] [Convert] [Discard]</text>
+  <text x="520" y="382" text-anchor="middle" font-size="11" fill="#555">silent discard なし</text>
+
+  <rect x="400" y="420" width="240" height="60" rx="6" fill="#f0f0f0" stroke="#1a1a1a" stroke-width="1.5"/>
+  <text x="520" y="445" text-anchor="middle" font-size="13" font-weight="600">[Create as task] 選択時</text>
+  <text x="520" y="463" text-anchor="middle" font-size="11" fill="#555">worthiness:* タグ付きで Backlog</text>
+
+  <!-- Arrow from Phase A to worthiness branch -->
+  <path d="M 300 158 C 350 158, 360 200, 400 230" fill="none" stroke="#f4a261" stroke-width="1.5" marker-end="url(#arr)"/>
+  <text x="365" y="195" font-size="10" fill="#f4a261" font-weight="600">≠ task</text>
+
+  <!-- Arrow worthiness → Phase B -->
+  <line x1="520" y1="280" x2="520" y2="308" stroke="#333" stroke-width="1.5" marker-end="url(#arr)"/>
+
+  <!-- Arrow Phase B → Backlog (back to main column) -->
+  <path d="M 520 390 C 520 410, 480 420, 400 440" fill="none" stroke="#333" stroke-width="1.5"/>
+  <path d="M 400 440 C 360 440, 320 395, 300 393" fill="none" stroke="#333" stroke-width="1.5" marker-end="url(#arr)"/>
+
+  <!-- RIGHT COLUMN: bypass -->
+  <rect x="740" y="200" width="240" height="80" rx="6" fill="#f8d7da" stroke="#9b2226" stroke-width="2"/>
+  <text x="860" y="225" text-anchor="middle" font-size="13" font-weight="600">Notion UI で直接編集</text>
+  <text x="860" y="244" text-anchor="middle" font-size="11" fill="#555">Status を Ready に手動変更</text>
+  <text x="860" y="262" text-anchor="middle" font-size="11" fill="#555">Layer 0/1/2 すべて bypass</text>
+
+  <rect x="740" y="380" width="240" height="80" rx="6" fill="#e6f4f1" stroke="#2a9d8f" stroke-width="2"/>
+  <text x="860" y="403" text-anchor="middle" font-size="13" font-weight="600">running-daily-tasks Step 2.6</text>
+  <text x="860" y="421" text-anchor="middle" font-size="11" fill="#555">Ready 健康診断 (cache-aware Reviewer)</text>
+  <text x="860" y="438" text-anchor="middle" font-size="11" fill="#555">monitoring-tasks も Rubric debt で検出</text>
+
+  <!-- Bypass arrow: jumps from Notion UI directly into Ready -->
+  <path d="M 740 240 C 600 240, 500 540, 305 540" fill="none" stroke="#9b2226" stroke-width="1.5" stroke-dasharray="4,3" marker-end="url(#arr-red)"/>
+  <text x="540" y="380" font-size="10" fill="#9b2226" font-weight="600">bypass (Ready に直挿入)</text>
+
+  <!-- Catch arrow: Ready → Step 2.6 -->
+  <path d="M 300 542 C 500 542, 600 420, 740 420" fill="none" stroke="#2a9d8f" stroke-width="1.5" marker-end="url(#arr)"/>
+  <text x="510" y="555" font-size="10" fill="#2a9d8f" font-weight="600">catch</text>
+</svg>
+</div>
+<div class="note">cache hit のおかげで Ready 以降の Reviewer 呼び出しは限定的。content-hash が変わった (AC/EP が編集された) 時のみ再評価される。Notion UI 直編集 (赤破線) は Step 2.6 か monitoring-tasks で事後検出される。</div>
+
+<h2>3. Bypass 経路と catch ポイント</h2>
+<table>
+<tr><th>Bypass</th><th>Catch する場所</th></tr>
+<tr><td>Notion UI で Status=Ready に直接変更</td><td>running-daily-tasks Step 2.6 (Reviewer cache-aware)、monitoring-tasks の Rubric debt</td></tr>
+<tr><td>Notion UI で AC 削除 → Status 維持</td><td>content-hash 失効 → 次回 cache miss → Step 2.6 / executing dispatch / delegating で再 review</td></tr>
+<tr><td>v2.7.x 以前から残っている古い Ready</td><td>Step 2.6 初回起動で Reviewer 通過、verdict が保存される</td></tr>
+<tr><td>カスタム intake source (Sheets 等)</td><td>ingesting-messages 経由なら Layer 0/1/2 通過、それ以外なら Step 2.6</td></tr>
+</table>
+
+<h2>4. waggle skills / agents 依存関係グラフ (v2.8.0)</h2>
+<div class="svg-wrap">
+<svg viewBox="0 0 1040 580" width="100%" style="max-width:1040px">
+  <defs>
+    <marker id="arr2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#666"/>
+    </marker>
+    <marker id="arr2-new" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#d62828"/>
+    </marker>
+  </defs>
+
+  <!-- Layer bands -->
+  <rect x="10" y="30" width="1020" height="120" fill="#f0f7ff" stroke="#cce4ff"/>
+  <text x="20" y="50" font-size="12" font-weight="600" fill="#557">User-invocable skills (top-level)</text>
+
+  <rect x="10" y="180" width="1020" height="160" fill="#fff7ed" stroke="#fde2c9"/>
+  <text x="20" y="200" font-size="12" font-weight="600" fill="#a85" >Shared skills (user-invocable: false)</text>
+
+  <rect x="10" y="370" width="1020" height="200" fill="#fdecea" stroke="#f9caca"/>
+  <text x="20" y="390" font-size="12" font-weight="600" fill="#9b2226">Agents (spawned by skills)</text>
+
+  <!-- USER-INVOCABLE SKILLS -->
+  <g font-size="11" text-anchor="middle">
+    <rect x="30"  y="80" width="130" height="50" rx="5" fill="#fff" stroke="#1a1a1a"/>
+    <text x="95" y="100">running-daily-tasks</text>
+    <text x="95" y="116" font-size="10" fill="#666">orchestrator</text>
+
+    <rect x="180" y="80" width="130" height="50" rx="5" fill="#fff" stroke="#1a1a1a"/>
+    <text x="245" y="100">ingesting-messages</text>
+    <text x="245" y="116" font-size="10" fill="#666">intake (Layer 0)</text>
+
+    <rect x="330" y="80" width="130" height="50" rx="5" fill="#fff" stroke="#1a1a1a"/>
+    <text x="395" y="100">planning-tasks</text>
+    <text x="395" y="116" font-size="10" fill="#666">AC/EP 生成</text>
+
+    <rect x="480" y="80" width="130" height="50" rx="5" fill="#fff" stroke="#1a1a1a"/>
+    <text x="545" y="100">managing-tasks</text>
+    <text x="545" y="116" font-size="10" fill="#666">CRUD + pre-Ready</text>
+
+    <rect x="630" y="80" width="130" height="50" rx="5" fill="#fff" stroke="#1a1a1a"/>
+    <text x="695" y="100">executing-tasks</text>
+    <text x="695" y="116" font-size="10" fill="#666">dispatch</text>
+
+    <rect x="780" y="80" width="130" height="50" rx="5" fill="#fff" stroke="#1a1a1a"/>
+    <text x="845" y="100">delegating-tasks</text>
+    <text x="845" y="116" font-size="10" fill="#666">委譲</text>
+
+    <rect x="900" y="135" width="130" height="38" rx="5" fill="#fff" stroke="#1a1a1a"/>
+    <text x="965" y="152">monitoring-tasks</text>
+    <text x="965" y="166" font-size="10" fill="#666">debt 検出</text>
+  </g>
+
+  <!-- SHARED SKILLS -->
+  <g font-size="11" text-anchor="middle">
+    <rect x="280" y="225" width="170" height="80" rx="5" fill="#fff" stroke="#d62828" stroke-width="2.5" stroke-dasharray="4,3"/>
+    <text x="365" y="248" font-weight="700">reviewing-quality</text>
+    <text x="365" y="266" font-size="10" fill="#666">NEW (v2.8.0)</text>
+    <text x="365" y="282" font-size="10" fill="#666">cache + Rubric pre-filter</text>
+    <text x="365" y="298" font-size="10" fill="#666">batch fan-out</text>
+
+    <rect x="480" y="225" width="150" height="80" rx="5" fill="#fff" stroke="#1a1a1a"/>
+    <text x="555" y="248" font-weight="600">validating-fields</text>
+    <text x="555" y="266" font-size="10" fill="#666">deterministic Rubric</text>
+    <text x="555" y="282" font-size="10" fill="#666">no LLM</text>
+
+    <rect x="660" y="225" width="150" height="80" rx="5" fill="#fff" stroke="#1a1a1a"/>
+    <text x="735" y="248" font-weight="600">assigning-to-others</text>
+    <text x="735" y="266" font-size="10" fill="#666">executor reset</text>
+    <text x="735" y="282" font-size="10" fill="#666">+ Reviewer cache check</text>
+
+    <rect x="30" y="225" width="200" height="80" rx="5" fill="#fff" stroke="#1a1a1a" stroke-dasharray="2,2"/>
+    <text x="130" y="248" font-size="10" fill="#666" font-weight="600">bootstrap-session / detecting-provider</text>
+    <text x="130" y="266" font-size="10" fill="#666">resolving-identity / looking-up-members</text>
+    <text x="130" y="282" font-size="10" fill="#666">loading-custom-instructions</text>
+    <text x="130" y="298" font-size="10" fill="#666">validating-fields / waggle-protocol</text>
+  </g>
+
+  <!-- AGENTS -->
+  <g font-size="11" text-anchor="middle">
+    <rect x="60"  y="415" width="180" height="80" rx="5" fill="#fff" stroke="#1a1a1a"/>
+    <text x="150" y="438" font-weight="600">code-planning-agent</text>
+    <text x="150" y="456" font-size="10" fill="#666">AC/EP for code tasks</text>
+    <text x="150" y="472" font-size="10" fill="#d62828">+ self-reflection 1-line</text>
+    <text x="150" y="488" font-size="10" fill="#666">(v2.8.0 修正)</text>
+
+    <rect x="280" y="415" width="190" height="80" rx="5" fill="#fff" stroke="#1a1a1a"/>
+    <text x="375" y="438" font-weight="600">knowledge-planning-agent</text>
+    <text x="375" y="456" font-size="10" fill="#666">AC/EP for non-code tasks</text>
+    <text x="375" y="472" font-size="10" fill="#d62828">+ self-reflection 1-line</text>
+    <text x="375" y="488" font-size="10" fill="#666">(v2.8.0 修正)</text>
+
+    <rect x="510" y="415" width="220" height="80" rx="5" fill="#fff" stroke="#d62828" stroke-width="2.5" stroke-dasharray="4,3"/>
+    <text x="620" y="438" font-weight="700">task-quality-reviewer-agent</text>
+    <text x="620" y="456" font-size="10" fill="#666">NEW (v2.8.0)</text>
+    <text x="620" y="472" font-size="10" fill="#666">5-axis IRC, model=sonnet 4.6</text>
+    <text x="620" y="488" font-size="10" fill="#666">maxTurns=4, &lt;10K read budget</text>
+
+    <rect x="770" y="415" width="180" height="80" rx="5" fill="#fff" stroke="#1a1a1a"/>
+    <text x="860" y="438" font-weight="600">task-agent</text>
+    <text x="860" y="456" font-size="10" fill="#666">Ready task を自律実行</text>
+    <text x="860" y="472" font-size="10" fill="#666">AC/EP を「消費」する</text>
+    <text x="860" y="488" font-size="10" fill="#666">変更なし</text>
+  </g>
+
+  <!-- EDGES: user-invocable → shared / agents -->
+  <!-- running-daily-tasks → ingesting/planning/executing (orchestrator) -->
+  <path d="M 130 130 C 130 150, 200 150, 220 130" fill="none" stroke="#666" stroke-width="1" marker-end="url(#arr2)"/>
+  <path d="M 130 130 C 130 160, 350 160, 370 130" fill="none" stroke="#666" stroke-width="1" marker-end="url(#arr2)"/>
+  <path d="M 130 130 C 130 170, 650 170, 665 130" fill="none" stroke="#666" stroke-width="1" marker-end="url(#arr2)"/>
+
+  <!-- ingesting-messages → reviewing-quality (Phase A.5, NEW) -->
+  <path d="M 245 130 L 320 225" fill="none" stroke="#d62828" stroke-width="1.8" marker-end="url(#arr2-new)"/>
+
+  <!-- planning-tasks → reviewing-quality (NEW) -->
+  <path d="M 395 130 L 365 225" fill="none" stroke="#d62828" stroke-width="1.8" marker-end="url(#arr2-new)"/>
+
+  <!-- planning-tasks → code/knowledge-planning-agent (existing) -->
+  <path d="M 380 130 C 320 200, 200 350, 180 415" fill="none" stroke="#666" stroke-width="1" marker-end="url(#arr2)"/>
+  <path d="M 410 130 C 400 200, 380 350, 375 415" fill="none" stroke="#666" stroke-width="1" marker-end="url(#arr2)"/>
+
+  <!-- managing-tasks → reviewing-quality (NEW pre-Ready cache check) -->
+  <path d="M 545 130 L 410 225" fill="none" stroke="#d62828" stroke-width="1.8" marker-end="url(#arr2-new)"/>
+
+  <!-- managing-tasks → validating-fields (Rubric) -->
+  <path d="M 555 130 L 555 225" fill="none" stroke="#666" stroke-width="1" marker-end="url(#arr2)"/>
+
+  <!-- executing-tasks → reviewing-quality (NEW cache-only) -->
+  <path d="M 680 130 L 440 225" fill="none" stroke="#d62828" stroke-width="1.8" marker-end="url(#arr2-new)"/>
+
+  <!-- executing-tasks → validating-fields -->
+  <path d="M 700 130 L 580 225" fill="none" stroke="#666" stroke-width="1" marker-end="url(#arr2)"/>
+
+  <!-- executing-tasks → task-agent (dispatch) -->
+  <path d="M 720 130 C 760 250, 820 400, 860 415" fill="none" stroke="#666" stroke-width="1" marker-end="url(#arr2)"/>
+
+  <!-- delegating-tasks → assigning-to-others -->
+  <path d="M 845 130 L 735 225" fill="none" stroke="#666" stroke-width="1" marker-end="url(#arr2)"/>
+
+  <!-- assigning-to-others → reviewing-quality (NEW) -->
+  <path d="M 660 270 L 450 270" fill="none" stroke="#d62828" stroke-width="1.8" marker-end="url(#arr2-new)"/>
+
+  <!-- monitoring-tasks → reviewing-quality (NEW --deep) / validating-fields -->
+  <path d="M 900 165 C 700 195, 500 210, 450 240" fill="none" stroke="#d62828" stroke-width="1.5" stroke-dasharray="3,3" marker-end="url(#arr2-new)"/>
+  <text x="690" y="195" font-size="9" fill="#d62828" font-weight="600">--deep only</text>
+  <path d="M 920 165 C 800 200, 700 220, 630 240" fill="none" stroke="#666" stroke-width="1" marker-end="url(#arr2)"/>
+
+  <!-- reviewing-quality → task-quality-reviewer-agent (NEW) -->
+  <path d="M 380 305 L 580 415" fill="none" stroke="#d62828" stroke-width="2" marker-end="url(#arr2-new)"/>
+
+  <!-- reviewing-quality → validating-fields (calls Rubric internally) -->
+  <path d="M 450 265 L 480 265" fill="none" stroke="#666" stroke-width="1" marker-end="url(#arr2)"/>
+
+  <!-- code-planning-agent / knowledge-planning-agent → task-quality-reviewer-agent (self-reflection invokes Reviewer) -->
+  <path d="M 240 460 C 380 470, 500 470, 510 460" fill="none" stroke="#d62828" stroke-width="1.5" stroke-dasharray="3,3" marker-end="url(#arr2-new)"/>
+  <path d="M 470 460 C 490 465, 500 462, 510 460" fill="none" stroke="#d62828" stroke-width="1.5" stroke-dasharray="3,3" marker-end="url(#arr2-new)"/>
+  <text x="350" y="478" font-size="9" fill="#d62828" font-weight="600">self-reflection invokes Reviewer</text>
+
+  <!-- Legend -->
+  <g font-size="11" transform="translate(20, 545)">
+    <line x1="0" y1="0" x2="30" y2="0" stroke="#666" stroke-width="1" marker-end="url(#arr2)"/>
+    <text x="40" y="4">既存の invocation</text>
+    <line x1="180" y1="0" x2="210" y2="0" stroke="#d62828" stroke-width="1.8" marker-end="url(#arr2-new)"/>
+    <text x="220" y="4" fill="#d62828">v2.8.0 で新規 / 変更される invocation</text>
+    <line x1="520" y1="0" x2="550" y2="0" stroke="#d62828" stroke-width="1.5" stroke-dasharray="3,3" marker-end="url(#arr2-new)"/>
+    <text x="560" y="4" fill="#d62828">opt-in / conditional</text>
+  </g>
+</svg>
+</div>
+<div class="note">
+赤い破線/実線は v2.8.0 で新規追加 or 変更される invocation。<code>reviewing-quality</code> が 7 つの user-invocable skill から呼ばれる単一窓口になり、内部で <code>task-quality-reviewer-agent</code> (新規) と <code>validating-fields</code> を組み合わせて verdict を返す。<code>code-planning-agent</code> / <code>knowledge-planning-agent</code> も self-reflection 経由で Reviewer を呼ぶ（強い意味論的バリデーション）。
+</div>
+
+</body>
+</html>
