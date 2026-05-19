@@ -151,24 +151,34 @@ Under the old design, every skill flow had to set `Issuer = current_user` explic
 
 ### Migration procedure
 
+**Do these steps in order.** Skipping step 2 or running step 3 before step 2 will permanently destroy all existing Issuer values with no in-DB recovery path (only your step-1 backup file can restore them).
+
 1. **Back up the current Issuer values.** Query the Tasks DB via the Notion API and dump `(page_id, page_url, title, properties.Issuer)` to a local JSON file. Keep this file outside the repo (or git-ignore it) — it contains user IDs from your workspace and serves as an audit trail of overrides that the new column type cannot represent.
 
-2. **Drop the old column and rename the verification column into place.** Run the following DDL via `notion-update-data-source` against your Tasks data source ID:
+2. **Add a `CREATED_BY`-typed verification column** while the old `PERSON`-typed `Issuer` column is still present. This must happen *before* step 3 — adding the verification column gives Notion an opportunity to back-fill it from each page's `created_by` metadata so you can confirm the new column type produces the expected values before dropping the old one.
+
+   ```
+   ADD COLUMN "Created By (verification)" CREATED_BY
+   ```
+
+   After this DDL, re-query a sample of pages and confirm that `Created By (verification)` is populated for every existing row. If it is not (for example, if your Notion workspace has rows created by deleted users), STOP here and decide whether to proceed — those rows will end up with empty Issuer after step 3.
+
+3. **Drop the old `Issuer` column and rename the verification column into place.** Run as a single DDL transaction:
 
    ```
    DROP COLUMN "Issuer"; RENAME COLUMN "Created By (verification)" TO "Issuer"
    ```
 
-   The "Created By (verification)" column is a `CREATED_BY`-typed column you add via `ADD COLUMN "Created By (verification)" CREATED_BY` before running the rename, so the rename ends with the new column in the canonical name. Doing it in two transactions (add then drop+rename) avoids a window where the canonical `Issuer` name does not exist.
+   Doing this in two transactions (step 2 then step 3) rather than one big transaction avoids a window where the canonical `Issuer` name does not exist.
 
    If Notion appends `" 1"` to the renamed column (it does this when an internal trash entry for the original name still exists), run a second rename: `RENAME COLUMN "Issuer 1" TO "Issuer"`.
 
-3. **Verify.** Re-query the database and confirm:
+4. **Verify.** Re-query the database and confirm:
    - The `Issuer` property has `"type": "created_by"` in the schema.
    - All existing pages return a non-empty Issuer value (Notion back-fills from each page's `created_by` metadata).
    - The fill rate is 100%.
 
-4. **Update your config.** No config changes are needed — `headless_config` does not reference Issuer's type.
+5. **Update your config.** No config changes are needed — `headless_config` does not reference Issuer's type.
 
 If you need to revert, restore from your backup JSON manually (no rollback script is shipped).
 

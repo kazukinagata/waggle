@@ -79,7 +79,7 @@ The following fields are used in query results but are NOT pushed to the view se
   "dispatchedAt": null,
   "agentOutput": "",
   "errorMessage": "",
-  "issuer": { "id": "user-123", "name": "Alice" },
+  "issuer": { "id": "user-123", "name": "Alice" },     // normalized at the provider boundary — see "Issuer shape normalization" below
   "context": "Part of the auth epic. Design mockups in Figma.",
   "artifacts": "",
   "repository": "https://github.com/org/repo",
@@ -93,6 +93,22 @@ The following fields are used in query results but are NOT pushed to the view se
   "acknowledgedAt": null
 }
 ```
+
+### Issuer shape normalization (v2.8.1+)
+
+Different providers store Issuer in different native shapes:
+
+- **Notion**: a `created_by` property value, which the API returns as `{ "id": "<uuid>", "name": "<full name>", "type": "person", "person": { "email": "..." } }`.
+- **SQLite / Turso**: a single `TEXT` column holding a user ID string (typically `$USER` or a `WAGGLE_USER_ID` override).
+
+To keep downstream consumers (view server, monitoring scripts, validators) provider-agnostic, **each provider normalizes Issuer into the same `{ id, name }` shape at the boundary**:
+
+| Provider | Native value | Normalized canonical value |
+|---|---|---|
+| Notion | `{id, name, person.email, ...}` | `{ id, name }` (other fields dropped) |
+| SQLite / Turso | `"alice"` (plain string) | `{ id: "alice", name: "alice" }` (id and name both set to the string; `email` is omitted) |
+
+This means consumers of the canonical JSON can always assume `issuer.id` exists and is a string. If they need a human-readable label, they can use `issuer.name`. Provider implementations are responsible for performing this normalization in their query/get paths (e.g., the SQLite provider's view-server mapping `jq` expression wraps the bare `issuer` text into the object shape).
 
 ## Provider Mapping
 

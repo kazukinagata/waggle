@@ -39,11 +39,11 @@ bash ${CLAUDE_PLUGIN_ROOT}/skills/sqlite-provider/scripts/init-db.sh "<dbPath>"
 
 ### Create Task
 
-**Precondition (v2.8.1+):** Before invoking the INSERT below, verify that the session-resolved `current_user.id` is **not** one of the fallback sentinels `"local"` or `"unknown"`. If it is, halt and surface an error to the caller:
+**Precondition (v2.8.1+):** Before invoking the INSERT below, verify that the session-resolved `current_user.id` is **not** the fallback sentinel `"unknown"`. If it is, halt and surface an error to the caller:
 
-> Cannot create task: current_user.id is "<sentinel>". Configure proper identity resolution before retrying — see the Identity Resolution section below.
+> Cannot create task: current_user.id is "unknown". Configure proper identity resolution before retrying — see the Identity Resolution section below. The simplest fix is to ensure `$USER` is set in the shell environment, or set `WAGGLE_USER_ID` explicitly.
 
-This enforces the protocol's "no anonymous tasks" rule. Skipping the check would write a meaningless Issuer (`"local"`) into the data store, which is exactly the failure mode v2.8.1 exists to prevent.
+This enforces the protocol's "no anonymous tasks" rule. The Identity Resolution section (below) is structured so that `id` resolves to a real value (`$WAGGLE_USER_ID` → `$USER` → `"unknown"`) on every supported environment, so this halt should rarely fire in practice — it catches genuinely unconfigured environments (an unset `$USER` with no override).
 
 ```bash
 sqlite3 "<dbPath>" "INSERT INTO tasks (title, description, acceptance_criteria, status, priority, executor, requires_review, execution_plan, working_directory, assignee, issuer) VALUES ('<title>', '<description>', '<criteria>', '<status>', '<priority>', '<executor>', <0|1>, '<plan>', '<dir>', '<assignee_json>', '${current_user.id}'); SELECT last_insert_rowid();"
@@ -266,10 +266,20 @@ curl -s http://localhost:3456/api/health -o /dev/null 2>/dev/null && \
 
 Called by `resolving-identity` shared skill when `active_provider = sqlite`.
 
-SQLite is local — no remote user system. Set:
-- `id` <- `"local"`
-- `name` <- `$USER` environment variable or `"local"`
-- `email` <- `null`
+SQLite is local — no remote user system. Identity is derived from the shell environment so that multi-user machines and CI environments produce distinct user IDs.
+
+Resolution order:
+
+1. If `WAGGLE_USER_ID` env var is set and non-empty → use it. This is the override path for environments where `$USER` is not meaningful (CI runners, shared service accounts, automation).
+2. Else if `$USER` env var is set and non-empty → use it. On Linux / macOS / WSL this gives a per-user shell account name that is unique on the machine. (v2.8.1+: previously this populated only `name`; now it also populates `id`.)
+3. Else → `id` ← `"unknown"`. This sentinel signals "identity is genuinely unresolvable" and triggers the Create Task precondition halt.
+
+Concretely set:
+- `id` ← `$WAGGLE_USER_ID` if non-empty, else `$USER` if non-empty, else `"unknown"`
+- `name` ← `$USER` env var or `"unknown"`
+- `email` ← `null`
+
+**Note (v2.8.1+):** The Create Task precondition halts only when `id == "unknown"`. The literal `"local"` is no longer used as a fallback — using `$USER` directly gives a real identifier on every supported environment, eliminating the "every task is owned by 'local'" failure mode.
 
 ## Identity: Resolve Team Membership
 

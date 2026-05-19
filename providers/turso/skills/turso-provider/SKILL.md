@@ -45,11 +45,11 @@ bash ${CLAUDE_PLUGIN_ROOT}/skills/turso-provider/scripts/init-db.sh
 
 ### Create Task
 
-**Precondition (v2.8.1+):** Before invoking the INSERT below, verify that the session-resolved `current_user.id` is **not** one of the fallback sentinels `"local"` or `"unknown"`. If it is, halt and surface an error to the caller:
+**Precondition (v2.8.1+):** Before invoking the INSERT below, verify that the session-resolved `current_user.id` is **not** the fallback sentinel `"unknown"`. If it is, halt and surface an error to the caller:
 
-> Cannot create task: current_user.id is "<sentinel>". Configure proper identity resolution before retrying — see the Identity Resolution section below.
+> Cannot create task: current_user.id is "unknown". Configure proper identity resolution before retrying — see the Identity Resolution section below. The simplest fix is to ensure `$USER` is set in the shell environment, or set `WAGGLE_USER_ID` explicitly.
 
-This enforces the protocol's "no anonymous tasks" rule. Skipping the check would write a meaningless Issuer (`"local"`) into the data store, which is exactly the failure mode v2.8.1 exists to prevent.
+This enforces the protocol's "no anonymous tasks" rule. The Identity Resolution section (below) resolves `id` from `$WAGGLE_USER_ID` → `$USER` → `"unknown"`, so this halt should rarely fire — it catches genuinely unconfigured environments (an unset `$USER` with no override).
 
 ```bash
 bash ${CLAUDE_PLUGIN_ROOT}/skills/turso-provider/scripts/turso-exec.sh \
@@ -248,10 +248,20 @@ curl -s http://localhost:3456/api/health -o /dev/null 2>/dev/null && \
 
 ## Identity: Resolve Current User
 
-Turso is remote but has no user system. Set:
-- `id` ← `"local"`
-- `name` ← `$USER` environment variable or `"local"`
+Turso is remote but has no user system. Identity is derived from the shell environment so that multi-user setups and CI environments produce distinct user IDs.
+
+Resolution order:
+
+1. If `WAGGLE_USER_ID` env var is set and non-empty → use it. This is the override path for shared service accounts, CI runners, or any environment where `$USER` is not meaningful.
+2. Else if `$USER` env var is set and non-empty → use it. On Linux / macOS / WSL this gives a per-user shell account name. (v2.8.1+: previously this populated only `name`; now it also populates `id`.)
+3. Else → `id` ← `"unknown"`. This sentinel signals "identity is genuinely unresolvable" and triggers the Create Task precondition halt.
+
+Concretely set:
+- `id` ← `$WAGGLE_USER_ID` if non-empty, else `$USER` if non-empty, else `"unknown"`
+- `name` ← `$USER` env var or `"unknown"`
 - `email` ← `null`
+
+**Note (v2.8.1+):** The Create Task precondition halts only when `id == "unknown"`. The literal `"local"` is no longer used as a fallback — using `$USER` directly gives a real identifier on every supported environment.
 
 ## Identity: Resolve Team Membership
 

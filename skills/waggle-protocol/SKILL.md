@@ -85,7 +85,9 @@ Notion's `created_by` is read-only after creation. SQLite/Turso providers MUST N
 
 ### Filtering by Issuer
 
-Notion's API filters `created_by` columns using the same `people:{contains: <user_id>}` syntax as `person` columns. SQLite/Turso providers filter via `WHERE issuer LIKE '%<user_id>%'` (or `=` for exact match — the JSON-array form is no longer used).
+Notion's API filters `created_by` columns using the `created_by:{contains: <user_id>}` operator (this is distinct from the `people` operator used for `person` columns — the operator key matches the column type). The notion-provider filter recipes in v2.8.1 use this syntax.
+
+SQLite/Turso providers filter via `WHERE issuer = '<user_id>'` for exact match (the column is now a single-value `TEXT`, not a JSON array, so the v2.7.x `LIKE '%<user_id>%'` pattern is unnecessary).
 
 ## Subtask Hierarchy
 
