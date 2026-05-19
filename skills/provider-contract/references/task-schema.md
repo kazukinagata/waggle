@@ -22,7 +22,7 @@ Every waggle-compatible task board MUST support these fields. Providers MUST aut
 | Dispatched At | datetime | `dispatchedAt` | ISO 8601 timestamp when the task was dispatched |
 | Agent Output | rich_text | `agentOutput` | Execution result written by the agent on completion |
 | Error Message | rich_text | `errorMessage` | Written on failure only |
-| Issuer | person[] | `issuer` | Who created/initiated this task. Auto-populated. Write-once |
+| Issuer | provider-managed | `issuer` | Who created/initiated this task. **Auto-populated by the provider on create (Notion: `created_by` column type; SQLite/Turso: `TEXT` with caller-substituted `${current_user.id}` in the provider's Create Task template). Read-only after creation. Skills MUST NOT include Issuer in create payloads.** See waggle-protocol § Issuer Auto-Populate Contract. v2.8.1+ |
 
 ## Hierarchy Fields (1 field — required for subtask support)
 
@@ -79,7 +79,7 @@ The following fields are used in query results but are NOT pushed to the view se
   "dispatchedAt": null,
   "agentOutput": "",
   "errorMessage": "",
-  "issuer": [{ "id": "user-123", "name": "Alice" }],
+  "issuer": { "id": "user-123", "name": "Alice" },
   "context": "Part of the auth epic. Design mockups in Figma.",
   "artifacts": "",
   "repository": "https://github.com/org/repo",
