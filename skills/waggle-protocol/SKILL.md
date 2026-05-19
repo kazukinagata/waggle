@@ -75,7 +75,7 @@ Prior to v2.8.1, skills explicitly set `Issuer = current_user`. Field telemetry 
 
 ### Provider preconditions
 
-Providers using template substitution (SQLite, Turso) MUST halt with an error before executing Create Task if `current_user.id` resolves to a fallback value (`"local"`, `"unknown"`). This enforces "no anonymous tasks" — every Issuer in the data store points to a real identity.
+Providers using template substitution (SQLite, Turso) MUST halt with an error before executing Create Task if `current_user.id` resolves to the unresolved-identity sentinel `"unknown"`. This enforces "no anonymous tasks" — every Issuer in the data store points to a real identity. (v2.7.x also halted on the literal `"local"`; v2.8.1 removed `"local"` from the identity chain entirely — providers now derive `id` from `$WAGGLE_USER_ID` → `$USER` → `"unknown"`, so the only remaining anonymous case is `"unknown"`.)
 
 The Notion provider does not need this check because Notion's API binds `created_by` to the API token owner, which is always a real user.
 
