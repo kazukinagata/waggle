@@ -67,6 +67,18 @@ Parse the result:
 
 Only dispatch when validation passes (`valid: true`).
 
+#### Quality Verdict cache check (v2.8.0+, cache-only)
+
+After the Rubric gate passes, invoke the `reviewing-quality` skill in **cache-only** mode for each task. Dispatch is a hot path — live Reviewer invocation is **forbidden** here per the protocol Quality Spec.
+
+The skill reads the task's `Quality Verdict` cache and returns one of:
+
+- `PASS` → dispatch continues without further prompt.
+- `NEEDS_REFINEMENT` or `REJECT` → surface the cached gaps and suggested fixes, then ask the user `[Refine via /planning-tasks] [Dispatch anyway]`. On "Dispatch anyway", proceed; on "Refine", remove the task from this dispatch batch.
+- `UNREVIEWED` (cache miss — never reviewed, or worthiness:* skip path) → ask `[Refine via /planning-tasks] [Dispatch anyway]` with no verdict context. Worthiness:* tagged tasks dispatch without prompt (they have explicitly been classified as non-task by the user during intake and should not nag at dispatch).
+
+The override path is always available; this gate is advisory at dispatch. Catch-net for bypass cases is `running-daily-tasks` Step 2.5 (which DOES invoke live Reviewer) and `monitoring-tasks --deep`.
+
 Display the validated task(s) with a "Ready for dispatch" confirmation:
 
 Display the task list:
