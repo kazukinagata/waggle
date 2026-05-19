@@ -77,7 +77,11 @@ If the task title starts with `[Hearing]`:
    - If Edit: let user modify, then update
    - If Skip: leave task unchanged
 
-5. **Validation gate**: For each updated task, invoke the `validating-fields` skill with the task data and target status `"Ready"`. It will return `{valid, errors, warnings}`. Report which tasks are now Ready-eligible based on the `valid: true` results.
+5. **Quality gate (v2.8.0+)**: After the user accepts the AC/EP, invoke the `reviewing-quality` skill in `live` mode for the updated task. It returns a verdict (`PASS` / `NEEDS_REFINEMENT` / `REJECT`) plus per-axis findings and concrete suggested fixes. Branch on the verdict:
+   - **PASS** → invoke the `validating-fields` skill with target `"Ready"`; on `valid: true`, the task is Ready-eligible.
+   - **NEEDS_REFINEMENT** → surface the Reviewer's suggested fixes and ask the user `[Apply suggested fixes & re-plan] [Save anyway]`. If `Apply`, re-spawn the planning agent with the fixes attached as additional context, then invoke `reviewing-quality` again (at most once). If the second verdict is still `NEEDS_REFINEMENT` (same failing axes), save with `[NEEDS-REFINE]` prefix and keep Status=Backlog.
+   - **REJECT** → save with `[NEEDS-REFINE]` prefix and keep Status=Backlog. The verdict (with the same `[NEEDS-REFINE]` rationale) is written to the `Quality Verdict` Notion column by `reviewing-quality`.
+   - **UNREVIEWED** (worthiness-skipped or upstream error) → still invoke `validating-fields` for the basic Rubric check; promote to Ready on Rubric pass.
 
 ### Batch Execution
 
@@ -135,11 +139,15 @@ Planning results (5 tasks):
 - **Review one by one**: Present each task's AC/Plan for individual Accept/Edit/Skip
 - **Skip all**: Leave all tasks unchanged
 
-#### Phase 5: Validation and Promotion
+#### Phase 5: Quality Gate and Promotion (v2.8.0+)
 
-For each accepted task, run validation and promote to Ready if valid (same as single-task flow).
+For each accepted task in the chunk, invoke the `reviewing-quality` skill in batch mode (the skill internally fans out 5 Reviewer agents in parallel, reusing the same chunking pattern). Then branch each task on its verdict using the same rules as the single-task flow (Step 5):
 
-Summary: "Planned N tasks. M Ready-eligible. K need more context. J failed."
+- **PASS** → run `validating-fields` for `"Ready"`; promote to Ready on `valid: true`.
+- **NEEDS_REFINEMENT** → save with `[NEEDS-REFINE]` prefix and keep Backlog. Do not auto-retry in batch mode — the user can `/planning-tasks` the task individually if they want to apply Reviewer's suggested fixes.
+- **REJECT** → save with `[NEEDS-REFINE]` prefix and keep Backlog.
+
+Summary: "Planned N tasks. M PASS (Ready-eligible). R NEEDS_REFINEMENT (kept in Backlog with [NEEDS-REFINE]). J REJECT. K need more context."
 
 ## Multi-round Brainstorming Protocol
 
