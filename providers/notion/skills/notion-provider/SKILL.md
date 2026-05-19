@@ -113,7 +113,7 @@ If Step 1 returns a cached `tasksDatabaseId` but Schema Validation (next section
 
 After loading config, verify Core fields by calling `notion-fetch` with `tasksDatabaseId` and inspecting the returned schema's `properties` object.
 
-Required Core fields (15): `Title`, `Description`, `Acceptance Criteria`, `Status`, `Blocked By`, `Priority`, `Executor`, `Requires Review`, `Execution Plan`, `Working Directory`, `Session Reference`, `Dispatched At`, `Agent Output`, `Error Message`, `Issuer`.
+Required Core fields (16): `Title`, `Description`, `Acceptance Criteria`, `Status`, `Blocked By`, `Priority`, `Executor`, `Requires Review`, `Execution Plan`, `Working Directory`, `Session Reference`, `Dispatched At`, `Agent Output`, `Error Message`, `Issuer`, `Quality Verdict` (added in v2.8.0 for the quality gate cache; see waggle-protocol § Quality Spec).
 
 ### Auto-Repair (Missing Fields)
 
@@ -128,9 +128,12 @@ Then run the appropriate DDL (one `ADD COLUMN` per call):
 | Executor | `ADD COLUMN "Executor" SELECT('cli':purple, 'claude-desktop':green, 'cowork':blue, 'human':gray)` |
 | Dispatched At / Due Date | `ADD COLUMN "<field>" DATE` |
 | Issuer | `ADD COLUMN "Issuer" PERSON` |
+| Quality Verdict | `ADD COLUMN "Quality Verdict" RICH_TEXT` |
 | (other text fields) | `ADD COLUMN "<field>" RICH_TEXT` |
 
 After repair, re-verify and continue. **Never ask the user to manually fix the schema.**
+
+The `Quality Verdict` column stores the v2.8.0 Reviewer verdict cache. It is populated automatically by the `reviewing-quality` skill — users do not edit it directly. Format: `<verdict> hash=<8hex> @<iso8601> v1 [suppressed-until=<iso8601>]`. See `skills/reviewing-quality/references/cache-format.md`.
 
 ## MCP Tool Reference
 
