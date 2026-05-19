@@ -78,30 +78,32 @@ Concrete examples:
 
 **Do not** apply "I can probably guess what they mean" reasoning. If the test fails, the score is ✗ — that's the calibration we want.
 
-### Step 4 — 5-axis evaluation
+### Step 4 — Request-time vs execute-time boundary
 
-Score each axis ◯ (clearly satisfied), △ (partially satisfied, minor gap), or ✗ (failing).
+This step MUST be applied before Step 5. The boundary determines what Verifiability and Reproducibility may legitimately flag in Step 5.
 
-| Axis | Question |
-|---|---|
-| Goal clarity | Result of the Step 3 definition test. ◯ if all terms pass; ✗ if any term fails. There is no △ on this axis — the test is binary. |
-| Boundary clarity | Is the scope explicit? Where does this task stop? What's out of scope? |
-| Verifiability | How will I know I'm done? Is there a checkable signal (test, artifact, URL, metric) **that the requester is responsible for specifying** (not one the executor would invent at run-time)? |
-| Reproducibility | Are the **request-time inputs** (goal, constraints, deliverable definition, links to references) concretely named? Could a competent executor — given these inputs — perform the work without going back to the requester? See the request-time vs execute-time boundary below. |
-| Hidden context | Is there organizational knowledge the issuer assumed (people, channels, prior decisions) that's not written down? Use this axis only for context **outside** the goal sentence (e.g., undocumented past decisions, missing approver identities). Undefined nouns *in the goal* are a Goal-clarity failure, not a Hidden-context warning. |
-
-### Step 5 — Request-time vs execute-time boundary
-
-Before scoring Verifiability and Reproducibility, mentally classify each piece of information into two buckets:
+Mentally classify each piece of information in the spec into two buckets:
 
 | Bucket | Who is responsible | Examples |
 |---|---|---|
 | **Request-time** (the requester's job) | The person filing the task | What to build, what "done" looks like, named deliverables (PR / Notion page / spreadsheet URL), constraints, due date, audience, links to prior decisions or design docs the executor cannot find independently |
 | **Execute-time** (the executor's job) | The person / agent who picks up the task | Branch name, exact code snippets, file-level grep paths, preview-URL formatting, choice of equivalent tools (e.g., `git log` vs `gh api`), test fixtures created during the work |
 
-**Do NOT down-score Verifiability or Reproducibility for missing execute-time details.** A task that says "fix the chevron in the header on PC only" with a working repo and clear boundary IS reproducible — the executor will figure out the file path and CSS selector. A task that says "do the thing we discussed" with no link to the discussion is NOT reproducible, regardless of how many code paths are named.
+**Do NOT down-score Verifiability or Reproducibility (in Step 5) for missing execute-time details.** A task that says "fix the chevron in the header on PC only" with a working repo and clear boundary IS reproducible — the executor will figure out the file path and CSS selector. A task that says "do the thing we discussed" with no link to the discussion is NOT reproducible, regardless of how many code paths are named.
 
 When in doubt, ask: "If the executor were a skilled colleague who knows the team's tools and codebase, would they need to ask the requester this question, or could they figure it out themselves?" If the latter, it's execute-time and you should not flag it.
+
+### Step 5 — 5-axis evaluation
+
+Score each axis. Goal clarity is binary (◯ or ✗ only — see Step 3). All other axes use ◯ (clearly satisfied), △ (partially satisfied, minor gap), or ✗ (failing).
+
+| Axis | Question |
+|---|---|
+| Goal clarity | Result of the Step 3 definition test. ◯ if all terms pass; ✗ if any term fails. **Binary — no △ allowed on this axis.** |
+| Boundary clarity | Is the scope explicit? Where does this task stop? What's out of scope? |
+| Verifiability | How will I know I'm done? Is there a checkable signal (test, artifact, URL, metric) **that the requester is responsible for specifying** (per the Step 4 boundary — not one the executor would invent at run-time)? |
+| Reproducibility | Are the **request-time inputs** (goal, constraints, deliverable definition, links to references) concretely named? Could a competent executor — given these inputs — perform the work without going back to the requester? Apply the Step 4 boundary before scoring this axis. |
+| Hidden context | Is there organizational knowledge the issuer assumed (people, channels, prior decisions) that's not written down? Use this axis only for context **outside** the goal sentence (e.g., undocumented past decisions, missing approver identities). Undefined nouns *in the goal* are a Goal-clarity failure, not a Hidden-context warning. |
 
 ### Step 6 — Verdict
 
@@ -120,7 +122,7 @@ Return your result as a structured text block (no JSON, no preamble):
 ## Verdict: PASS | NEEDS_REFINEMENT | REJECT | INSUFFICIENT_CONTEXT
 
 ## Per-axis findings
-- Goal clarity: ◯/△/✗ — <one sentence>
+- Goal clarity: ◯/✗ — <one sentence>  (binary; △ not allowed on this axis per Step 3)
 - Boundary clarity: ◯/△/✗ — <one sentence>
 - Verifiability: ◯/△/✗ — <one sentence>
 - Reproducibility: ◯/△/✗ — <one sentence>
