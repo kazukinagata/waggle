@@ -38,7 +38,7 @@ Every Waggle-compatible task board MUST support these 16 fields:
 | Dispatched At | datetime | Timestamp when the task was dispatched |
 | Agent Output | rich_text | Execution result written by the agent on completion |
 | Error Message | rich_text | Written on failure only |
-| Issuer | person[] | Who created/initiated this task. Auto-populated. Write-once |
+| Issuer | provider-managed | Who created/initiated this task. **Auto-populated by the active provider on create. Read-only after creation. Skills MUST NOT include Issuer in create payloads.** See "Issuer Auto-Populate Contract" below. v2.8.1+ |
 | Quality Verdict | rich_text | Cached Reviewer verdict (PASS/NEEDS_REFINEMENT/REJECT). See Quality Spec below. v2.8.0+ |
 
 ### Extended Fields (optional)
@@ -56,6 +56,36 @@ Providers MAY support these additional fields. Skills degrade gracefully if abse
 | Project | text | Project grouping |
 | Team | text | Team assignment |
 | Assignee | person[] | Assigned users |
+
+## Issuer Auto-Populate Contract (v2.8.1+)
+
+The `Issuer` core field is **always** populated by the active provider during task creation. Skills (`managing-tasks`, `ingesting-messages`, etc.) MUST NOT pass an Issuer value when invoking the provider's Create Task operation.
+
+### Why
+
+Prior to v2.8.1, skills explicitly set `Issuer = current_user`. Field telemetry showed ~27% of tasks ended up with empty Issuer due to multiple failure paths: scheduled tasks where `current_user` could not be resolved, third-party automations writing directly to the data store, intake flows omitting Issuer in the create payload, and direct edits in the provider UI. Centralizing Issuer population in each provider eliminates every one of those paths.
+
+### Per-provider implementation
+
+| Provider | Mechanism |
+|---|---|
+| **Notion** | `Issuer` column is type `created_by`. Notion auto-populates with the API token's owning user on insert. Read-only via API. |
+| **SQLite** | `Issuer` column is `TEXT`. The provider's Create Task INSERT template substitutes `${current_user.id}` literally; the caller invokes the template without supplying Issuer. |
+| **Turso** | Same as SQLite. |
+
+### Provider preconditions
+
+Providers using template substitution (SQLite, Turso) MUST halt with an error before executing Create Task if `current_user.id` resolves to a fallback value (`"local"`, `"unknown"`). This enforces "no anonymous tasks" — every Issuer in the data store points to a real identity.
+
+The Notion provider does not need this check because Notion's API binds `created_by` to the API token owner, which is always a real user.
+
+### Write-once enforcement
+
+Notion's `created_by` is read-only after creation. SQLite/Turso providers MUST NOT include `issuer` in their Update Task templates. Delegation (`assigning-to-others` / `delegating-tasks`) updates `Assignee` but never touches `Issuer`.
+
+### Filtering by Issuer
+
+Notion's API filters `created_by` columns using the same `people:{contains: <user_id>}` syntax as `person` columns. SQLite/Turso providers filter via `WHERE issuer LIKE '%<user_id>%'` (or `=` for exact match — the JSON-array form is no longer used).
 
 ## Subtask Hierarchy
 
