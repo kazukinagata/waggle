@@ -56,9 +56,9 @@ svg text { font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Yu 
 <tr><td>delegating-tasks → assigning-to-others</td><td>—</td><td><span class="tag layer1">always</span></td><td><span class="tag layer2">live, cache-aware</span></td><td>Notion UI bypass を確実に catch (cache miss 時は live 呼び出し)</td></tr>
 <tr><td>running-daily-tasks Step 1 (intake)</td><td colspan="4">ingesting-messages を invoke。同じゲート</td></tr>
 <tr><td>running-daily-tasks Step 2 (refine)</td><td colspan="4">planning-tasks を invoke。同じゲート</td></tr>
-<tr><td>running-daily-tasks Step 2.5 (health check)</td><td>—</td><td><span class="tag layer1">always</span></td><td><span class="tag layer2">live, cache-aware</span></td><td>cache hit 多用、Notion UI bypass を catch</td></tr>
+<tr><td>running-daily-tasks Step 2.6 (health check)</td><td>—</td><td><span class="tag layer1">always</span></td><td><span class="tag layer2">live, cache-aware</span></td><td>cache hit 多用、Notion UI bypass を catch</td></tr>
 <tr><td>running-daily-tasks Step 3 (dispatch)</td><td colspan="4">executing-tasks を invoke。同じゲート</td></tr>
-<tr><td><b>Notion UI で直接編集 (bypass)</b></td><td>—</td><td><span class="tag bypass">未通過</span></td><td><span class="tag bypass">未通過</span></td><td>Step 2.5 / monitoring-tasks で事後検出</td></tr>
+<tr><td><b>Notion UI で直接編集 (bypass)</b></td><td>—</td><td><span class="tag bypass">未通過</span></td><td><span class="tag bypass">未通過</span></td><td>Step 2.6 / monitoring-tasks で事後検出</td></tr>
 <tr><td>monitoring-tasks (default)</td><td>—</td><td><span class="tag layer1">read-only</span></td><td><span class="tag none">skip</span></td><td>quality debt として Rubric fail を列挙</td></tr>
 <tr><td>monitoring-tasks --deep (opt-in)</td><td>—</td><td><span class="tag layer1">read-only</span></td><td><span class="tag layer2">live, batch</span></td><td>cache miss のみ走る</td></tr>
 </table>
@@ -191,7 +191,7 @@ svg text { font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Yu 
   <text x="860" y="262" text-anchor="middle" font-size="11" fill="#555">Layer 0/1/2 すべて bypass</text>
 
   <rect x="740" y="380" width="240" height="80" rx="6" fill="#e6f4f1" stroke="#2a9d8f" stroke-width="2"/>
-  <text x="860" y="403" text-anchor="middle" font-size="13" font-weight="600">running-daily-tasks Step 2.5</text>
+  <text x="860" y="403" text-anchor="middle" font-size="13" font-weight="600">running-daily-tasks Step 2.6</text>
   <text x="860" y="421" text-anchor="middle" font-size="11" fill="#555">Ready 健康診断 (cache-aware Reviewer)</text>
   <text x="860" y="438" text-anchor="middle" font-size="11" fill="#555">monitoring-tasks も Rubric debt で検出</text>
 
@@ -199,20 +199,20 @@ svg text { font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Yu 
   <path d="M 740 240 C 600 240, 500 540, 305 540" fill="none" stroke="#9b2226" stroke-width="1.5" stroke-dasharray="4,3" marker-end="url(#arr-red)"/>
   <text x="540" y="380" font-size="10" fill="#9b2226" font-weight="600">bypass (Ready に直挿入)</text>
 
-  <!-- Catch arrow: Ready → Step 2.5 -->
+  <!-- Catch arrow: Ready → Step 2.6 -->
   <path d="M 300 542 C 500 542, 600 420, 740 420" fill="none" stroke="#2a9d8f" stroke-width="1.5" marker-end="url(#arr)"/>
   <text x="510" y="555" font-size="10" fill="#2a9d8f" font-weight="600">catch</text>
 </svg>
 </div>
-<div class="note">cache hit のおかげで Ready 以降の Reviewer 呼び出しは限定的。content-hash が変わった (AC/EP が編集された) 時のみ再評価される。Notion UI 直編集 (赤破線) は Step 2.5 か monitoring-tasks で事後検出される。</div>
+<div class="note">cache hit のおかげで Ready 以降の Reviewer 呼び出しは限定的。content-hash が変わった (AC/EP が編集された) 時のみ再評価される。Notion UI 直編集 (赤破線) は Step 2.6 か monitoring-tasks で事後検出される。</div>
 
 <h2>3. Bypass 経路と catch ポイント</h2>
 <table>
 <tr><th>Bypass</th><th>Catch する場所</th></tr>
-<tr><td>Notion UI で Status=Ready に直接変更</td><td>running-daily-tasks Step 2.5 (Reviewer cache-aware)、monitoring-tasks の Rubric debt</td></tr>
-<tr><td>Notion UI で AC 削除 → Status 維持</td><td>content-hash 失効 → 次回 cache miss → Step 2.5 / executing dispatch / delegating で再 review</td></tr>
-<tr><td>v2.7.x 以前から残っている古い Ready</td><td>Step 2.5 初回起動で Reviewer 通過、verdict が保存される</td></tr>
-<tr><td>カスタム intake source (Sheets 等)</td><td>ingesting-messages 経由なら Layer 0/1/2 通過、それ以外なら Step 2.5</td></tr>
+<tr><td>Notion UI で Status=Ready に直接変更</td><td>running-daily-tasks Step 2.6 (Reviewer cache-aware)、monitoring-tasks の Rubric debt</td></tr>
+<tr><td>Notion UI で AC 削除 → Status 維持</td><td>content-hash 失効 → 次回 cache miss → Step 2.6 / executing dispatch / delegating で再 review</td></tr>
+<tr><td>v2.7.x 以前から残っている古い Ready</td><td>Step 2.6 初回起動で Reviewer 通過、verdict が保存される</td></tr>
+<tr><td>カスタム intake source (Sheets 等)</td><td>ingesting-messages 経由なら Layer 0/1/2 通過、それ以外なら Step 2.6</td></tr>
 </table>
 
 <h2>4. waggle skills / agents 依存関係グラフ (v2.8.0)</h2>

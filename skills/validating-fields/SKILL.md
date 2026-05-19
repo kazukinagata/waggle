@@ -171,7 +171,7 @@ The validation script applies these rules at every Ready (and beyond) transition
 
 ### Worthiness tag skip
 
-Tasks with `Tags` containing `worthiness:calendar-like` or `worthiness:info-only` are exempt from the AC/EP Rubric (R-AC1..R-AC3, R-EP1..R-EP3). R-AC4 (no `[DRAFT-*]` placeholder remaining) still applies. Worthiness-tagged tasks also skip Layer 2 entirely per the protocol Quality Spec.
+Tasks with `Tags` containing `worthiness:calendar-like` or `worthiness:info-only` are exempt from the AC/EP Rubric (R-AC1..R-AC3, R-EP1..R-EP4). R-AC4 + R-EP5 (no `[DRAFT-*]` / `[NEEDS-REFINE]` placeholder remaining in AC or EP) still apply universally. Worthiness-tagged tasks also skip Layer 2 entirely per the protocol Quality Spec.
 
 ## `find_quality_debt` (shared API)
 

@@ -88,4 +88,4 @@ In addition to the Rubric gate above, the Backlog → Ready transition consults 
    - `NEEDS_REFINEMENT` / `REJECT` → present the cached gaps + suggested fixes; ask the user `[Refine via /planning-tasks] [Save anyway]`. On "Save anyway", the task is marked `[NEEDS-REFINE]` and the transition proceeds at the user's risk.
    - `UNREVIEWED` (cache miss) → ask the user `[Refine via /planning-tasks] [Save anyway]` with no verdict context. On "Save anyway", proceed.
 
-The user can always override; pre-Ready is advisory, not enforcing. The protocol-level dispatch gate (in `executing-tasks`) and the daily Step 2.5 catch-net provide additional safety for tasks that slip through here.
+The user can always override; pre-Ready is advisory, not enforcing. The protocol-level dispatch gate (in `executing-tasks`) and the daily Step 2.6 catch-net provide additional safety for tasks that slip through here.

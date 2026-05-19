@@ -195,7 +195,7 @@ The `Quality Verdict` core field stores at most one line in the format:
 - `suppressed-until` (optional) freezes re-review for 7 days after 2 consecutive same-axis failures (anti-grinding guard).
 - `v1` is the format version. Future versions remain parse-compatible.
 
-Live Reviewer invocation is allowed at: `planning-tasks`, `ingesting-messages` Phase A.5, `running-daily-tasks` Step 2.5, `delegating-tasks` (cache miss), `monitoring-tasks --deep`.
+Live Reviewer invocation is allowed at: `planning-tasks`, `ingesting-messages` Phase A.5, `running-daily-tasks` Step 2.6, `delegating-tasks` (cache miss), `monitoring-tasks --deep`.
 
 Live Reviewer invocation is **forbidden** at: `executing-tasks` dispatch (cache-only), `managing-tasks` pre-Ready (cache-only). These are hot paths.
 
