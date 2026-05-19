@@ -82,7 +82,7 @@ The validation script is **provider-agnostic**. Before calling it, construct a f
 description      <- .properties.Description.rich_text | map(.plain_text) | join("")
 acceptanceCriteria <- .properties["Acceptance Criteria"].rich_text | map(.plain_text) | join("")
 executionPlan    <- .properties["Execution Plan"].rich_text | map(.plain_text) | join("")
-issuer           <- (.properties.Issuer.people | length) > 0
+issuer           <- (.properties.Issuer.created_by.id // null) != null   # v2.8.1+: Issuer is created_by type (was .properties.Issuer.people | length > 0 under v2.7.x)
 assigneeCount   <- .properties.Assignee.people | length
 priority         <- .properties.Priority.select.name
 executor         <- .properties.Executor.select.name
@@ -99,7 +99,7 @@ repository       <- .properties.Repository.url // ""
 description      <- .description
 acceptanceCriteria <- .acceptance_criteria
 executionPlan    <- .execution_plan
-issuer           <- (.issuer | length) > 0
+issuer           <- (.issuer != null and .issuer != "")   # v2.8.1+: TEXT column populated by provider Create Task template
 assigneeCount   <- (.assignee | fromjson | length)
 priority         <- .priority
 executor         <- .executor

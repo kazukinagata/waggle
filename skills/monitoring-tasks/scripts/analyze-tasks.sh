@@ -60,10 +60,10 @@ def extract_task:
     has_agent_output: ((.properties["Agent Output"].rich_text | length) > 0),
     has_assignee: ((.properties.Assignee.people | length) > 0),
     has_executor: ((.properties.Executor.select.name // null) != null),
-    has_issuer: ((.properties.Issuer.people // [] | length) > 0),
+    has_issuer: ((.properties.Issuer.created_by.id // null) != null),
     has_priority: ((.properties.Priority.select.name // null) != null),
     has_acknowledged_at: ((.properties["Acknowledged At"].date.start // null) != null),
-    issuer_ids: [.properties.Issuer.people[]? | .id],
+    issuer_ids: [.properties.Issuer.created_by.id // empty],
     assignee_ids: [.properties.Assignee.people[]? | .id],
     ac_text: $ac_text,
     # Quality debt signals:
