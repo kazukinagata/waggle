@@ -55,7 +55,7 @@ These remain non-blocking suggestions; the user can override with `[Delegate any
 ## Step 4: Update the Task
 
 Apply the following field updates (other fields remain unchanged).
-**`Issuer` is preserved** (not modified) — it tracks the original task creator, not the current assignee.
+**`Issuer` is preserved** (not modified) — it tracks the original task creator, not the current assignee. Under v2.8.1+ this is enforced at the provider boundary (Notion's `created_by` column is read-only; SQLite/Turso Update Task templates do not include `issuer`). Skills do not need to take any action to preserve Issuer; just refrain from passing it in update payloads.
 
 1. Set `Assignee` to `[recipient]`.
 2. Invoke the `assigning-to-others` skill and apply the field resets it defines (this clears `Acknowledged At` among other fields).

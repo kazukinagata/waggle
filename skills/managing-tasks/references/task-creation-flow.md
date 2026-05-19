@@ -26,10 +26,18 @@ When the user explicitly names a value (e.g. "tag this as `hotfix`"), the explic
   4. Only ask via AskUserQuestion if the member cannot be found.
   5. Invoke the `assigning-to-others` skill and apply the field resets it defines.
 
-## Issuer (auto-populated, write-once)
+## Issuer (provider-auto-populated, v2.8.1+)
 
-Always set `Issuer = [current_user]` when creating a task. No confirmation needed.
-Do not modify Issuer when delegating or reassigning — it tracks "who originated this task."
+**Do NOT set Issuer in your create payload.** The active provider auto-populates Issuer with the current user:
+
+- **Notion**: the `Issuer` column is type `created_by`. Notion fills it on insert with the API token's owning user. The column is read-only via the API.
+- **SQLite / Turso**: the provider's Create Task INSERT template substitutes `${current_user.id}` into the `issuer` column. The caller does not pass it explicitly.
+
+For Notion specifically, **including an Issuer property in `notion-create-pages` will be rejected by the API** — `created_by` is read-only. For SQLite/Turso, the provider template already substitutes the value, so passing Issuer from the caller is redundant.
+
+Issuer remains immutable after creation. Delegation (`assigning-to-others` / `delegating-tasks`) and reassignment update `Assignee` but never touch `Issuer`.
+
+See `skills/waggle-protocol/SKILL.md` § Issuer Auto-Populate Contract for the full contract and per-provider details.
 
 ## Acknowledged At (auto-populated for self-assigned tasks)
 

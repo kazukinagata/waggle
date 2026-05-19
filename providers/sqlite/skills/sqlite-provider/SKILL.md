@@ -39,16 +39,26 @@ bash ${CLAUDE_PLUGIN_ROOT}/skills/sqlite-provider/scripts/init-db.sh "<dbPath>"
 
 ### Create Task
 
+**Precondition (v2.8.1+):** Before invoking the INSERT below, verify that the session-resolved `current_user.id` is **not** the fallback sentinel `"unknown"`. If it is, halt and surface an error to the caller:
+
+> Cannot create task: current_user.id is "unknown". Configure proper identity resolution before retrying — see the Identity Resolution section below. The simplest fix is to ensure `$USER` is set in the shell environment, or set `WAGGLE_USER_ID` explicitly.
+
+This enforces the protocol's "no anonymous tasks" rule. The Identity Resolution section (below) is structured so that `id` resolves to a real value (`$WAGGLE_USER_ID` → `$USER` → `"unknown"`) on every supported environment, so this halt should rarely fire in practice — it catches genuinely unconfigured environments (an unset `$USER` with no override).
+
 ```bash
-sqlite3 "<dbPath>" "INSERT INTO tasks (title, description, acceptance_criteria, status, priority, executor, requires_review, execution_plan, working_directory, assignee) VALUES ('<title>', '<description>', '<criteria>', '<status>', '<priority>', '<executor>', <0|1>, '<plan>', '<dir>', '<assignee_json>'); SELECT last_insert_rowid();"
+sqlite3 "<dbPath>" "INSERT INTO tasks (title, description, acceptance_criteria, status, priority, executor, requires_review, execution_plan, working_directory, assignee, issuer) VALUES ('<title>', '<description>', '<criteria>', '<status>', '<priority>', '<executor>', <0|1>, '<plan>', '<dir>', '<assignee_json>', '${current_user.id}'); SELECT last_insert_rowid();"
 ```
 
-To get the generated ID, use:
+The `issuer` column receives `${current_user.id}` directly from the substituted session variable. The caller does NOT pass an explicit Issuer — per the protocol's Issuer Auto-Populate Contract, Issuer is provider-managed.
+
+To get the generated ID with the minimum required fields, use:
 ```bash
-sqlite3 "<dbPath>" "INSERT INTO tasks (title, status) VALUES ('<title>', 'Backlog') RETURNING id;"
+sqlite3 "<dbPath>" "INSERT INTO tasks (title, status, issuer) VALUES ('<title>', 'Backlog', '${current_user.id}') RETURNING id;"
 ```
 
-**IMPORTANT:** Escape single quotes in values by doubling them: `'` -> `''`.
+**IMPORTANT:**
+- Escape single quotes in values by doubling them: `'` -> `''`.
+- Apply the same escape to `${current_user.id}` if the resolved value can contain quotes (it should not — `$USER`-derived strings and email addresses are quote-safe by construction, but defensive escaping is recommended).
 
 ### Update Task
 
@@ -122,6 +132,14 @@ bash ${CLAUDE_PLUGIN_ROOT}/skills/sqlite-provider/scripts/query-tasks.sh "<dbPat
 ```bash
 bash ${CLAUDE_PLUGIN_ROOT}/skills/sqlite-provider/scripts/query-tasks.sh "<dbPath>" "t.assignee LIKE '%<user_id>%'"
 ```
+
+**Tasks owned by user via Assignee OR Issuer fallback (v2.8.1+):**
+```bash
+bash ${CLAUDE_PLUGIN_ROOT}/skills/sqlite-provider/scripts/query-tasks.sh "<dbPath>" \
+  "(t.assignee LIKE '%<user_id>%' OR (t.issuer = '<user_id>' AND (t.assignee IS NULL OR t.assignee = '' OR t.assignee = '[]')))"
+```
+
+Note that `t.issuer` is a single-value `TEXT` column (not a JSON array), so it uses `=` for exact match against `<user_id>`. This is the SQLite equivalent of the Notion filter `Issuer.created_by:{contains:<user_id>}`.
 
 **In Progress tasks (for concurrency check):**
 ```bash
@@ -238,7 +256,7 @@ curl -s http://localhost:3456/api/health -o /dev/null 2>/dev/null && \
 | project | `project` |
 | team | `team` |
 | assignee | `assignee` (JSON array) |
-| issuer | `issuer` |
+| issuer | `issuer` (single user ID string; auto-populated by Create Task template, v2.8.1+) |
 | (empty string) | `url` |
 | sprint_id | `sprintId` |
 | complexity_score | `complexityScore` |
@@ -248,10 +266,20 @@ curl -s http://localhost:3456/api/health -o /dev/null 2>/dev/null && \
 
 Called by `resolving-identity` shared skill when `active_provider = sqlite`.
 
-SQLite is local — no remote user system. Set:
-- `id` <- `"local"`
-- `name` <- `$USER` environment variable or `"local"`
-- `email` <- `null`
+SQLite is local — no remote user system. Identity is derived from the shell environment so that multi-user machines and CI environments produce distinct user IDs.
+
+Resolution order:
+
+1. If `WAGGLE_USER_ID` env var is set and non-empty → use it. This is the override path for environments where `$USER` is not meaningful (CI runners, shared service accounts, automation).
+2. Else if `$USER` env var is set and non-empty → use it. On Linux / macOS / WSL this gives a per-user shell account name that is unique on the machine. (v2.8.1+: previously this populated only `name`; now it also populates `id`.)
+3. Else → `id` ← `"unknown"`. This sentinel signals "identity is genuinely unresolvable" and triggers the Create Task precondition halt.
+
+Concretely set:
+- `id` ← `$WAGGLE_USER_ID` if non-empty, else `$USER` if non-empty, else `"unknown"`
+- `name` ← `$USER` env var or `"unknown"`
+- `email` ← `null`
+
+**Note (v2.8.1+):** The Create Task precondition halts only when `id == "unknown"`. The literal `"local"` is no longer used as a fallback — using `$USER` directly gives a real identifier on every supported environment, eliminating the "every task is owned by 'local'" failure mode.
 
 ## Identity: Resolve Team Membership
 

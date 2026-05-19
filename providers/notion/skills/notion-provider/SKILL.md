@@ -127,13 +127,60 @@ Then run the appropriate DDL (one `ADD COLUMN` per call):
 | Priority | `ADD COLUMN "Priority" SELECT('Urgent':red, 'High':orange, 'Medium':yellow, 'Low':blue)` |
 | Executor | `ADD COLUMN "Executor" SELECT('cli':purple, 'claude-desktop':green, 'cowork':blue, 'human':gray)` |
 | Dispatched At / Due Date | `ADD COLUMN "<field>" DATE` |
-| Issuer | `ADD COLUMN "Issuer" PERSON` |
+| Issuer | `ADD COLUMN "Issuer" CREATED_BY` (v2.8.1+; was `PERSON` in earlier versions. See "Migration Guide: v2.7.x → v2.8.1" below if upgrading an existing DB.) |
 | Quality Verdict | `ADD COLUMN "Quality Verdict" RICH_TEXT` |
 | (other text fields) | `ADD COLUMN "<field>" RICH_TEXT` |
 
 After repair, re-verify and continue. **Never ask the user to manually fix the schema.**
 
 The `Quality Verdict` column stores the v2.8.0 Reviewer verdict cache. It is populated automatically by the `reviewing-quality` skill — users do not edit it directly. Format: `<verdict> hash=<8hex> @<iso8601> v1 [suppressed-until=<iso8601>]`. See `skills/reviewing-quality/references/cache-format.md`.
+
+## Migration Guide: v2.7.x → v2.8.1 (Issuer column type change)
+
+In v2.8.1 the Issuer column type changes from `PERSON` (a writable people property) to `CREATED_BY` (a read-only built-in property auto-populated by Notion with the API token's owning user). Auto-repair handles fresh databases automatically, but a database already initialized under v2.7.x has the old `PERSON`-typed column and the auto-repair check will see Issuer as present-but-wrong-type. It will NOT replace the column on its own — the change is destructive (existing Issuer values are lost) and so the user must run it manually.
+
+### Why this change
+
+Under the old design, every skill flow had to set `Issuer = current_user` explicitly. Empirically ~27% of tasks ended up with empty Issuer because the flows had multiple ways to drop the field — third-party automations posting directly to Notion, intake flows omitting Issuer in the payload, scheduled tasks where `current_user` could not be resolved. Switching to `created_by` lets Notion enforce auto-population at the data store level, eliminating all of those paths in one step.
+
+### Trade-offs to acknowledge before migrating
+
+- **Existing Issuer values are lost.** Notion does not support converting a `PERSON` column to `CREATED_BY` in place. The migration drops the old column and adds a fresh `CREATED_BY` column. Notion then back-fills the new column on every existing row using each row's stored `created_by` metadata — so Issuer will be 100% populated immediately after migration, but the values reflect the **actual creator** of each page, not any deliberate "issuer override" that may have been written into the old column.
+- **Single-issuer model.** `CREATED_BY` returns one user, not an array. If your prior workflow relied on multi-issuer tasks, that capability is gone.
+- **No more proxy/override.** If a teammate previously created tasks "on behalf of" someone else by writing the other person's user into Issuer, that override is lost; the actual creator's identity surfaces instead. The recommended replacement is to set `Assignee` to the intended owner and leave Issuer alone.
+
+### Migration procedure
+
+**Do these steps in order.** Skipping step 2 or running step 3 before step 2 will permanently destroy all existing Issuer values with no in-DB recovery path (only your step-1 backup file can restore them).
+
+1. **Back up the current Issuer values.** Query the Tasks DB via the Notion API and dump `(page_id, page_url, title, properties.Issuer)` to a local JSON file. Keep this file outside the repo (or git-ignore it) — it contains user IDs from your workspace and serves as an audit trail of overrides that the new column type cannot represent.
+
+2. **Add a `CREATED_BY`-typed verification column** while the old `PERSON`-typed `Issuer` column is still present. This must happen *before* step 3 — adding the verification column gives Notion an opportunity to back-fill it from each page's `created_by` metadata so you can confirm the new column type produces the expected values before dropping the old one.
+
+   ```
+   ADD COLUMN "Created By (verification)" CREATED_BY
+   ```
+
+   After this DDL, re-query a sample of pages and confirm that `Created By (verification)` is populated for every existing row. If it is not (for example, if your Notion workspace has rows created by deleted users), STOP here and decide whether to proceed — those rows will end up with empty Issuer after step 3.
+
+3. **Drop the old `Issuer` column and rename the verification column into place.** Run as a single DDL transaction:
+
+   ```
+   DROP COLUMN "Issuer"; RENAME COLUMN "Created By (verification)" TO "Issuer"
+   ```
+
+   Doing this in two transactions (step 2 then step 3) rather than one big transaction avoids a window where the canonical `Issuer` name does not exist.
+
+   If Notion appends `" 1"` to the renamed column (it does this when an internal trash entry for the original name still exists), run a second rename: `RENAME COLUMN "Issuer 1" TO "Issuer"`.
+
+4. **Verify.** Re-query the database and confirm:
+   - The `Issuer` property has `"type": "created_by"` in the schema.
+   - All existing pages return a non-empty Issuer value (Notion back-fills from each page's `created_by` metadata).
+   - The fill rate is 100%.
+
+5. **Update your config.** No config changes are needed — `headless_config` does not reference Issuer's type.
+
+If you need to revert, restore from your backup JSON manually (no rollback script is shipped).
 
 ## MCP Tool Reference
 
@@ -246,7 +293,7 @@ This removes the page from views but retains it in Notion's trash (recoverable f
 | Dispatched At | date | `task_dispatched_at` | Dispatch timestamp. Used for timeout detection |
 | Agent Output | rich_text | `task_agent_output` | Execution result |
 | Error Message | rich_text | `task_error_message` | Written on failure only. Query with "Error Message is not empty" |
-| Issuer | people | `task_issuer` | Who created/initiated this task. Auto-populated with current_user. Write-once. |
+| Issuer | created_by | `task_issuer` | Who created/initiated this task. **Auto-populated by Notion on insert; read-only.** Do NOT pass Issuer in `notion-create-pages` properties — Notion will reject the write. v2.8.1+ (was `people` in v2.7.x). |
 
 ### Extended Fields (optional — graceful degradation if absent)
 
@@ -353,13 +400,15 @@ The script returns `{"results": [...]}` with full page objects including all pro
 
 **Blocked tasks owned by user (via Assignee OR Issuer fallback):**
 ```json
-{"and":[{"property":"Status","select":{"equals":"Blocked"}},{"or":[{"property":"Assignee","people":{"contains":"<user_id>"}},{"and":[{"property":"Issuer","people":{"contains":"<user_id>"}},{"property":"Assignee","people":{"is_empty":true}}]}]}]}
+{"and":[{"property":"Status","select":{"equals":"Blocked"}},{"or":[{"property":"Assignee","people":{"contains":"<user_id>"}},{"and":[{"property":"Issuer","created_by":{"contains":"<user_id>"}},{"property":"Assignee","people":{"is_empty":true}}]}]}]}
 ```
 
 **Ready human tasks owned by user (via Assignee OR Issuer fallback):**
 ```json
-{"and":[{"property":"Status","select":{"equals":"Ready"}},{"property":"Executor","select":{"equals":"human"}},{"or":[{"property":"Assignee","people":{"contains":"<user_id>"}},{"and":[{"property":"Issuer","people":{"contains":"<user_id>"}},{"property":"Assignee","people":{"is_empty":true}}]}]}]}
+{"and":[{"property":"Status","select":{"equals":"Ready"}},{"property":"Executor","select":{"equals":"human"}},{"or":[{"property":"Assignee","people":{"contains":"<user_id>"}},{"and":[{"property":"Issuer","created_by":{"contains":"<user_id>"}},{"property":"Assignee","people":{"is_empty":true}}]}]}]}
 ```
+
+> **v2.8.1 note**: the Issuer filter syntax shifted from `"people":{...}` to `"created_by":{...}` to match the new column type. The operator names (`contains`, `is_empty`) are the same.
 
 #### Hierarchy Queries
 
