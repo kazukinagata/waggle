@@ -45,12 +45,22 @@ bash ${CLAUDE_PLUGIN_ROOT}/skills/turso-provider/scripts/init-db.sh
 
 ### Create Task
 
+**Precondition (v2.8.1+):** Before invoking the INSERT below, verify that the session-resolved `current_user.id` is **not** one of the fallback sentinels `"local"` or `"unknown"`. If it is, halt and surface an error to the caller:
+
+> Cannot create task: current_user.id is "<sentinel>". Configure proper identity resolution before retrying — see the Identity Resolution section below.
+
+This enforces the protocol's "no anonymous tasks" rule. Skipping the check would write a meaningless Issuer (`"local"`) into the data store, which is exactly the failure mode v2.8.1 exists to prevent.
+
 ```bash
 bash ${CLAUDE_PLUGIN_ROOT}/skills/turso-provider/scripts/turso-exec.sh \
-  "INSERT INTO tasks (title, description, acceptance_criteria, status, priority, executor, requires_review, execution_plan, working_directory, assignee) VALUES ('<title>', '<description>', '<criteria>', '<status>', '<priority>', '<executor>', <0|1>, '<plan>', '<dir>', '<assignee_json>') RETURNING id;"
+  "INSERT INTO tasks (title, description, acceptance_criteria, status, priority, executor, requires_review, execution_plan, working_directory, assignee, issuer) VALUES ('<title>', '<description>', '<criteria>', '<status>', '<priority>', '<executor>', <0|1>, '<plan>', '<dir>', '<assignee_json>', '${current_user.id}') RETURNING id;"
 ```
 
-**IMPORTANT:** Escape single quotes in values by doubling them: `'` → `''`.
+The `issuer` column receives `${current_user.id}` directly from the substituted session variable. The caller does NOT pass an explicit Issuer — per the protocol's Issuer Auto-Populate Contract, Issuer is provider-managed.
+
+**IMPORTANT:**
+- Escape single quotes in values by doubling them: `'` → `''`.
+- Apply the same escape to `${current_user.id}` if the resolved value can contain quotes (it should not — `$USER`-derived strings and email addresses are quote-safe by construction, but defensive escaping is recommended).
 
 ### Update Task
 
@@ -122,6 +132,14 @@ bash ${CLAUDE_PLUGIN_ROOT}/skills/turso-provider/scripts/query-tasks.sh "t.statu
 ```bash
 bash ${CLAUDE_PLUGIN_ROOT}/skills/turso-provider/scripts/query-tasks.sh "t.assignee LIKE '%<user_id>%'"
 ```
+
+**Tasks owned by user via Assignee OR Issuer fallback (v2.8.1+):**
+```bash
+bash ${CLAUDE_PLUGIN_ROOT}/skills/turso-provider/scripts/query-tasks.sh \
+  "(t.assignee LIKE '%<user_id>%' OR (t.issuer = '<user_id>' AND (t.assignee IS NULL OR t.assignee = '' OR t.assignee = '[]')))"
+```
+
+Note that `t.issuer` is a single-value `TEXT` column (not a JSON array), so it uses `=` for exact match against `<user_id>`. This is the Turso equivalent of the Notion filter `Issuer.created_by:{contains:<user_id>}`.
 
 **In Progress tasks (for concurrency check):**
 ```bash
@@ -222,7 +240,7 @@ curl -s http://localhost:3456/api/health -o /dev/null 2>/dev/null && \
 | project | `project` |
 | team | `team` |
 | assignee | `assignee` (JSON array) |
-| issuer | `issuer` |
+| issuer | `issuer` (single user ID string; auto-populated by Create Task template, v2.8.1+) |
 | (empty string) | `url` |
 | sprint_id | `sprintId` |
 | complexity_score | `complexityScore` |
