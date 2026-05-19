@@ -153,7 +153,7 @@ The cutoff date is hardcoded in `scripts/validate-task-fields.sh` as `$agent_out
 
 ## Quality Rubric (Layer 1, v2.8.0+)
 
-The Rubric formalizes the previous "semantic AC check" into 4 AC rules + 4 EP rules. See `references/quality-rubric.md` for the canonical definitions:
+The Rubric formalizes the previous "semantic AC check" into 4 AC rules + 5 EP rules. See `references/quality-rubric.md` for the canonical definitions:
 
 | Rule | Field | Summary |
 |---|---|---|
@@ -165,6 +165,7 @@ The Rubric formalizes the previous "semantic AC check" into 4 AC rules + 4 EP ru
 | R-EP2 | EP | average step length ≥30 chars, each step has action verb + target |
 | R-EP3 | EP | ≥1 concrete artifact (file path / command / branch / URL / PR# / DB query) |
 | R-EP4 | EP | when Executor is AI, Working Directory is set and EP paths align with it |
+| R-EP5 | EP | no `[DRAFT-EP]` / `[NEEDS-REFINE]` placeholder at Ready+ |
 
 The validation script applies these rules at every Ready (and beyond) transition.
 

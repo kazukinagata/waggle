@@ -39,9 +39,9 @@ The invoking skill describes the task and the mode in natural language; this ski
 
 | Mode | Behavior |
 |---|---|
-| `live` | Always compute fresh: Rubric → if pass, spawn the Reviewer agent. Write verdict to cache. Used by `planning-tasks` after AC/EP generation, by `ingesting-messages` Phase A.5, and by `running-daily-tasks` Step 2.5. |
+| `live` | Always compute fresh: Rubric → if pass, spawn the Reviewer agent. Write verdict to cache. Used by `planning-tasks` after AC/EP generation, and by `ingesting-messages` Phase A.5 (verdict held in memory until the task is created in Step 3 — see ingesting-messages SKILL.md for the deferred-write contract). |
 | `cache-only` | Read the cached verdict. If hash matches and is non-empty, return it. If cache miss or hash mismatch, return verdict=`UNREVIEWED` to the caller; **do not** spawn the Reviewer. Used by `executing-tasks` dispatch and `managing-tasks` pre-Ready (hot paths). |
-| `live, cache-aware` | First check cache (hash + suppression). If cache hit and PASS, return it. Otherwise fall through to `live`. Used by `delegating-tasks` (via `assigning-to-others`) and `monitoring-tasks --deep`. |
+| `live, cache-aware` | First check cache (hash + suppression). If cache hit and PASS, return it. Otherwise fall through to `live`. Used by `delegating-tasks` (via `assigning-to-others`), `running-daily-tasks` Step 2.6, and `monitoring-tasks --deep`. |
 
 ## Pipeline
 
@@ -68,9 +68,13 @@ Compute the content hash: first 8 hex chars of `sha256("${Title}|${Description}|
 
 Read the task's `Quality Verdict` field. Parse using `references/cache-format.md`.
 
-- Hash matches AND no `suppressed-until` OR `suppressed-until` is in the past → cache hit, return the cached verdict.
-- Hash mismatch → cache stale, fall through.
-- `suppressed-until` is in the future → cache hit, return verdict regardless of hash (anti-grinding guard).
+Evaluate in this exact order:
+
+1. **Active suppression takes precedence** — if `suppressed-until` is in the future, return cache hit regardless of hash. The verdict is intentionally frozen for 7 days after two consecutive same-axis failures so the user is not forced into a grinding loop on an inherently vague task.
+2. Hash matches AND no active suppression → cache hit, return the cached verdict.
+3. Hash mismatch with no active suppression → cache stale, fall through to live evaluation.
+
+When returning a suppressed cache hit on a content-hash mismatch, the response payload sets `suppressed_until` to the cached value so the caller's UI can surface "this verdict is frozen until <date>; rerun manually after that to recompute". Users who want to break out of suppression can clear the `Quality Verdict` field manually in Notion — the next call will see a cache miss and run a fresh Reviewer.
 
 In `cache-only` mode, a cache miss returns verdict = `UNREVIEWED` to the caller. The caller decides how to surface this to the user (typically a 2-choice `[Refine first] [Proceed anyway]` prompt).
 
@@ -110,7 +114,7 @@ fixes: [...]                                         # only on non-PASS verdicts
 
 ## Batch mode
 
-For batch invocations (`monitoring-tasks --deep`, `running-daily-tasks` Step 2.5):
+For batch invocations (`monitoring-tasks --deep`, `running-daily-tasks` Step 2.6):
 
 1. Receive list of task IDs.
 2. For each task, perform Step 1 (skip-path) and Step 3 (cache lookup) sequentially. Tasks that hit cache return immediately.

@@ -59,6 +59,16 @@ Earlier draft used `@<timestamp>` as the cache key with a 24h TTL. Problems:
 
 Content-hash key fixes both: edits auto-invalidate, stable tasks are infinite TTL.
 
+### Interaction with `suppressed-until`
+
+**Content-hash invalidation is intentionally bypassed while suppression is active.** If the cache entry has `suppressed-until=<future_iso>`, the verdict is returned regardless of whether the current `Title|Description|AC|EP` hash matches the cached hash.
+
+Rationale: suppression is the anti-grinding guard that fires after two consecutive same-axis Reviewer failures. Without this exception, a user could trip the suppression by editing one character, immediately bypass it via hash mismatch, and grind the Reviewer indefinitely on the same vague spec. The 7-day window assumes the user needs that much time to either rewrite the spec substantively or accept that the task is inherently vague.
+
+To intentionally break out of suppression early, the user clears the `Quality Verdict` field in Notion — the next call sees a cache miss (no entry to read) and runs a fresh Reviewer. This matches the protocol's "users may always override" principle.
+
+Callers SHOULD surface the `suppressed_until` value in their UI when the cached verdict is being returned on a hash mismatch, so users understand why their edits don't immediately re-trigger the Reviewer.
+
 ## Why 7 days for suppression
 
 7 days is long enough that the user can address the inherent vagueness in their own workflow (a sprint, a planning cycle). Shorter would grind the user; longer would let truly stale verdicts linger. Tuned to "weekly planning cadence" as the implicit recovery window.

@@ -69,11 +69,11 @@ Score each axis ◯ (clearly satisfied), △ (partially satisfied, minor gap), o
 
 ### Step 4 — Verdict
 
-Apply these rules in order:
+Apply these rules in order; the first matching rule wins:
 
-- **PASS**: all 5 axes ◯. Spec is reproducible.
-- **NEEDS_REFINEMENT**: 1–2 axes △, no ✗. Minor concrete fixes will get to PASS.
 - **REJECT**: ≥1 axis ✗. Spec requires rewriting; surface-level fixes won't help.
+- **NEEDS_REFINEMENT**: ≥1 axis △ (and no ✗ per the rule above). Concrete fixes can elevate to PASS. The number of △ axes is informational only — even 3 or 4 △ axes is NEEDS_REFINEMENT, not REJECT, because a △ means "fixable with a specific suggestion" while a ✗ means "fundamental rewrite required".
+- **PASS**: all 5 axes ◯. Spec is reproducible.
 - **INSUFFICIENT_CONTEXT**: Working directory referenced but inaccessible, OR you hit the 3-file / 10K-token budget without enough signal. The invoking skill should treat this as `NEEDS_REFINEMENT` with the verification gap surfaced to the user.
 
 ## Output Format

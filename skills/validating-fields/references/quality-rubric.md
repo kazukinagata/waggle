@@ -45,7 +45,7 @@ Presence at Ready transition → **error**.
 
 ## EP Rubric
 
-The EP is scored holistically against four rules.
+The EP is scored holistically against five rules (R-EP1..R-EP5).
 
 ### R-EP1 — Step count
 
@@ -77,11 +77,17 @@ Missing → **warning** (some non-code tasks legitimately have no concrete artif
 
 ### R-EP4 — Working Directory alignment
 
-When `Executor` ∈ {cli, claude-code, cowork}:
+When `Executor` ∈ {cli, claude-desktop, cowork} (the AI executor set in the canonical protocol enum):
 - `Working Directory` MUST be non-empty
 - If the EP references file paths, at least one should be consistent with `Working Directory` (heuristic: path starts with `Working Directory` or is a relative path)
 
 Mismatch with AI executor → **error**.
+
+### R-EP5 — No EP placeholder remaining (v2.8.0)
+
+The EP text MUST NOT contain `[DRAFT-EP]` or `[NEEDS-REFINE]` if the target status is Ready or beyond. Mirror of R-AC4 for the EP field. A task with `[DRAFT-EP]` followed by 3 real-looking steps would otherwise pass R-EP1..R-EP3 and slip through.
+
+Presence at Ready transition → **error**.
 
 ## Verdict composition
 

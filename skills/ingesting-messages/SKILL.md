@@ -529,11 +529,15 @@ Before showing the auto-generated draft to the user:
 
 2. **Rubric (Layer 1)** — invoke the `validating-fields` skill with the generated task data and target status `"Ready"`. It returns `{valid, errors, warnings}`.
 
-3. **Reviewer (Layer 2, v2.8.0+)** — if Rubric passes, invoke the `reviewing-quality` skill in `live` mode. It will run the `task-quality-reviewer-agent` (Layer 2 IRC) and write the verdict to the `Quality Verdict` cache field for this task. Branch on the verdict:
+3. **Reviewer (Layer 2, v2.8.0+)** — if Rubric passes, invoke the `reviewing-quality` skill in `live` mode. **Important**: at this stage the task does not exist yet (Step 3 creates it). Pass the generated draft fields directly to `reviewing-quality`; receive the verdict **in memory** for use in Phase B's display, and persist the verdict to the new task's `Quality Verdict` field **as part of Step 3's task creation** (one `create_task` call carrying Title / Description / AC / EP / Status / Quality Verdict in a single payload), not as a separate write.
+
+   Branch on the verdict:
    - `PASS` → display the draft normally in Phase B.
    - `NEEDS_REFINEMENT` or `REJECT` → mark the draft `[NEEDS-REFINE]` in the Phase B display, surface the Reviewer's specific gaps and suggested fixes inline, and let the user decide what to do in Phase B.
 
 If Rubric fails (`valid: false`), do NOT spawn the Reviewer — the draft is marked `[NEEDS-REFINE]` and the Rubric errors are surfaced. (Rubric is the cheap pre-filter; the protocol forbids spending Reviewer dollars on tasks that already fail the deterministic check.)
+
+If the user edits the draft in Phase B, the in-memory verdict is invalidated — at task-creation time in Step 3, persist `Quality Verdict` only if the displayed AC/EP were accepted unchanged. For edited tasks, leave `Quality Verdict` empty; the next Ready transition (via `planning-tasks` or `running-daily-tasks` Step 2.6) will compute a fresh verdict on the actual content.
 
 No auto-retry. Auto-retry with a "stricter prompt" is intentionally avoided because it introduces non-determinism, cost inflation, and potential infinite loops when the underlying message genuinely lacks enough information. It is cheaper and more honest to show the low-confidence draft to the user and let them correct it.
 
@@ -566,6 +570,13 @@ For normal (worthiness=task) messages, each gets these per-message options:
 - **[Edit]** — user rewrites the AC/EP/Priority inline. The edited result is treated as authoritative (user-edits are NOT re-run through Reviewer — only the Rubric check applies on the next Ready transition).
 - **[Manual]** — discard the auto-generated draft and capture manual AC/EP/Priority from scratch via `AskUserQuestion` sub-prompts.
 - **[Skip]** — create with message content only (no AC/EP/Priority). Useful when the task is genuinely trivial or the user wants to plan it later via `planning-tasks`.
+
+**Placeholder rule for empty AC/EP after Phase B (v2.8.0+)**: at task-creation time in Step 3, never write a literally empty `Acceptance Criteria` or `Execution Plan`. If after Phase B the resolved field is empty (e.g., the user picked `[Skip]` for a worthiness-flagged item, picked `[Create as task]` for a `calendar-like` / `info-only` row, picked `[Manual]` without filling fields, or otherwise short-circuited the draft), insert the appropriate placeholder:
+
+- AC empty → `[DRAFT-AC] Original message: "{message_text_snippet}"`
+- EP empty → `[DRAFT-EP] 1. Refine this plan with /planning-tasks 2. ...`
+
+These placeholders ensure the task appears in `monitoring-tasks`'s `DRAFT placeholders` debt list and in `running-daily-tasks` Step 2 refinement, so worthiness-tagged tasks that exempt from the `SHALLOW_AC` / `EMPTY_AC_READY_PLUS` monitoring categories are still visible to at least one safety net. Worthiness-tagged tasks remain exempt from the Rubric R-AC1..R-AC3 / R-EP1..R-EP3 checks at Ready transitions, but R-AC4 + R-EP5 (no `[DRAFT-*]` placeholder remaining) still applies, so the user MUST remove the placeholder before promoting the task — they cannot accidentally promote an empty worthiness-tagged task to Ready.
 
 ### Phase C: Category C — Manual Ask Only
 

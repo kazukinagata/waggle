@@ -166,7 +166,10 @@ The `task-quality-reviewer-agent` evaluates a task spec along 5 axes from the pe
 | Reproducibility | Are tools/paths/commands/datasets named? |
 | Hidden context | Is there organizational knowledge the issuer assumed but didn't write down? |
 
-Verdict: `PASS` (all ◯), `NEEDS_REFINEMENT` (1–2 axes △, minor fixes available), `REJECT` (1+ axis ✗, requires rewriting).
+Verdict (rules applied in order — first match wins):
+- `REJECT` — ≥1 axis ✗ (fundamental rewrite required)
+- `NEEDS_REFINEMENT` — ≥1 axis △ and no ✗ (specific suggested fixes can elevate to PASS; the number of △ axes is informational only)
+- `PASS` — all 5 axes ◯
 
 ### Reserved Placeholder Prefixes
 
