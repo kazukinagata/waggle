@@ -4,6 +4,16 @@ All notable changes to the Waggle project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## Provider plugin version catch-up — 2026-05-19
+
+The `waggle` plugin (root) was bumped through 2.8.0 → 2.8.1 → 2.8.2, but the three provider plugins in `providers/*/.claude-plugin/plugin.json` were not bumped alongside, even though their content changed materially:
+
+- **`waggle-notion` 2.1.0 → 3.0.0** (MAJOR). v2.8.0 added the `Quality Verdict` core field to auto-repair. v2.8.1 changed the `Issuer` column type from `PERSON` to `CREATED_BY`, which is a breaking change for existing databases — `docs/quality-calibration.md` and the Migration Guide in `providers/notion/skills/notion-provider/SKILL.md` describe the manual migration. The major bump records this break.
+- **`waggle-sqlite` 2.0.0 → 2.1.0** (MINOR). v2.8.1 added an `Issuer` column substitution to the Create Task INSERT template and a precondition halt when `current_user.id` resolves to a fallback sentinel. The underlying schema is unchanged, so existing databases need no migration; the bump reflects the behavioral addition.
+- **`waggle-turso` 2.0.0 → 2.1.0** (MINOR). Same set of changes as `waggle-sqlite`.
+
+This is a bookkeeping entry — no source-code change beyond the three manifest files. The underlying behavior was already shipped in waggle 2.8.0 / 2.8.1; this catch-up just realigns the provider version numbers to match the changes they actually carry.
+
 ## [2.8.2] - 2026-05-19
 
 ### Changed
