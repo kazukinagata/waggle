@@ -101,6 +101,28 @@ Record `blocked_review_result` — e.g., "2 unblocked → Ready, 3 still blocked
 
 ---
 
+## Step 2.6: Ready Quality Health Check (v2.8.0+)
+
+Catch tasks that reached Ready (or beyond) without going through the v2.8.0 quality gates — typically Notion UI direct edits, legacy tasks created before the upgrade, or bypassed paths.
+
+1. Query Ready / In Progress / In Review tasks owned by the user where `Quality Verdict` is empty OR the cached `verdict` is `NEEDS_REFINEMENT` / `REJECT`.
+   - Skip tasks tagged `worthiness:calendar-like` or `worthiness:info-only` (already classified as non-task).
+2. If 0 results: set `quality_health_result = "skipped (all Ready+ tasks have a fresh PASS verdict)"` and proceed to Step 3.
+3. Invoke the `reviewing-quality` skill in **live, cache-aware** mode for the selected tasks (batch). The skill internally fans out 5 Reviewer agents per chunk and writes verdicts to `Quality Verdict` automatically. Most tasks return quickly from cache; only the truly unreviewed ones pay the live LLM cost.
+4. After the batch returns, sort by `verdict` and present **the 5 oldest non-PASS tasks** (avoid choice overload):
+   ```
+   Ready+ tasks with quality concerns (showing 5 oldest of N):
+   1. [Ready] "API endpoint scaffolding" — REJECT (Goal clarity, Verifiability)
+   2. [Ready] "Update README" — NEEDS_REFINEMENT (Reproducibility)
+   ...
+   ```
+5. Ask the user:
+   - **[a] Batch refine via /planning-tasks** — invokes `planning-tasks` in batch mode on the listed tasks.
+   - **[b] Skip** — leave the verdicts as-is. The tasks still dispatch normally because the verdict is advisory at executing-tasks (cache-only).
+6. Record `quality_health_result` — e.g., "2 NEEDS_REFINEMENT, 1 REJECT; user chose batch refine".
+
+---
+
 ## Step 3: Task Dispatch
 
 Execute the `executing-tasks` skill (normal mode).
@@ -146,11 +168,12 @@ Output the following report:
 
 ```
 [Daily Tasks Complete]
-Message Intake:      {intake_result}
-Task Refinement:     {refinement_result}
-Blocked Task Review: {blocked_review_result}
-Task Dispatch:       {dispatch_result}
-Ready Human Tasks:   {human_ready_result}
+Message Intake:           {intake_result}
+Task Refinement:          {refinement_result}
+Blocked Task Review:      {blocked_review_result}
+Ready Quality Check:      {quality_health_result}
+Task Dispatch:            {dispatch_result}
+Ready Human Tasks:        {human_ready_result}
 ```
 
 
