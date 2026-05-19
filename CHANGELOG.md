@@ -4,6 +4,37 @@ All notable changes to the Waggle project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [2.8.0] - 2026-05-19
+
+### Added
+
+- **3-layer Task Quality Gate system** (Layer 0 worthiness advisory, Layer 1 deterministic Rubric, Layer 2 LLM Intent Reproducibility Check). The protocol spec (`skills/waggle-protocol/SKILL.md`) gains a Quality Spec section documenting all three layers, the 2 reserved placeholder prefixes (`[DRAFT-AC]` / `[DRAFT-EP]` and `[NEEDS-REFINE]`), and the `Quality Verdict` cache format v1. Goal: ensure every task that reaches Ready is reproducible by a stranger handed only the spec — i.e., agent-autonomous quality.
+- **`agents/task-quality-reviewer-agent.md`** (new). Independent reviewer subagent that scores a task spec along 5 axes (Goal clarity, Boundary clarity, Verifiability, Reproducibility, Hidden context) from a new-colleague perspective. Returns PASS / NEEDS_REFINEMENT / REJECT plus per-axis findings and concrete suggested fixes. Pinned to `claude-sonnet-4-6` for cost predictability; `maxTurns: 4` with a 3-file / 10K-token read budget.
+- **`skills/reviewing-quality/`** (new, `user-invocable: false`). Single integration point for the Quality Verdict pipeline. Owns: Reviewer agent spawn, content-hash verdict cache (sha256 of Title|Description|AC|EP), 7-day same-axis-failure suppression, batch fan-out, Rubric pre-filter, worthiness-tag skip. Modes: `live`, `cache-only`, `live cache-aware`.
+- **`Quality Verdict` core field** (16th Core field) auto-repaired into the Notion DB on the first session after upgrade. Stores `<verdict> hash=<8hex> @<iso8601> v1 [suppressed-until=<iso8601>]`.
+- **Layer 0 worthiness classifier** in `skills/ingesting-messages/` Phase A. Extends the existing Category A/B/C classifier output schema to also emit `worthiness ∈ {task, calendar-like, info-only}` in a single LLM call (no new pass). Worthiness ≠ task items skip Phase A.5 Reviewer entirely (cost saved) and surface in Phase B's confirmation table with a `[Skip] / [Create as task] / [Convert to note] / [Discard]` user prompt — never silently discarded.
+- **`running-daily-tasks` Step 2.6 — Ready Quality Health Check**. Inserted between Blocked Task Review and Dispatch. Catches tasks that reached Ready or beyond without going through the v2.8.0 gates (typically Notion UI direct edits, legacy tasks). Batch-invokes `reviewing-quality` in live cache-aware mode; most tasks return from cache.
+- **`monitoring-tasks --deep`** flag (opt-in, default OFF). Adds Reviewer-based debt analysis on top of the default Rubric-only debt categories.
+- **8 new Quality Debt categories** in `monitoring-tasks`: `EMPTY_AC_READY_PLUS`, `EMPTY_EP_READY_PLUS`, `SHALLOW_AC`, `SHALLOW_EP_STEPS`, `MISSING_CONCRETE_ARTIFACT_EP`, `STUB_INGEST_AGED`, `LIKELY_NON_TASK` (calendar-like leakage detection via title regex), and a top-level `Ready Health Score` percentage.
+- **`docs/quality-calibration.md`** documenting the ship-blocker calibration procedure (30 hand-labeled tasks, ≥80% agreement required, with fallback configurations if the gate fails).
+- **`docs/quality-gates.html`** visualizing the 3-layer gate system across all task creation paths (gate-by-path table, typical-flow SVG, layered skills/agents dependency graph).
+- **Self-reflection 1-line note** added to `agents/code-planning-agent.md` and `agents/knowledge-planning-agent.md` before Round 1 of the brainstorming protocol. Catches obvious gaps before the user sees them.
+
+### Changed
+
+- **`agents/code-planning-agent.md` / `agents/knowledge-planning-agent.md`** now use `[NEEDS-REFINE]` instead of the legacy `[LOW CONFIDENCE]` prefix when the user disengages mid-brainstorm. Aligns with the protocol's 2 reserved prefixes.
+- **`skills/planning-tasks/`** Quality Gate (Step 5 / Phase 5) now invokes `reviewing-quality` after the user accepts the AC/EP. Branches on `PASS` (proceed) / `NEEDS_REFINEMENT` (apply suggested fixes or save anyway) / `REJECT` (save with `[NEEDS-REFINE]` and keep Backlog).
+- **`skills/managing-tasks/`** task creation flow gains a "defer" shortcut: empty AC/EP fields are filled with `[DRAFT-AC]` / `[DRAFT-EP]` placeholders instead of being saved empty. Subtask decomposition no longer inherits parent AC/EP (which historically created misleading copy-paste specs); children are initialized with placeholders. Pre-Ready transitions invoke `reviewing-quality` in cache-only mode (hot path).
+- **`skills/ingesting-messages/`** Phase A.5 now also invokes `reviewing-quality` (live) after the Rubric pass, for `worthiness=task` Category B messages. User edits in Phase B remain authoritative — they are NOT re-run through the Reviewer; only the Rubric applies on the next Ready transition.
+- **`skills/executing-tasks/`** Dispatch Readiness gains a Quality Verdict cache-only check after the existing Rubric gate. Per the protocol, live Reviewer invocation is forbidden at dispatch (hot path); cache miss surfaces `[Refine via /planning-tasks] [Dispatch anyway]` to the user.
+- **`skills/delegating-tasks/`** + **`skills/assigning-to-others/`** invoke `reviewing-quality` in live cache-aware mode (default-on). Delegation is the bypass-catch chokepoint where a 10–20s live Reviewer wait is the right trade-off because delegation is rare and high-impact.
+- **`skills/validating-fields/`** documents the canonical Rubric (4 AC rules + 4 EP rules) in `references/quality-rubric.md`. The skill remains LLM-free; Rubric evaluation is regex/length heuristics only. Adds a `find_quality_debt` shared API contract consumed by `monitoring-tasks` and `running-daily-tasks`.
+- **`providers/notion/skills/notion-provider/SKILL.md`** schema validation list bumped to 16 Core fields (adds `Quality Verdict`). Auto-repair runs once at session bootstrap; per-call repair is not introduced.
+
+### Telemetry
+
+- Waggle does not implement its own telemetry. Cost and latency observation for the new Reviewer invocations rely on the platform's (Claude Code / Cowork) OpenTelemetry integration. No plugin-side log files, span emission, or metric counters were added.
+
 ## [2.7.3] - 2026-05-16
 
 ### Fixed
