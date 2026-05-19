@@ -2,7 +2,7 @@
 
 ## Schema: Property Name → Notion Type
 
-### Core Fields (15 required — verify existence at session start)
+### Core Fields (16 required — verify existence at session start)
 
 | Property | Type | Notes |
 |---|---|---|
@@ -21,6 +21,7 @@
 | Agent Output | rich_text | Execution result |
 | Error Message | rich_text | Written on failure only. Query with "Error Message is not empty" |
 | Issuer | people | Who created/initiated this task. Auto-populated with current_user. Write-once. |
+| Quality Verdict | rich_text | v2.8.0+. Cached Reviewer verdict. Format: `<verdict> hash=<8hex> @<iso> v1 [suppressed-until=<iso>]`. Auto-managed by `reviewing-quality` skill; users do not edit directly. |
 
 ### Extended Fields (optional — graceful degradation if absent)
 
@@ -76,3 +77,15 @@ Before executing any status transition, invoke the `validating-fields` skill. Pa
 4. Only execute the status update after validation passes
 
 **Never skip validation.** This is a deterministic check, not an LLM judgment call.
+
+### Quality Gate (Backlog → Ready, v2.8.0+)
+
+In addition to the Rubric gate above, the Backlog → Ready transition consults the Reviewer verdict via the `reviewing-quality` skill in **cache-only** mode. (Pre-Ready is a hot path — `managing-tasks` must not block on a live LLM call.)
+
+1. Skip-path: if the task's `Tags` contain `worthiness:calendar-like` or `worthiness:info-only`, the Reviewer is skipped entirely. Only the Rubric R-AC4 (no `[DRAFT-*]` placeholder) applies.
+2. Otherwise, invoke `reviewing-quality` in `cache-only` mode. The skill reads the `Quality Verdict` cache and returns one of:
+   - `PASS` → proceed with the Ready transition.
+   - `NEEDS_REFINEMENT` / `REJECT` → present the cached gaps + suggested fixes; ask the user `[Refine via /planning-tasks] [Save anyway]`. On "Save anyway", the task is marked `[NEEDS-REFINE]` and the transition proceeds at the user's risk.
+   - `UNREVIEWED` (cache miss) → ask the user `[Refine via /planning-tasks] [Save anyway]` with no verdict context. On "Save anyway", proceed.
+
+The user can always override; pre-Ready is advisory, not enforcing. The protocol-level dispatch gate (in `executing-tasks`) and the daily Step 2.5 catch-net provide additional safety for tasks that slip through here.
