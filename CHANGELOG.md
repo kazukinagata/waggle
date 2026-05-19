@@ -4,6 +4,30 @@ All notable changes to the Waggle project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [2.8.2] - 2026-05-19
+
+### Changed
+
+- **`agents/task-quality-reviewer-agent.md`** tuned based on v2.8.0 calibration findings. The v2.8.0 calibration over 30 tasks yielded 92.9% agreement (rated), but the two disagreements pointed at distinct failure modes, and qualitative memos consistently flagged a third pattern (executor-homework overreach). v2.8.2 directly addresses two of three:
+
+  - **Mandatory Step 3 "Goal clarity definition test"** (replaces the prose criterion): the Reviewer now must enumerate every proper noun / brand / store / project name / internal jargon term in the goal sentence and explicitly answer "What is &lt;term&gt;?" from the spec alone for each. If any term fails the test, Goal clarity is ✗ — no rationalizing from context. There is no △ on this axis; the test is binary. Examples show the difference between "Sticky Bones LP" (✓ if a product link is inline) and "republish the topics with Wkit" (✗ — `topics`, `Wkit` undefined).
+  - **New Step 4 "Request-time vs execute-time boundary"** (applied before the axis evaluation in Step 5) explicitly partitions responsibilities. Information the executor can resolve themselves (branch names, file paths via grep, equivalent tool choices) is execute-time and MUST NOT down-score Verifiability or Reproducibility. Information the executor cannot resolve without the requester (goal, deliverable definition, links to undocumented decisions) is request-time and is the only valid target for gaps and fixes.
+  - **Rules** section gains "Don't ask the requester for the executor's homework" and "Undefined domain nouns are Goal-clarity failures, not Hidden-context warnings."
+  - **Output format**: every gap and every fix MUST be a request-time item. Execute-time details (branch names, exact code edits) are no longer permitted in gaps or fixes. The Goal-clarity entry in the per-axis findings template is now `◯/✗` (binary) instead of `◯/△/✗`.
+
+- **Sanity-check rerun on the two v2.8.0 disagreement cases**:
+  - Case A (undefined domain nouns: a task containing terms like `Wkit`, `ネオンコレクション`, `topics` without definitions). Previously `NEEDS_REFINEMENT`; now `REJECT` ✓ — Goal-clarity definition test correctly flags every undefined noun.
+  - Case B (AC mixes Pre-requirements with completion criteria; implementation and design conflated in a single task). Previously `NEEDS_REFINEMENT`; still `NEEDS_REFINEMENT`. This is a task-granularity / AC-composition failure that the v2.8.2 axes do not target directly — see `docs/calibration-results.md` for the analysis and the v2.8.3 follow-up plan.
+
+  Net: 1 of 2 known disagreements resolved with no regressions on the v2.8.0 PASS / NEEDS_REFINEMENT distribution.
+
+- **`docs/calibration-results.md`** appended with a v2.8.2 prompt-tuning section recording the two sanity-check verdicts, the resolution status, and the v2.8.3 follow-up (task-granularity axis).
+
+### Follow-ups (v2.8.3+)
+
+1. Introduce a "task-granularity" axis (or strengthen Boundary clarity) so that ACs which conflate Pre-requirements, design outputs, and implementation completion criteria are flagged as boundary failures. This is the remaining v2.8.0 disagreement pattern.
+2. Full re-run of the 30-task calibration against the v2.8.3 Reviewer prompt to confirm both disagreements are resolved without regressions.
+
 ## [2.8.1] - 2026-05-19
 
 ### Changed (breaking)
