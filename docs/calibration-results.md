@@ -71,6 +71,57 @@ The Reviewer dimension passed the ≥80% threshold (92.9% on the rated denominat
 
 ## Follow-ups (v2.8.1 candidates)
 
-1. **Reviewer prompt tweak**: tighten Goal clarity (require key terms to be defined or referenced explicitly), and add a "request-time vs execute-time" boundary so the Reviewer stops asking requesters to specify branch names and shell commands.
+1. **Reviewer prompt tweak**: tighten Goal clarity (require key terms to be defined or referenced explicitly), and add a "request-time vs execute-time" boundary so the Reviewer stops asking requesters to specify branch names and shell commands. **Status: addressed in v2.8.2 (see below)**.
 2. **Worthiness classifier calibration**: 30 labeled tasks, ≥80% agreement.
 3. **Re-run Reviewer calibration** after the prompt tweak to confirm the disagree pattern is gone.
+
+---
+
+# v2.8.2 prompt-tuning sanity check
+
+## Scope
+
+The v2.8.2 release ships a behavioral tweak to `agents/task-quality-reviewer-agent.md`. Three changes target the two failure patterns observed in v2.8.0 calibration:
+
+1. Mandatory Step 3 **Goal-clarity definition test** — the Reviewer must enumerate every proper noun / brand / store / project name / internal jargon term in the goal sentence and explicitly answer "What is &lt;term&gt;?" from the spec. Binary scoring: any failure → ✗.
+2. New Step 5 **Request-time vs execute-time boundary** — execute-time details (branch names, exact code edits, preview-URL syntax) MUST NOT down-score Verifiability or Reproducibility.
+3. Rules section additions: "Don't ask the requester for the executor's homework"; "Undefined domain nouns are Goal-clarity failures, not Hidden-context warnings."
+
+A full 30-task re-run is **not** included in v2.8.2; we limited the sanity check to the two known v2.8.0 disagreement cases to validate the targeted fixes without paying the full Reviewer cost again.
+
+## Sanity-check results
+
+Both disagreement cases were re-run against the v2.8.2 prompt:
+
+| Case | v2.8.0 verdict | v2.8.2 verdict | Expected | Match? |
+|---|---|---|---|---|
+| A — undefined domain nouns in the goal | NEEDS_REFINEMENT | **REJECT** | REJECT | ✅ Resolved |
+| B — AC mixes Pre-requirements + design + implementation | NEEDS_REFINEMENT | NEEDS_REFINEMENT | REJECT | ❌ Unchanged |
+
+**Net: 1 of 2 known disagreements resolved.**
+
+### Case A: undefined domain nouns
+
+The strengthened Step 3 definition test produced exactly the intended behavior. The Reviewer enumerated the goal-sentence terms, applied "What is &lt;term&gt;?" mechanically, and identified multiple terms (a campaign name and two collection names) as undefined from the spec alone. Goal clarity correctly fell to ✗, dragging the verdict to REJECT. No rationalizing from context. This is the failure mode v2.8.2 targeted, and it is closed.
+
+### Case B: AC composition / task-granularity
+
+The v2.8.2 prompt did **not** change this verdict, and a careful read of the Reviewer's reasoning explains why:
+
+- The Reviewer was answering the question "can a new colleague reproduce this?" and concluded "yes, after one pre-task confirmation with the requester."
+- The implementer's REJECT reasoning was on a different question: "is this AC well-formed as an AC?" — pointing at:
+  - Pre-requirements masquerading as completion criteria ("対象商品のリスト共有" — that's a prerequisite, not a done-signal).
+  - Implementation and design conflated in one task; the design / risk-analysis step ("想定外の副作用について依頼者に懸念点をシェア済み") should be its own predecessor task.
+
+This is a **task-granularity / AC-composition** failure, which is genuinely distinct from intent-reproducibility. The current 5 axes (Goal clarity, Boundary clarity, Verifiability, Reproducibility, Hidden context) all answer "can this be reproduced?" — none of them ask "is the AC a well-formed AC?" or "is the task at the right granularity?". The Reviewer is consistent with its remit; the gap is in the axis set, not the prompt wording.
+
+We chose to ship v2.8.2 without a Case B fix because:
+- The behavioral improvement on Case A is real and confined; bundling a structural axis change would dilute the release.
+- A task-granularity axis is a non-trivial design decision (where does Boundary clarity end and AC composition begin?) that deserves its own deliberation.
+- Calibration agreement remains ≥80% even counting Case B as disagreement (26/28 = 92.9% rated, accepting Case A is now agree-by-fix → 27/28 = 96.4% rated).
+
+## Follow-ups (v2.8.3+)
+
+1. **Task-granularity axis** — introduce a sixth axis or strengthen Boundary clarity so that ACs which conflate Pre-requirements, design outputs, and implementation completion criteria are flagged. Case B is the canonical test case.
+2. **Full 30-task re-run** against the v2.8.3 prompt to confirm both v2.8.0 disagreements (Case A and Case B) are resolved without introducing new false positives elsewhere.
+3. **Worthiness classifier calibration** (originally a v2.8.1 follow-up) — still pending; the Step 5a deferral in `docs/quality-calibration.md` continues to apply.
