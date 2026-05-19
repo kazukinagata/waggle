@@ -152,7 +152,7 @@ Applied at every status transition into Ready or beyond. No LLM involvement.
 | R-EP1 | 3–7 numbered steps. <3 too thin; >7 → suggest split |
 | R-EP2 | Each step averages ≥30 characters and contains an action verb + target + outcome |
 | R-EP3 | EP overall contains ≥1 concrete artifact (file path, command, branch, URL, PR number, etc.) |
-| R-EP4 | When `Executor` is AI (cli/claude-code/cowork), `Working Directory` is set and the EP references paths consistent with it |
+| R-EP4 | When `Executor` is AI (cli / claude-code / claude-desktop / cowork), `Working Directory` is set and the EP references paths consistent with it |
 
 ### Layer 2: Intent Reproducibility Check (LLM)
 

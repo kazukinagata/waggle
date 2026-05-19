@@ -175,7 +175,7 @@ Tasks with `Tags` containing `worthiness:calendar-like` or `worthiness:info-only
 
 ## `find_quality_debt` (shared API)
 
-When invoked with a list of Ready+ tasks, `validating-fields` can also return a categorized debt report (used by `monitoring-tasks` and `running-daily-tasks` Step 2.5). See `references/quality-rubric.md` for the output shape.
+When invoked with a list of Ready+ tasks, `validating-fields` can also return a categorized debt report (used by `monitoring-tasks` and `running-daily-tasks` Step 2.6). See `references/quality-rubric.md` for the output shape.
 
 ## Code Task Detection
 

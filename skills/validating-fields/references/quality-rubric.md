@@ -77,7 +77,7 @@ Missing → **warning** (some non-code tasks legitimately have no concrete artif
 
 ### R-EP4 — Working Directory alignment
 
-When `Executor` ∈ {cli, claude-desktop, cowork} (the AI executor set in the canonical protocol enum):
+When `Executor` ∈ {cli, claude-code, claude-desktop, cowork} (the AI executor set — `cli / claude-desktop / cowork` are the canonical protocol enum values; `claude-code` is a known extension value present in production provider schemas):
 - `Working Directory` MUST be non-empty
 - If the EP references file paths, at least one should be consistent with `Working Directory` (heuristic: path starts with `Working Directory` or is a relative path)
 
@@ -107,20 +107,23 @@ Presence at Ready transition → **error**.
 
 ## `find_quality_debt(tasks)`
 
-Given a list of Ready+ tasks, returns each task that fails the Rubric, categorized by which rule(s) failed. Used by `monitoring-tasks` and `running-daily-tasks` Step 2.5.
+Given a list of Ready+ tasks, returns each task that fails the Rubric, categorized by which rule(s) failed. Used by `monitoring-tasks` and `running-daily-tasks` Step 2.6.
 
 ```json
 {
   "EMPTY_AC_READY_PLUS": ["task_id_1", ...],
   "EMPTY_EP_READY_PLUS": [...],
-  "SHALLOW_AC": [...],          // R-AC1 + R-AC2 fail
-  "SHALLOW_EP_STEPS": [...],    // R-EP1 + R-EP2 fail
+  "SHALLOW_AC": [...],            // R-AC1 + R-AC2 fail
+  "SHALLOW_EP_STEPS": [...],      // R-EP1 + R-EP2 fail
   "MISSING_CONCRETE_ARTIFACT_EP": [...],  // R-EP3 fail
-  "DRAFT_AC_PRESENT": [...],    // R-AC4 fail
-  "LIKELY_NON_TASK": [...]      // title regex match + 1-line desc + empty AC/EP
+  "DRAFT_AC_PRESENT": [...],      // R-AC4 fail
+  "DRAFT_EP_PRESENT": [...],      // R-EP5 fail
+  "LIKELY_NON_TASK": [...]        // title regex match + 1-line desc + empty AC/EP
 }
 ```
 
 ## Worthiness tag skip
 
-Tasks with `Tags` containing `worthiness:calendar-like` or `worthiness:info-only` are exempt from Rubric AC/EP checks at Ready. They have explicitly been classified by the user as non-task or non-actionable, and the Reviewer (Layer 2) is also skipped for them per the protocol spec.
+Tasks with `Tags` containing `worthiness:calendar-like` or `worthiness:info-only` are exempt from Rubric R-AC1..R-AC3 and R-EP1..R-EP4 at Ready transitions — they have explicitly been classified by the user as non-task or non-actionable, and the Reviewer (Layer 2) is also skipped for them per the protocol Quality Spec.
+
+**R-AC4 and R-EP5 still apply** to worthiness-tagged tasks: a worthiness-tagged task with `[DRAFT-AC]` / `[DRAFT-EP]` / `[NEEDS-REFINE]` placeholder in either field cannot be promoted to Ready until the user removes the placeholder. This prevents accidentally promoting a never-refined worthiness-tagged stub.

@@ -50,8 +50,9 @@ For every invocation:
 ### Step 1 — Skip-path checks
 
 If the task's `Tags` contain `worthiness:calendar-like` or `worthiness:info-only`:
-- Apply the Rubric R-AC4 (no `[DRAFT-*]` placeholder) only.
-- Return verdict = `PASS` (worthiness skip). Do not write a new cache entry; preserve any pre-existing one.
+- Apply **R-AC4 + R-EP5** (no `[DRAFT-AC]` / `[DRAFT-EP]` / `[NEEDS-REFINE]` placeholder in either field) only. All other Rubric rules (R-AC1..R-AC3, R-EP1..R-EP4) are exempt for worthiness-tagged tasks per the protocol Quality Spec.
+- If either placeholder rule fails → return verdict = `REJECT` with the failing rule as the gap. The user must remove the placeholder before promoting.
+- Otherwise → return verdict = `PASS` (worthiness skip). Do not write a new cache entry; preserve any pre-existing one.
 
 If the task's `Executor` is `human` and the call site is `managing-tasks` pre-Ready: continue to Step 2 normally. (Human tasks must still go through the cache check because they may be delegated later — see plan.)
 
