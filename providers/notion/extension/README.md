@@ -58,7 +58,19 @@ Returns `{"results": [...]}` with full page objects across all pages (pagination
 - **replace**: Sets the relation to exactly the provided IDs. Empty array clears the relation.
 - **append**: Merges with existing relation values and deduplicates.
 
-Returns the updated Notion page object.
+Returns a minimal confirmation echo:
+
+```json
+{
+  "ok": true,
+  "page_id": "<uuid>",
+  "property_name": "Blocked By",
+  "mode": "append",
+  "relation_ids": ["<id1>", "<id2>", "<id3>"]
+}
+```
+
+`relation_ids` is the **post-update final state** of the relation (for `append`, this is the merged + deduplicated list). If callers need other page fields (properties, `last_edited_time`, `archived`), fetch the page separately via `notion-fetch` or `notion-query`. This shape was chosen over returning the full Page object to keep MCP tool output small — relation updates are frequent in Waggle workflows.
 
 ### Examples
 

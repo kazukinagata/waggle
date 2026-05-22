@@ -1,7 +1,7 @@
 {
   "manifest_version": "0.3",
   "name": "notion-extension",
-  "version": "0.5.0",
+  "version": "1.0.0",
   "description": "Notion database querying with people property filters and relation property updates. Designed for Waggle plugin.",
   "author": {
     "name": "Kazuki Nagata"

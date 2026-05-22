@@ -4,6 +4,20 @@ All notable changes to the Waggle project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## notion-extension `notion-update-relation` response slimmed — 2026-05-22
+
+- **`notion-extension` 0.5.0 → 1.0.0** (MAJOR — output contract change). The `notion-update-relation` MCP tool previously returned the full Notion Page object from `notion.pages.update()` (typically 3–10 KB per call: 15 Core + 9 Extended properties with their full rich_text / relation arrays). It now returns a minimal confirmation echo:
+
+  ```json
+  { "ok": true, "page_id": "<uuid>", "property_name": "Blocked By", "mode": "append", "relation_ids": ["<id1>", "<id2>"] }
+  ```
+
+  `relation_ids` reports the post-update final state — for `append` mode this is the merged + deduplicated list (the value `handleUpdateRelation` already computes internally as `finalIds`). A repo-wide search confirmed no skill, script, or test reads any field of the previously returned Page object, so the cut is non-breaking in practice. The motivation is per-call token consumption: `notion-update-relation` is invoked on every Blocked By / Parent Task update across `managing-tasks` / `delegating-tasks` / `ingesting-messages` flows, so the ~95% payload reduction adds up quickly over a session. Callers that need other page fields after the update should re-fetch via `notion-fetch` or `notion-query`.
+
+- **`waggle-notion` 3.0.0 → 3.0.1** (PATCH — companion bump). The bundled extension's output shape narrows, but the provider plugin's external skill behavior is unchanged — no consumer in `skills/` depends on the dropped Page-object fields. `providers/notion/extension/README.md` and `providers/notion/skills/notion-provider/SKILL.md` ("Path 2: Desktop Extension") are updated to document the new shape.
+
+- **Migration**: any external automation that reads `properties.*`, `last_edited_time`, `archived`, etc. off the response must switch to `notion-fetch` / `notion-query` to retrieve those fields. None of the internal Waggle skills are affected. The CLI shell-script path (`update-relations.sh`) is untouched.
+
 ## Provider plugin version catch-up — 2026-05-19
 
 The `waggle` plugin (root) was bumped through 2.8.0 → 2.8.1 → 2.8.2, but the three provider plugins in `providers/*/.claude-plugin/plugin.json` were not bumped alongside, even though their content changed materially:

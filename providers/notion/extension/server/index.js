@@ -162,12 +162,18 @@ async function handleUpdateRelation(args) {
   }
 
   const relation = finalIds.map((id) => ({ id }));
-  const result = await notion.pages.update({
+  await notion.pages.update({
     page_id,
     properties: { [property_name]: { relation } },
   });
 
-  return result;
+  return {
+    ok: true,
+    page_id,
+    property_name,
+    mode,
+    relation_ids: finalIds,
+  };
 }
 
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
