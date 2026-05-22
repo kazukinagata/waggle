@@ -56,7 +56,7 @@ Returns `{"results": [...]}` with full page objects across all pages (pagination
 | `relation_ids` | string[] | no | Page IDs for the relation (default: `[]`) |
 
 - **replace**: Sets the relation to exactly the provided IDs. Empty array clears the relation.
-- **append**: Merges with existing relation values and deduplicates.
+- **append**: Merges with existing relation values and deduplicates. Empty array is a no-op (returns the existing relation IDs without writing). To clear the relation use `mode: "replace"` with `relation_ids: []`.
 
 Returns a minimal confirmation echo:
 

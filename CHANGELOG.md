@@ -16,6 +16,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 - **`waggle-notion` 3.0.0 → 3.0.1** (PATCH — companion bump). The bundled extension's output shape narrows, but the provider plugin's external skill behavior is unchanged — no consumer in `skills/` depends on the dropped Page-object fields. `providers/notion/extension/README.md` and `providers/notion/skills/notion-provider/SKILL.md` ("Path 2: Desktop Extension") are updated to document the new shape.
 
+- **Bug fix (alongside the response cut)**: `mode: "append"` with `relation_ids: []` previously cleared the existing relation as a side effect of the merge being skipped (`finalIds` defaulted to the empty input). Treating "append nothing" as a destructive write was surprising — the prior shape hid this because the full Page object was returned regardless. The 1.0.0 release adds a guard that short-circuits this case as a no-op and returns the existing relation IDs. To clear a relation, callers must use `mode: "replace"` with `relation_ids: []`.
+
+- **Bug fix**: the MCP `Server()` constructor in `server/index.js` had its `version` field still hardcoded to `"0.5.0"`; bumped to `"1.0.0"` to match `manifest.json` / `package.json` (otherwise MCP capability negotiation would surface a version mismatch).
+
 - **Migration**: any external automation that reads `properties.*`, `last_edited_time`, `archived`, etc. off the response must switch to `notion-fetch` / `notion-query` to retrieve those fields. None of the internal Waggle skills are affected. The CLI shell-script path (`update-relations.sh`) is untouched.
 
 ## Provider plugin version catch-up — 2026-05-19
