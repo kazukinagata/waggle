@@ -257,7 +257,7 @@ Call `mcp__notion-extension__notion-update-relation` with:
 - `mode`: `"replace"` or `"append"`
 - `relation_ids`: array of page IDs (omit or `[]` with replace to clear)
 
-Returns the updated Notion page object.
+Returns a minimal confirmation echo: `{ok, page_id, property_name, mode, relation_ids}` where `relation_ids` is the post-update final state (the merged + deduplicated list for `append`). If you need other page fields after the update, re-fetch via `notion-fetch` or `notion-query`.
 
 ### When to use
 

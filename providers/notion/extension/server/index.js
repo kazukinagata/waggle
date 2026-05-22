@@ -17,7 +17,7 @@ if (!NOTION_TOKEN) {
 const notion = new Client({ auth: NOTION_TOKEN });
 
 const server = new Server(
-  { name: "notion-extension", version: "0.5.0" },
+  { name: "notion-extension", version: "1.0.0" },
   { capabilities: { tools: {} } }
 );
 
@@ -145,6 +145,22 @@ async function handleQuery(args) {
 async function handleUpdateRelation(args) {
   const { page_id, property_name, mode, relation_ids = [] } = args;
 
+  // Guard: append with empty input is a no-op. Without this, the path below
+  // would skip the merge (length 0), keep finalIds = [], and overwrite the
+  // existing relation with an empty list — destroying data on what the caller
+  // intended as "add nothing." Use `mode: "replace"` with `[]` to clear.
+  if (mode === "append" && relation_ids.length === 0) {
+    const page = await notion.pages.retrieve({ page_id });
+    const existing = page.properties[property_name]?.relation ?? [];
+    return {
+      ok: true,
+      page_id,
+      property_name,
+      mode,
+      relation_ids: existing.map((r) => r.id),
+    };
+  }
+
   let finalIds = relation_ids;
 
   if (mode === "append" && relation_ids.length > 0) {
@@ -162,12 +178,18 @@ async function handleUpdateRelation(args) {
   }
 
   const relation = finalIds.map((id) => ({ id }));
-  const result = await notion.pages.update({
+  await notion.pages.update({
     page_id,
     properties: { [property_name]: { relation } },
   });
 
-  return result;
+  return {
+    ok: true,
+    page_id,
+    property_name,
+    mode,
+    relation_ids: finalIds,
+  };
 }
 
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
