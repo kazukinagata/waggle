@@ -4,6 +4,16 @@ All notable changes to the Waggle project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## `managing-tasks` description hardened against MCP-direct bypass — 2026-05-24
+
+The `managing-tasks` skill's description had a soft anti-shortcut signal ("If the user mentions tasks in any way, use this skill") that didn't name the specific bypass path Claude was tempted to take — direct `notion-create-pages` / `notion-update-page` / `notion-update-relation` calls on the Tasks DB. The description now explicitly names these tools as forbidden and announces the upcoming PreToolUse hook (shipping in v2.9.0) that will enforce this.
+
+- **`waggle` 2.8.2 → 2.8.3** (PATCH — description tweak). Two changes to `skills/managing-tasks/SKILL.md` frontmatter:
+  1. Added an anti-shortcut directive that names the three Notion MCP tools that bypass quality gates (AC/EP rubric, executor invariants, `Acknowledged At` auto-set, subtask cascading) and previews the upcoming hook.
+  2. Disambiguated "assign" from `delegating-tasks`. `managing-tasks` now triggers on "assign to self" only; "assign to another person / hand off" stays exclusive to `delegating-tasks`.
+- Body and reference files unchanged. Skill behavior is unchanged at runtime — only the description language is sharpened.
+- This is the first of two planned changes. The follow-up (v2.9.0) will add the PreToolUse hook itself, providing language-agnostic architectural enforcement on top of this soft signal.
+
 ## notion-extension `notion-update-relation` response slimmed — 2026-05-22
 
 - **`notion-extension` 0.5.0 → 1.0.0** (MAJOR — output contract change). The `notion-update-relation` MCP tool previously returned the full Notion Page object from `notion.pages.update()` (typically 3–10 KB per call: 15 Core + 9 Extended properties with their full rich_text / relation arrays). It now returns a minimal confirmation echo:
