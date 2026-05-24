@@ -4,14 +4,15 @@ description: >
   Creates, updates, deletes, and queries tasks in the configured data source.
   Handles task creation with required confirmations, state transitions,
   "next task" recommendations, and personal task dashboard.
-  Use this skill for ANY task-related request — creating, updating, deleting,
-  querying, listing, filtering by status/priority/assignee, marking done,
-  blocking, assigning, changing priority, viewing personal dashboards, or
-  asking "what's next". If the user mentions tasks in any way, use this skill.
-  Triggers on: "add task", "create task", "update task", "done", "change status",
-  "list tasks", "what's next", "next task", "block", "assign", "prioritize",
-  "show tasks", "get tasks", "fetch tasks", "my tasks", "assigned to me",
-  "show my tasks", "what are my tasks".
+  Use this skill for ANY task-related request — create, update, delete,
+  query, list, filter by status/priority/assignee, mark done, block, assign
+  to self, change priority, view personal dashboards, or ask "what's next".
+  If the user mentions tasks in any way, use this skill.
+  Invoke this skill for any Tasks DB write — do not call
+  `notion-create-pages`, `notion-update-page`, or `notion-update-relation`
+  on task pages directly, even for single-field edits. Direct writes are
+  blocked by a PreToolUse hook and skip quality gates (AC/EP rubric,
+  executor invariants, Acknowledged At auto-set, subtask cascading).
 user-invocable: true
 ---
 
