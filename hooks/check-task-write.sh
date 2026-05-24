@@ -108,9 +108,12 @@ if (( distinctive_count >= 1 )); then
   should_check_auth=1
 elif (( common_count >= 2 )); then
   should_check_auth=1
-elif [[ "$TOOL_OP" == "update-page" ]]; then
-  # State-machine override: any single-field update of Executor, or a Status
-  # update with a Waggle-specific value, must go through managing-tasks.
+elif [[ "$TOOL_OP" == "update-page" || "$TOOL_OP" == "create-pages" ]]; then
+  # State-machine / single-field override: any update or create that touches
+  # Executor, or that sets Status to a Waggle-specific value, must go through
+  # managing-tasks. Applied to both update-page and create-pages so that a
+  # one-field create like `{Status: "Backlog"}` doesn't slip past the
+  # distinctive/common count thresholds (Claude review feedback).
   if echo "$KEYS" | grep -qFx "Executor"; then
     should_check_auth=1
     matched_fields="Executor"
@@ -155,14 +158,19 @@ authorized=$(tail -n 5000 "$TRANSCRIPT_PATH" 2>/dev/null \
       for (i = NR; i >= 1; i--) {
         line = lines[i]
 
-        # User turn boundary
+        # User turn boundary. Increment counter, but fall through to the
+        # signal checks below — signals #1 (<command-name>) and #3 (SKILL.md
+        # path) actually appear *inside* user-turn JSONL records (system
+        # reminders and Read tool results are encoded as user-role entries).
+        # Without falling through, those signals would be unreachable and
+        # ingesting-messages (loaded via system reminder) would be denied
+        # despite being authorized (Claude review feedback).
         if (line ~ /"type"[[:space:]]*:[[:space:]]*"user"/) {
           user_turns++
           if (user_turns > n) {
             print "no"
             exit
           }
-          continue
         }
 
         # managing-tasks load signals
@@ -203,7 +211,12 @@ if mkdir -p "$log_dir" 2>/dev/null && [[ -w "$log_dir" ]]; then
   if [[ -f "$log_file" ]]; then
     size=$(wc -c < "$log_file" 2>/dev/null || echo 0)
     if (( size > 10485760 )); then
-      mv "$log_file" "${log_file}.1" 2>/dev/null || true
+      # Rotate with a timestamp suffix instead of a single ".1" slot so that
+      # successive rotations during deny spikes don't silently overwrite the
+      # previous backup (Claude review feedback). Keep at most 5 backups —
+      # prune the oldest, leaving forensic evidence bounded but preserved.
+      mv "$log_file" "${log_file}.$(date -u +%Y%m%d-%H%M%S)" 2>/dev/null || true
+      ls -1t "${log_file}".* 2>/dev/null | tail -n +6 | xargs -r rm -f 2>/dev/null || true
     fi
   fi
   printf '%s %s matched=%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$TOOL_NAME" "$matched_fields" >> "$log_file" 2>/dev/null || true
