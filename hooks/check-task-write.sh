@@ -109,15 +109,14 @@ if (( distinctive_count >= 1 )); then
 elif (( common_count >= 2 )); then
   should_check_auth=1
 elif [[ "$TOOL_OP" == "update-page" || "$TOOL_OP" == "create-pages" ]]; then
-  # State-machine / single-field override: any update or create that touches
-  # Executor, or that sets Status to a Waggle-specific value, must go through
-  # managing-tasks. Applied to both update-page and create-pages so that a
-  # one-field create like `{Status: "Backlog"}` doesn't slip past the
-  # distinctive/common count thresholds (Claude review feedback).
-  if echo "$KEYS" | grep -qFx "Executor"; then
-    should_check_auth=1
-    matched_fields="Executor"
-  elif echo "$KEYS" | grep -qFx "Status" && [[ "$WAGGLE_STATUS_VALUES" == *"|$STATUS_VALUE|"* ]]; then
+  # Status single-field override: a one-field write like `{Status: "Backlog"}`
+  # would otherwise slip past the count thresholds (common_count = 1 only).
+  # We discriminate by VALUE — only Waggle-official Status values match — so
+  # Intake Log (`active`/`resolved`) and Active Threads (`active`/`closed`)
+  # are not over-collected. Executor is intentionally not handled here: it's
+  # already in DISTINCTIVE_FIELDS, so any Executor write is caught by the
+  # distinctive_count >= 1 branch above.
+  if echo "$KEYS" | grep -qFx "Status" && [[ "$WAGGLE_STATUS_VALUES" == *"|$STATUS_VALUE|"* ]]; then
     should_check_auth=1
     matched_fields="Status=$STATUS_VALUE"
   fi
@@ -216,7 +215,10 @@ if mkdir -p "$log_dir" 2>/dev/null && [[ -w "$log_dir" ]]; then
       # previous backup (Claude review feedback). Keep at most 5 backups —
       # prune the oldest, leaving forensic evidence bounded but preserved.
       mv "$log_file" "${log_file}.$(date -u +%Y%m%d-%H%M%S)" 2>/dev/null || true
-      ls -1t "${log_file}".* 2>/dev/null | tail -n +6 | xargs -r rm -f 2>/dev/null || true
+      # Note: `xargs` (not `xargs -r`) — `-r` / --no-run-if-empty is GNU-only
+      # and BSD xargs (macOS) errors on it. `rm -f` with no args is a no-op
+      # under `2>/dev/null || true`, so pruning works on both platforms.
+      ls -1t "${log_file}".* 2>/dev/null | tail -n +6 | xargs rm -f 2>/dev/null || true
     fi
   fi
   printf '%s %s matched=%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$TOOL_NAME" "$matched_fields" >> "$log_file" 2>/dev/null || true
