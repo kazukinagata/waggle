@@ -4,6 +4,20 @@ All notable changes to the Waggle project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## PreToolUse hook enforces `managing-tasks` funnel — 2026-05-24
+
+The description tweak in v2.8.3 was a soft signal — agents can still ignore it. This release adds a PreToolUse hook that architecturally enforces the funnel: direct Notion MCP writes to Waggle Task pages (`notion-create-pages`, `notion-update-page`, `notion-update-relation`) are blocked unless an authorized Waggle skill (`managing-tasks` or `ingesting-messages`) is loaded in the recent transcript. When blocked, the deny message instructs the agent to invoke `managing-tasks` via the Skill tool.
+
+- **`waggle` 2.8.3 → 2.9.0** (MINOR — new enforcement layer; see Migration below for BREAKING-LITE notes). Adds `hooks/hooks.json` and `hooks/check-task-write.sh`. Plugin hook auto-discovery means the guard activates as soon as the plugin is enabled — no extra user configuration.
+- **Detection** is fully user-environment-agnostic. The hook:
+  - Matches the three Notion write tools regardless of the installed MCP server's prefix via `mcp__[A-Za-z][A-Za-z0-9_-]*__notion-(create-pages|update-page|update-relation)`.
+  - Determines "is this a Waggle Task write?" via schema fingerprint on `tool_input` property names — no per-user config baked in. Highly distinctive fields (`Executor`, `Acknowledged At`, `Quality Verdict`, `Execution Plan`, `Acceptance Criteria`, `Blocked By`) match on 1 occurrence. Common fields (`Status`, `Priority`, etc.) need 2. Single-field `Executor` updates and `Status` updates with Waggle values (`Backlog`/`Ready`/`In Progress`/`In Review`/`Done`/`Blocked`/`Cancelled`) match unconditionally on `notion-update-page`. `notion-update-relation` matches only when `property_name == "Blocked By"`.
+  - Reads the last 3 user-turn boundaries of `transcript_path` for an authorized skill load signal (`<command-name>` tag, Skill tool `tool_use`, or SKILL.md path).
+  - Fails open on any internal error (jq failure, unreadable transcript, etc.) so hook bugs never brick writes.
+- **Opt-out**: set `WAGGLE_TASK_WRITE_GUARD=off` (shell, `~/.bashrc`, or Claude Code `settings.json` `env` field). The hook then allows everything unconditionally.
+- **Forensic log** (best-effort): when an attempt is denied, the hook appends a line to `~/.waggle/hook-denies.log` (rotated at 10 MB). Useful for diagnosing unexpected blocks without depending on platform telemetry.
+- **Migration (BREAKING-LITE)**: workflows that previously wrote directly to the Waggle Tasks DB via Notion MCP — outside `managing-tasks` / `ingesting-messages` — now see deny responses. The deny message itself names the fix (invoke `managing-tasks` or set `WAGGLE_TASK_WRITE_GUARD=off`), so this is *immediately surfaced break with redirect*, not silent break. External HTTP automations (CI, cron, Notion API direct calls) are unaffected — the hook intercepts only Claude Code MCP calls.
+
 ## `managing-tasks` description hardened against MCP-direct bypass — 2026-05-24
 
 The `managing-tasks` skill's description had a soft anti-shortcut signal ("If the user mentions tasks in any way, use this skill") that didn't name the specific bypass path Claude was tempted to take — direct `notion-create-pages` / `notion-update-page` / `notion-update-relation` calls on the Tasks DB. The description now explicitly names these tools as forbidden and announces the upcoming PreToolUse hook (shipping in v2.9.0) that will enforce this.

@@ -133,6 +133,10 @@ agents/
 └── knowledge-planning-agent.md  # Knowledge-gathering brainstorm
 ```
 
+## Caveats
+
+- **Direct Notion MCP writes to the Tasks DB are guarded.** From v2.9.0 onwards, a PreToolUse hook blocks direct calls to `notion-create-pages` / `notion-update-page` / `notion-update-relation` when they target a Waggle Task page and no authorized skill (`managing-tasks` / `ingesting-messages`) is loaded. The hook redirects the agent to invoke `managing-tasks`, so quality gates (AC/EP rubric, executor invariants, `Acknowledged At` auto-set, subtask cascading) are preserved. Set `WAGGLE_TASK_WRITE_GUARD=off` to disable. External HTTP automations (CI, cron, Notion API direct calls) are not affected — only Claude Code MCP calls.
+
 ## License
 
 MIT
