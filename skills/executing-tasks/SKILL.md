@@ -6,6 +6,9 @@ description: >
   and dispatches to the chosen execution mode. Use this skill whenever the
   user wants to do, run, process, start, dispatch, or launch tasks — including
   parallel execution, batch processing, or working on the next ready task.
+  Explicit execution requests that name a task ID or title (e.g.
+  "execute the X task", "run task ID …") enter through this skill so the
+  Ready-state transition runs through the standard quality gate.
   Triggers on: "do the next task", "process tasks", "execute tasks",
   "ready tasks", "run tasks", "start tasks", "dispatch", "launch tasks",
   "work on next task", "parallel execution", "batch process".

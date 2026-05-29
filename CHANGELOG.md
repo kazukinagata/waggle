@@ -4,6 +4,25 @@ All notable changes to the Waggle project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## Inline PreToolUse guard against direct Notion writes on Tasks — 2026-05-29
+
+The architectural enforcement promised by the 2026-05-24 entry ("the PreToolUse hook itself, shipping in v2.9.0") now ships — but in the **`waggle-notion` provider plugin**, inline and Cowork-compatible, **not** in waggle core. This supersedes the abandoned core-hook approach (PR #64).
+
+- **`waggle-notion` 3.0.1 → 3.1.0** (MINOR — new hook). Adds `providers/notion/hooks/hooks.json`, a `PreToolUse` hook that hard-denies (`permissionDecision: "deny"`) direct Notion MCP writes to Waggle Task pages unless an authorized Waggle writer skill is active in the recent transcript.
+  - **Why a provider hook, inline, no script file.** The earlier prototype (PR #64) placed a script-file hook in waggle core and invoked it via `bash "${CLAUDE_PLUGIN_ROOT}/hooks/check-task-write.sh"`. Cowork's VM sandbox does not pass `${CLAUDE_PLUGIN_ROOT}` to the hook process, so the absolute-path call breaks there. The logic (schema fingerprint + transcript authorization) is preserved but rewritten **inline in `hooks.json`** with no `${CLAUDE_PLUGIN_ROOT}` dependency, so it runs identically on CLI / Claude Desktop / Cowork. It also lives in the Notion provider since the matched tools are Notion-specific, keeping core clean.
+  - **What it matches.** `mcp__…__notion-create-pages`, `…__notion-update-page`, and `…__notion-update-relation` (prefix-agnostic, so both the hosted Notion MCP and the `notion-extension` server are covered). `notion-query` and other reads are not matched.
+  - **How it decides.** For create/update it fingerprints the property-name set: any one *distinctive* Waggle field (`Executor`, `Acknowledged At`, `Quality Verdict`, `Execution Plan`, `Acceptance Criteria`, `Blocked By`), or two *common* fields (`Status`, `Priority`, `Assignee`, `Due Date`, `Tags`, `Title`, `Description`), or a `Status` set to a Waggle status value, marks the call as a Tasks write. Date/place/url keys are normalized first (e.g. `date:Due Date:start` → `Due Date`). `update-page` is only inspected for `command: "update_properties"`. Any `notion-update-relation` (which only exists on the waggle-exclusive `notion-extension` server) is treated as a Tasks write unconditionally.
+  - **Authorization.** The call passes if the recent transcript shows an active Waggle *writer* skill: `managing-tasks`, `ingesting-messages`, `delegating-tasks`, `executing-tasks`, `planning-tasks`, `running-daily-tasks`, `assigning-to-others`. Read-only `viewing-tasks` / `monitoring-tasks` are intentionally **not** authorizers.
+  - **Fail-open & opt-out.** Any internal error returns allow (`{}`) so hook bugs never brick a session. Set `WAGGLE_TASK_WRITE_GUARD=off` to disable entirely.
+  - **Migration note (BREAKING-LITE).** Workflows that previously wrote directly to the Tasks DB outside an entry skill now receive a deny with a redirect to `/waggle:managing-tasks`. This is the intended behavior; opt out via the env var if needed.
+  - Unit tests: `providers/notion/tests/hook/` (`run.sh` runs all fixtures through `driver.sh`, which executes the exact command string from `hooks.json`, catching JSON-escape regressions).
+
+- **`waggle` 2.8.3 → 2.8.4** (PATCH — description triggers). Sharpens skill-discovery coverage for prompts that were observed bypassing entry skills:
+  - `managing-tasks`: adds dependency/relation triggers (block, unblock, blocked by, parent task, subtask, link tasks, relation, …) and scoped-query phrasing ("tasks for <store/project>").
+  - `ingesting-messages`: adds Slack-scoped lookup triggers ("find my tasks in slack", "check slack for my tasks", "my mentions in slack", "pull tasks from slack").
+  - `executing-tasks`: notes that explicit "execute the X task" / "run task ID …" requests enter through this skill so the Ready-state transition runs the quality gate.
+  - `viewing-tasks`: clarifies it is read-only and that writes/mutation-leading scoped filters route through `managing-tasks`.
+
 ## `managing-tasks` description hardened against MCP-direct bypass — 2026-05-24
 
 The `managing-tasks` skill's description had a soft anti-shortcut signal ("If the user mentions tasks in any way, use this skill") that didn't name the specific bypass path Claude was tempted to take — direct `notion-create-pages` / `notion-update-page` / `notion-update-relation` calls on the Tasks DB. The description now explicitly names these tools as forbidden and announces the upcoming PreToolUse hook (shipping in v2.9.0) that will enforce this.

@@ -14,7 +14,8 @@ description: >
   their inbox, or convert messages into tasks — even if they don't say "intake".
   Triggers on: "message intake", "intake", "process messages",
   "convert messages to tasks", "check slack", "check teams", "inbox processing",
-  "clarify slack message".
+  "clarify slack message", "find my tasks in slack", "check slack for my tasks",
+  "my mentions in slack", "pull tasks from slack".
 user-invocable: true
 ---
 

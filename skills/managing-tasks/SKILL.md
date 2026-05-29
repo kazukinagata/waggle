@@ -7,6 +7,10 @@ description: >
   Use this skill for ANY task-related request — create, update, delete,
   query, list, filter by status/priority/assignee, mark done, block, assign
   to self, change priority, view personal dashboards, or ask "what's next".
+  Also handles task dependencies and links: block, unblock, blocked by,
+  blocking, dependency/dependencies, parent task, subtask, child task,
+  link tasks, relation, connect tasks. Also scoped queries such as
+  "tasks for <store/project>" or "filter tasks by store/project".
   If the user mentions tasks in any way, use this skill.
   Invoke this skill for any Tasks DB write — do not call
   `notion-create-pages`, `notion-update-page`, or `notion-update-relation`
