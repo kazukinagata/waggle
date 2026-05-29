@@ -81,7 +81,7 @@ If the task title starts with `[Hearing]`:
    - **PASS** → invoke the `validating-fields` skill with target `"Ready"`; on `valid: true`, the task is Ready-eligible. **When you write the Status=Ready promotion, include the `Quality Verdict` property set to the `verdict_string` returned by `reviewing-quality` in the *same* provider update** — the verdict must travel in the same payload as the status change, not in a separate write. A direct write that sets Status=Ready without a valid verdict is rejected before it reaches the provider.
    - **NEEDS_REFINEMENT** → surface the Reviewer's suggested fixes and ask the user `[Apply suggested fixes & re-plan] [Save anyway]`. If `Apply`, re-spawn the planning agent with the fixes attached as additional context, then invoke `reviewing-quality` again (at most once). If the second verdict is still `NEEDS_REFINEMENT` (same failing axes), save with `[NEEDS-REFINE]` prefix and keep Status=Backlog.
    - **REJECT** → save with `[NEEDS-REFINE]` prefix and keep Status=Backlog. The verdict (with the same `[NEEDS-REFINE]` rationale) is written to the `Quality Verdict` Notion column by `reviewing-quality`.
-   - **UNREVIEWED** (worthiness-skipped or upstream error) → still invoke `validating-fields` for the basic Rubric check; promote to Ready on Rubric pass.
+   - **UNREVIEWED** (upstream error only — worthiness-skipped tasks now return `PASS` with a `verdict_string`, not `UNREVIEWED`) → do **not** promote to Ready. `UNREVIEWED` carries an empty `verdict_string`, so a Status=Ready write would be rejected by the provider guard. Keep Status=Backlog, surface the error to the user, and let them retry planning.
 
 ### Batch Execution
 

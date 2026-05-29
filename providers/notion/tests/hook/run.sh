@@ -48,6 +48,8 @@ expected_for() {
     25-update-backlog-no-verdict-auth)  echo allow ;;
     26-update-ready-quality-gate-off)   echo allow ;;
     27-create-ready-pass-verdict)       echo allow ;;
+    28-create-batch-mixed-ready-no-verdict) echo deny ;;
+    29-create-batch-mixed-ready-verdict) echo allow ;;
     *) echo "UNKNOWN" ;;
   esac
 }
