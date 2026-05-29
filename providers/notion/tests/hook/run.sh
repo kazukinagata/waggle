@@ -37,6 +37,7 @@ expected_for() {
     14-viewing-only-unauth)             echo deny  ;;
     15-malformed)                       echo allow ;;
     16-empty-transcript)                echo deny  ;;
+    17-relation-blockedby-auth)         echo allow ;;
     *) echo "UNKNOWN" ;;
   esac
 }
