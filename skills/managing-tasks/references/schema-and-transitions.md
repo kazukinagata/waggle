@@ -78,14 +78,23 @@ Before executing any status transition, invoke the `validating-fields` skill. Pa
 
 **Never skip validation.** This is a deterministic check, not an LLM judgment call.
 
+### Verdict Carry-Forward on Ready+ transitions (v2.8.x+)
+
+Any transition **into** a Ready+ status (`Ready` / `In Progress` / `In Review` / `Done`) must write the task's `Quality Verdict` in the **same** `update_properties` payload that sets the new Status. A write that promotes to a Ready+ status without a valid verdict is rejected before it reaches the provider.
+
+- **Backlog → Ready** — the verdict is produced/looked up by the Quality Gate below; see that section.
+- **Ready → In Progress / In Review / Done** (incl. "mark done", and the system-initiated auto-cascading transitions above) — the task already has a verdict on its page from when it became Ready. Carry it forward: read the current `Quality Verdict` field value and include that exact string in the Status-change payload. This is a one-line echo, not a re-review. (If the field is somehow empty — a legacy or UI-edited task — obtain one first via the Backlog→Ready Quality Gate procedure below, then transition.)
+
 ### Quality Gate (Backlog → Ready, v2.8.0+)
 
 In addition to the Rubric gate above, the Backlog → Ready transition consults the Reviewer verdict via the `reviewing-quality` skill in **cache-only** mode. (Pre-Ready is a hot path — `managing-tasks` must not block on a live LLM call.)
 
-1. Skip-path: if the task's `Tags` contain `worthiness:calendar-like` or `worthiness:info-only`, the Reviewer is skipped entirely. Only the Rubric R-AC4 (no `[DRAFT-*]` placeholder) applies.
+1. Skip-path: if the task's `Tags` contain `worthiness:calendar-like` or `worthiness:info-only`, the Reviewer is skipped entirely. Only the Rubric R-AC4 (no `[DRAFT-*]` placeholder) applies. `reviewing-quality` still returns a `verdict_string` (a worthiness-skip `PASS`) — carry it into the promotion write per the atomic rule below.
 2. Otherwise, invoke `reviewing-quality` in `cache-only` mode. The skill reads the `Quality Verdict` cache and returns one of:
    - `PASS` → proceed with the Ready transition.
-   - `NEEDS_REFINEMENT` / `REJECT` → present the cached gaps + suggested fixes; ask the user `[Refine via /planning-tasks] [Save anyway]`. On "Save anyway", the task is marked `[NEEDS-REFINE]` and the transition proceeds at the user's risk.
-   - `UNREVIEWED` (cache miss) → ask the user `[Refine via /planning-tasks] [Save anyway]` with no verdict context. On "Save anyway", proceed.
+   - `NEEDS_REFINEMENT` / `REJECT` → present the cached gaps + suggested fixes; ask the user `[Refine via /planning-tasks] [Save anyway]`. On "Save anyway", the task is marked `[NEEDS-REFINE]` and the transition proceeds at the user's risk (the cached `NEEDS_REFINEMENT` / `REJECT` `verdict_string` is a valid verdict and travels into the promotion write).
+   - `UNREVIEWED` (cache miss) → there is no verdict to promote with. Re-invoke `reviewing-quality` in `live` mode to compute a real verdict for this task, then branch on the live result exactly as PASS / NEEDS_REFINEMENT / REJECT above. (Cache miss is rare on the pre-Ready hot path — most tasks were reviewed upstream — so the occasional live cost is acceptable, and it is required because a task cannot enter Ready with no verdict.)
 
-The user can always override; pre-Ready is advisory, not enforcing. The protocol-level dispatch gate (in `executing-tasks`) and the daily Step 2.6 catch-net provide additional safety for tasks that slip through here.
+**Atomic promotion (required).** The provider write that sets `Status = Ready` **must include the `Quality Verdict` property set to the `verdict_string` returned by `reviewing-quality`, in the same update_properties payload.** Do not set Status=Ready in a write that omits the verdict — such a write is rejected before it reaches the provider. There is no "Save anyway with no verdict" path: a real verdict (PASS, or a user-accepted NEEDS_REFINEMENT / REJECT) always accompanies the promotion.
+
+The user can still override the *quality* of the verdict (Save anyway on NEEDS_REFINEMENT / REJECT); what is no longer possible is promoting to Ready with no verdict at all. The protocol-level dispatch gate (in `executing-tasks`) and the daily Step 2.6 catch-net provide additional safety for tasks that slip through here.

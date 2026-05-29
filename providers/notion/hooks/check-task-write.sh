@@ -8,11 +8,13 @@
 #   - {hookSpecificOutput: permissionDecision: deny ...}  -> block the write
 #
 # It denies a write only when (a) the payload fingerprints as a Waggle Task page AND
-# (b) no authorized Waggle writer skill is visible in the recent transcript.
+# (b) no authorized Waggle writer skill is visible in the recent transcript. A separate
+# hard gate denies Ready+ promotions that carry no valid Quality Verdict.
 #
 # Fail-open by design: any unexpected error allows the write (see `trap fail ERR`).
 #
-# Opt-out:  WAGGLE_TASK_WRITE_GUARD=off   disables the guard.
+# Opt-outs:  WAGGLE_TASK_WRITE_GUARD=off   disables the whole guard
+#            WAGGLE_QUALITY_GATE=off       disables only the Quality-Verdict gate
 #
 # NOTE: platform detection is intentionally NOT done here. On Cowork-Windows
 # ${CLAUDE_PLUGIN_ROOT} is empty, so this script is never reached at all; the wrapper
@@ -69,6 +71,25 @@ if [ -z "$NEED_AUTH" ] && [ -n "${KEYS:-}" ]; then
   done <<<"$KEYS"
   if [ "$D" -ge 1 ] || [ "$C" -ge 2 ]; then NEED_AUTH=1; MATCHED="$M"
   elif [ -n "${STATUS:-}" ] && [[ "$STATUSES" == *"|$STATUS|"* ]]; then NEED_AUTH=1; MATCHED="Status=$STATUS"; fi
+fi
+
+# ── Quality-Verdict gate: a Ready+ promotion must carry a valid verdict ─────────────
+if [ -n "$NEED_AUTH" ] && [ "${WAGGLE_QUALITY_GATE:-}" != "off" ]; then
+  READYPLUS="|Ready|In Progress|In Review|Done|"
+  if [ -n "${STATUS:-}" ] && [[ "$READYPLUS" == *"|$STATUS|"* ]]; then
+    case "$TOOL" in
+      *notion-create-pages) VERDICT=$(jq -r '[.tool_input.pages[]?.properties."Quality Verdict"] | map(select(.!=null)) | (first // empty)' <<<"$INPUT") ;;
+      *) VERDICT=$(jq -r '.tool_input.properties."Quality Verdict" // empty' <<<"$INPUT") ;;
+    esac
+    QVRE="^(PASS|NEEDS_REFINEMENT|REJECT) hash=[0-9a-f]{8} @[^ ]+ v1"
+    if [[ "$VERDICT" =~ $QVRE ]]; then echo "{}"; exit 0; fi
+    if [ -n "$TRANSCRIPT" ] && [ -r "$TRANSCRIPT" ]; then
+      if tail -n 5000 "$TRANSCRIPT" 2>/dev/null | grep -Eq "reviewing-quality|task-quality-reviewer-agent"; then echo "{}"; exit 0; fi
+    fi
+    QREASON="This write promotes a Waggle task to Ready+ (Status=$STATUS) but carries no valid Quality Verdict, and no reviewing-quality run is visible in the recent transcript. An unreviewed task cannot enter Ready+ — direct promotion bypasses the Reviewer quality gate. Invoke /waggle:planning-tasks (or managing-tasks) first so reviewing-quality writes a real verdict into the same update. Opt-out: set WAGGLE_QUALITY_GATE=off."
+    jq -n --arg e PreToolUse --arg d deny --arg r "$QREASON" '{hookSpecificOutput:{hookEventName:$e,permissionDecision:$d,permissionDecisionReason:$r}}'
+    exit 0
+  fi
 fi
 
 # Not a Waggle Task write: allow.

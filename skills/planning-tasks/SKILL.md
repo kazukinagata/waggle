@@ -78,7 +78,7 @@ If the task title starts with `[Hearing]`:
    - If Skip: leave task unchanged
 
 5. **Quality gate (v2.8.0+)**: After the user accepts the AC/EP, invoke the `reviewing-quality` skill in `live` mode for the updated task. It returns a verdict (`PASS` / `NEEDS_REFINEMENT` / `REJECT`) plus per-axis findings and concrete suggested fixes. Branch on the verdict:
-   - **PASS** → invoke the `validating-fields` skill with target `"Ready"`; on `valid: true`, the task is Ready-eligible.
+   - **PASS** → invoke the `validating-fields` skill with target `"Ready"`; on `valid: true`, the task is Ready-eligible. **When you write the Status=Ready promotion, include the `Quality Verdict` property set to the `verdict_string` returned by `reviewing-quality` in the *same* provider update** — the verdict must travel in the same payload as the status change, not in a separate write. A direct write that sets Status=Ready without a valid verdict is rejected before it reaches the provider.
    - **NEEDS_REFINEMENT** → surface the Reviewer's suggested fixes and ask the user `[Apply suggested fixes & re-plan] [Save anyway]`. If `Apply`, re-spawn the planning agent with the fixes attached as additional context, then invoke `reviewing-quality` again (at most once). If the second verdict is still `NEEDS_REFINEMENT` (same failing axes), save with `[NEEDS-REFINE]` prefix and keep Status=Backlog.
    - **REJECT** → save with `[NEEDS-REFINE]` prefix and keep Status=Backlog. The verdict (with the same `[NEEDS-REFINE]` rationale) is written to the `Quality Verdict` Notion column by `reviewing-quality`.
    - **UNREVIEWED** (worthiness-skipped or upstream error) → still invoke `validating-fields` for the basic Rubric check; promote to Ready on Rubric pass.
@@ -143,7 +143,7 @@ Planning results (5 tasks):
 
 For each accepted task in the chunk, invoke the `reviewing-quality` skill in batch mode (the skill internally fans out 5 Reviewer agents in parallel, reusing the same chunking pattern). Then branch each task on its verdict using the same rules as the single-task flow (Step 5):
 
-- **PASS** → run `validating-fields` for `"Ready"`; promote to Ready on `valid: true`.
+- **PASS** → run `validating-fields` for `"Ready"`; promote to Ready on `valid: true`. The Status=Ready write **must carry the `Quality Verdict` property set to that task's `verdict_string` (from `reviewing-quality`) in the same provider update** — same atomic-promotion rule as the single-task flow (Step 5).
 - **NEEDS_REFINEMENT** → save with `[NEEDS-REFINE]` prefix and keep Backlog. Do not auto-retry in batch mode — the user can `/planning-tasks` the task individually if they want to apply Reviewer's suggested fixes.
 - **REJECT** → save with `[NEEDS-REFINE]` prefix and keep Backlog.
 

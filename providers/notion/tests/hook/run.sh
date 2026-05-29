@@ -38,6 +38,16 @@ expected_for() {
     15-malformed)                       echo allow ;;
     16-empty-transcript)                echo deny  ;;
     17-relation-blockedby-auth)         echo allow ;;
+    18-create-ready-no-verdict-unauth)  echo deny  ;;
+    19-update-ready-no-verdict-unauth)  echo deny  ;;
+    20-update-ready-pass-verdict)       echo allow ;;
+    21-update-ready-needsrefine-verdict) echo allow ;;
+    22-update-ready-unreviewed)         echo deny  ;;
+    23-update-inprogress-verdict)       echo allow ;;
+    24-update-ready-reviewing-quality-trace) echo allow ;;
+    25-update-backlog-no-verdict-auth)  echo allow ;;
+    26-update-ready-quality-gate-off)   echo allow ;;
+    27-create-ready-pass-verdict)       echo allow ;;
     *) echo "UNKNOWN" ;;
   esac
 }
@@ -61,6 +71,8 @@ run_case() {
 
   if [ "$name" = "01-guard-off" ]; then
     out="$(WAGGLE_TASK_WRITE_GUARD=off bash "$DRIVER" "$fixture" 2>/dev/null)"
+  elif [ "$name" = "26-update-ready-quality-gate-off" ]; then
+    out="$(WAGGLE_QUALITY_GATE=off bash "$DRIVER" "$fixture" 2>/dev/null)"
   else
     out="$(bash "$DRIVER" "$fixture" 2>/dev/null)"
   fi

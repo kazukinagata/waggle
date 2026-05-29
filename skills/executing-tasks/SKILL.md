@@ -78,9 +78,11 @@ The skill reads the task's `Quality Verdict` cache and returns one of:
 
 - `PASS` → dispatch continues without further prompt.
 - `NEEDS_REFINEMENT` or `REJECT` → surface the cached gaps and suggested fixes, then ask the user `[Refine via /planning-tasks] [Dispatch anyway]`. On "Dispatch anyway", proceed; on "Refine", remove the task from this dispatch batch.
-- `UNREVIEWED` (cache miss — never reviewed, or worthiness:* skip path) → ask `[Refine via /planning-tasks] [Dispatch anyway]` with no verdict context. Worthiness:* tagged tasks dispatch without prompt (they have explicitly been classified as non-task by the user during intake and should not nag at dispatch).
+- `UNREVIEWED` (cache miss — never reviewed; legacy or Notion-UI-edited task) → the task carries no verdict and the `In Progress` promotion below cannot be written without one. Route the user to `[Refine via /planning-tasks]` (which writes a real verdict) or rely on the `running-daily-tasks` Step 2.6 catch-net; do not offer a verdict-less "Dispatch anyway". (Worthiness:* tagged tasks do **not** return `UNREVIEWED` here — `reviewing-quality` returns a worthiness-skip `PASS` with a `verdict_string`, so they dispatch without a prompt.)
 
-The override path is always available; this gate is advisory at dispatch. Catch-net for bypass cases is `running-daily-tasks` Step 2.6 (which DOES invoke live Reviewer) and `monitoring-tasks --deep`.
+**Atomic promotion (required).** The provider write that sets `Status = In Progress` **must carry the task's existing verdict forward** — include the `Quality Verdict` property set to the `verdict_string` returned by the cache-only check, in the same update_properties payload. A write that promotes the task to `In Progress` (a Ready+ status) without a valid verdict is rejected before it reaches the provider. The verdict already exists on the page from the Ready promotion, so this is a one-line carry-forward, not a re-review.
+
+The override path for verdict *quality* is always available; the dispatch gate is advisory on PASS-vs-NEEDS_REFINEMENT, but the presence of *some* valid verdict is enforced by the provider guard. Catch-net for bypass cases is `running-daily-tasks` Step 2.6 (which DOES invoke live Reviewer) and `monitoring-tasks --deep`.
 
 Display the validated task(s) with a "Ready for dispatch" confirmation:
 

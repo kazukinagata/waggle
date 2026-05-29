@@ -105,6 +105,7 @@ Return a structured payload:
 
 ```
 verdict: PASS | NEEDS_REFINEMENT | REJECT | UNREVIEWED
+verdict_string: "<verdict> hash=<8hex> @<iso8601> v1 [suppressed-until=<iso8601>]" | ""
 hash: <8-hex>
 cached_at: <iso8601>
 suppressed_until: <iso8601 | null>
@@ -112,6 +113,8 @@ per_axis: { goal: ◯|△|✗, boundary: ◯|△|✗, ... }   # only on live ver
 gaps: [...]                                          # only on non-PASS verdicts
 fixes: [...]                                         # only on non-PASS verdicts
 ```
+
+`verdict_string` is the **canonical cache string** for this verdict — byte-identical to what was written to (Step 6) or read from the task's `Quality Verdict` field. Callers that promote a task to a Ready+ status (`Ready` / `In Progress` / `In Review` / `Done`) **must echo this exact string into the `Quality Verdict` property of the same provider write that sets the new Status**, so the promotion is atomic and self-evidencing (the persisted verdict travels in the same payload as the status change). For a real verdict (`PASS` / `NEEDS_REFINEMENT` / `REJECT`), or a worthiness-skip `PASS` (return the preserved pre-existing entry, or a fresh `PASS` line if none exists), `verdict_string` is non-empty. Only a `cache-only` miss (`UNREVIEWED`) returns `verdict_string: ""`.
 
 ## Batch mode
 
