@@ -1,0 +1,17 @@
+{
+  "description": "Guards direct Notion MCP writes to Waggle Task pages (PreToolUse). Delegates to hooks/check-task-write.sh; fails open cleanly when CLAUDE_PLUGIN_ROOT is unresolved (e.g. Cowork-Windows).",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "mcp__[A-Za-z][A-Za-z0-9_-]*__notion-(create-pages|update-page|update-relation)",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "P=\"${CLAUDE_PLUGIN_ROOT:-}/hooks/check-task-write.sh\"; [ -f \"$P\" ] && exec bash \"$P\"; echo '{}'",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}

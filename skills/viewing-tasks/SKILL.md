@@ -7,6 +7,8 @@ description: >
   fetches Notion data directly via window.cowork.callMcpTool.
   Use this skill whenever the user wants to see tasks visually — board views,
   timelines, calendars, or any kind of task visualization or dashboard display.
+  Read-only views only. For any write, or a scoped filter that may lead to a
+  mutation, route through `managing-tasks` instead.
   Triggers on: "kanban", "list view", "show tasks", "view", "visualize",
   "gantt", "calendar", "board", "timeline", "display tasks", "open dashboard".
 user-invocable: true

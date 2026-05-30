@@ -1,0 +1,23 @@
+name: notion-hook-tests
+
+on:
+  pull_request:
+    paths:
+      - "providers/notion/hooks/**"
+      - "providers/notion/tests/hook/**"
+      - ".github/workflows/notion-hook-tests.yml"
+  push:
+    branches: [main]
+    paths:
+      - "providers/notion/hooks/**"
+      - "providers/notion/tests/hook/**"
+
+jobs:
+  hook-unit-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Ensure jq is available
+        run: jq --version
+      - name: Run PreToolUse guard unit tests
+        run: bash providers/notion/tests/hook/run.sh
