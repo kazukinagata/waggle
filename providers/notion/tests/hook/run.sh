@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# run.sh — unit test harness for the inline PreToolUse task-write guard.
+# run.sh — unit test harness for the PreToolUse task-write guard.
 #
-# For each fixtures/*.json it runs the real hook command (via driver.sh, which
-# extracts the command from hooks.json) and asserts the decision (deny|allow)
+# For each fixtures/*.json it runs the real guard script (via driver.sh, which
+# invokes hooks/check-task-write.sh) and asserts the decision (deny|allow)
 # and a clean exit (0). Fixtures whose transcript_path is the literal token
 # __TRANSCRIPT__ are materialized at runtime from a companion <name>.transcript
 # file, so fixtures stay machine-independent. Also unit-tests the matcher regex.
@@ -103,6 +103,25 @@ matcher_should mcp__claude_ai_Notion__notion-update-page        match
 matcher_should mcp__notion-extension__notion-update-relation    match
 matcher_should mcp__notion-extension__notion-query              nomatch
 matcher_should mcp__claude_ai_Notion__notion-fetch              nomatch
+
+echo "== hooks.json wrapper =="
+WRAP_CMD="$(jq -r '.hooks.PreToolUse[0].hooks[0].command' "$HOOKS_JSON")"
+# Unresolved plugin root (Cowork-Windows symptom): script unreachable -> clean allow.
+wrap_out="$(CLAUDE_PLUGIN_ROOT= sh -c "$WRAP_CMD" </dev/null 2>/dev/null)"
+wrap_rc=$?
+if [ "$wrap_rc" -eq 0 ] && [ "$(printf '%s' "$wrap_out" | tr -d '[:space:]')" = "{}" ]; then
+  echo "ok    wrapper empty-CLAUDE_PLUGIN_ROOT -> clean allow"; PASS=$((PASS+1))
+else
+  echo "FAIL  wrapper empty-CLAUDE_PLUGIN_ROOT : rc=$wrap_rc out=$wrap_out"; FAIL=$((FAIL+1))
+fi
+# Resolved plugin root: wrapper reaches the script and applies the guard (deny here).
+wrap_out="$(CLAUDE_PLUGIN_ROOT="$HERE/../.." sh -c "$WRAP_CMD" < "$FIXDIR/03-create-distinctive-unauth.json" 2>/dev/null)"
+wrap_rc=$?
+if [ "$wrap_rc" -eq 0 ] && printf '%s' "$wrap_out" | grep -q '"permissionDecision": *"deny"'; then
+  echo "ok    wrapper resolved-CLAUDE_PLUGIN_ROOT -> reaches script (deny)"; PASS=$((PASS+1))
+else
+  echo "FAIL  wrapper resolved-CLAUDE_PLUGIN_ROOT : rc=$wrap_rc out=$wrap_out"; FAIL=$((FAIL+1))
+fi
 
 echo
 echo "PASS=$PASS FAIL=$FAIL"
