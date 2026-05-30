@@ -538,7 +538,11 @@ Before showing the auto-generated draft to the user:
 
 If Rubric fails (`valid: false`), do NOT spawn the Reviewer — the draft is marked `[NEEDS-REFINE]` and the Rubric errors are surfaced. (Rubric is the cheap pre-filter; the protocol forbids spending Reviewer dollars on tasks that already fail the deterministic check.)
 
-If the user edits the draft in Phase B, the in-memory verdict is invalidated — at task-creation time in Step 3, persist `Quality Verdict` only if the displayed AC/EP were accepted unchanged. For edited tasks, leave `Quality Verdict` empty; the next Ready transition (via `planning-tasks` or `running-daily-tasks` Step 2.6) will compute a fresh verdict on the actual content.
+If the user edits the draft in Phase B, the in-memory verdict is invalidated — it no longer matches the actual content. A Category B task is created at `Status: Ready`, which requires a valid verdict in the same create payload (see the Ready+ rule in `references/task-creation-templates.md`), so an edited draft cannot be created at Ready with an empty verdict. Resolve it one of two ways at task-creation time in Step 3:
+- **Re-review** — invoke `reviewing-quality` in `live` mode on the edited content, and persist the returned `verdict_string` as `Quality Verdict` in the Ready create payload; or
+- **Defer** — create the task at `Status: Backlog` instead (verdict omitted); the next Ready transition (via `planning-tasks`, `managing-tasks`, or `running-daily-tasks` Step 2.6) computes a fresh verdict on the actual content before promotion.
+
+Only AC/EP accepted unchanged keep the in-memory verdict and are created at Ready directly.
 
 No auto-retry. Auto-retry with a "stricter prompt" is intentionally avoided because it introduces non-determinism, cost inflation, and potential infinite loops when the underlying message genuinely lacks enough information. It is cheaper and more honest to show the low-confidence draft to the user and let them correct it.
 

@@ -87,6 +87,8 @@ Source: slack DM from @alice at 2026-04-10 09:15
 
 ## Category-Specific Fields
 
+> **Ready+ creates require a verdict (v2.8.x+).** Any task created at a Ready+ status (`Ready` / `In Progress` / `In Review` / `Done`) **must carry a valid `Quality Verdict` in the same `notion-create-pages` payload** — set it to the `verdict_string` returned by the `reviewing-quality` skill (live mode) for that task's draft fields. A direct create that sets a Ready+ status without a valid verdict is rejected before it reaches the provider. If a verdict cannot be produced for a given task (e.g. the draft was edited after review and not re-reviewed, or a worthiness item is being created as a task without review), **create it at `Status: Backlog` instead** — it will receive a verdict at its next Ready transition (via `planning-tasks`, `managing-tasks`, or `running-daily-tasks` Step 2.6). Tasks created at `Backlog` / `Blocked` are below the gate and need no verdict.
+
 ### Category A (Hearing Needed)
 
 > **Note**: The Category A flow below only runs when Step 2.3 (Slack clarification) is unavailable or the user declined the clarification path for this specific message. In interactive runs with Slack MCP available, most ambiguous messages are resolved by sending a clarification reply in-thread rather than creating a hearing-task pair.
@@ -99,6 +101,7 @@ Source: slack DM from @alice at 2026-04-10 09:15
      If requester cannot be identified: `[current_user]` (fallback, not empty). Record "Original sender: {sender}" in Context.
    - Acceptance Criteria: `"Confirm with {requester_name} about {topic_summary}. Record response in Agent Output. Update Status to Done when confirmed."`
    - Execution Plan: `"1. Contact {requester_name} via {tool_name}\n2. Ask about: {question_summary}\n3. Record response in Agent Output\n4. Update Status to Done"`
+   - Quality Verdict: the blocker is created at `Ready`, so it must carry a verdict (see the Ready+ rule above). Invoke the `reviewing-quality` skill in `live` mode on the blocker's draft fields (its AC/EP are well-formed and self-contained, so this normally returns `PASS` quickly) and set `Quality Verdict` to the returned `verdict_string` **in this same create payload**.
 2. Create the main task:
    - Status: `Blocked`
    - Blocked By: `[blocker_task_id]` *(relation field — set via `update-relations.sh` after task creation, not in `notion-create-pages` properties)*
