@@ -48,11 +48,12 @@ assert_session_json "env-unset: well-formed SessionStart context" "$OUT"
 if printf '%s' "$OUT" | jq -er '.hookSpecificOutput.additionalContext | test("data source id")' >/dev/null 2>&1; then
   bad "env-unset: id leaked: $OUT"; else ok "env-unset: no id in context"; fi
 
-# 3. Fail-open on malformed stdin (still exits 0 with valid JSON).
+# 3. The script reads no stdin (jq -n / null input): arbitrary stdin is ignored and it
+#    still exits 0 with valid JSON.
 OUT="$(printf '%s' 'not json at all' | env -u WAGGLE_NOTION_TASKS_DB_ID bash "$SCRIPT" 2>/dev/null)"
 RC=$?
 if [ "$RC" -eq 0 ] && printf '%s' "$OUT" | jq -e . >/dev/null 2>&1; then
-  ok "malformed stdin: exits 0 with valid JSON"; else bad "malformed stdin: rc=$RC out=$OUT"; fi
+  ok "non-json stdin: script ignores stdin, exits 0 with valid JSON"; else bad "non-json stdin: rc=$RC out=$OUT"; fi
 
 echo "== hooks.json wrapper =="
 WRAP_CMD="$(jq -r '.hooks.SessionStart[0].hooks[0].command' "$HOOKS_JSON")"

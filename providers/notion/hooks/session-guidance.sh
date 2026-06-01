@@ -16,14 +16,18 @@
 #
 # Fail-open by design: any unexpected error emits `{}` (no context) and exits 0.
 
-set -u
+set -euo pipefail
 fail(){ echo "{}"; exit 0; }
 trap fail ERR
 
 # The configured Waggle Tasks data source id, when available (env-injected on CLI/Desktop;
 # typically absent on Cowork, where config lives in the system prompt). Named for clarity
 # in the guidance text only — its absence does not change behavior.
+# Strip to id-safe characters: shell does not re-evaluate metacharacters inside a variable's
+# value, but stripping anything outside [A-Za-z0-9_-] is cheap defense-in-depth and keeps the
+# guidance text clean if the env var is ever misconfigured.
 DSID="${WAGGLE_NOTION_TASKS_DB_ID:-}"
+DSID="${DSID//[^a-zA-Z0-9_-]/}"
 if [ -n "$DSID" ]; then
   LOCATOR="the Waggle Tasks Notion database (data source id: $DSID)"
 else
