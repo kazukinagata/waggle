@@ -4,6 +4,14 @@ All notable changes to the Waggle project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## Strengthen SessionStart guidance with reviewing-quality bypass note — 2026-06-01
+
+Follow-up to the SessionStart soft-guidance change (below). That change removed the hard Ready+ Quality-Verdict gate (#66); the intent to prevent **bypassing the `reviewing-quality` review** before a Ready+ promotion was left only implicitly covered by "route through the skills." A payload-based hard re-enforcement was considered and rejected: the only Waggle-distinctive signal in an `update-page` payload is the `Quality Verdict` property name, and in an OSS context that name could collide with an unrelated database's column — so any deny keyed on it risks a false positive. Enforcement on this path is therefore left advisory; the guidance is made explicit instead.
+
+- **`waggle-notion` 3.3.0 → 3.3.1** (PATCH — guidance text only; no logic, interface, or behavior change). `providers/notion/hooks/session-guidance.sh` now states: before moving a task into a Ready+ status (`Ready` / `In Progress` / `In Review` / `Done`), a live `reviewing-quality` run must produce a fresh `Quality Verdict` written in the same update as the Status change, and a task must never be promoted to Ready+ with a bare Status-only write. The stale "the Quality-Verdict gate" phrasing (which implied an enforced gate that no longer exists) was reworded to "the quality review (AC/EP rubric + reproducibility check)."
+  - This remains **advisory, not enforced** — nothing blocks a direct write. It is the strongest available nudge against the one bypass path that cannot be detected without false positives (a bare `Status=Ready+` write carrying no Waggle-distinctive property).
+  - Test: `providers/notion/tests/hook/run.sh` adds an assertion that the injected guidance contains the `reviewing-quality` + `Ready+` clause (now 12 cases).
+
 ## Replace the PreToolUse hard-deny guard with SessionStart soft guidance — 2026-06-01
 
 The PreToolUse guard (PRs #65 / #66, below) hard-denied direct Notion MCP writes that *looked like* a Waggle Task page. The "looks like a Task page" decision was a pure property-name fingerprint with no way to scope the write to the configured Tasks data source: `update-page` / `update-relation` payloads carry only a `page_id` (no parent data source), a fetch is infeasible in a synchronous 5s hook, and on Cowork the Tasks-DB id is not even available to the hook. As a result the guard **false-positive-denied unrelated Notion databases** — e.g. any create touching `Title`+`Description` (two "common" fields), or any write setting `Status` to a common value like `Done`. No smarter fingerprint can fix this on the unscopable path. We chose to stop enforcing at the tool boundary and instead **guide** the model.

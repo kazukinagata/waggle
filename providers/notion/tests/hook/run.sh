@@ -42,6 +42,10 @@ assert_session_json "env-set: well-formed SessionStart context" "$OUT"
 if printf '%s' "$OUT" | jq -er '.hookSpecificOutput.additionalContext | test("ds-1234")' >/dev/null 2>&1; then
   ok "env-set: data source id embedded"; else bad "env-set: id NOT embedded: $OUT"; fi
 
+# 1b. The guidance carries the reviewing-quality bypass-prevention clause (Ready+ promotions).
+if printf '%s' "$OUT" | jq -er '.hookSpecificOutput.additionalContext | test("reviewing-quality") and test("Ready\\+")' >/dev/null 2>&1; then
+  ok "guidance: reviewing-quality + Ready+ clause present"; else bad "guidance: missing reviewing-quality/Ready+ clause: $OUT"; fi
+
 # 2. Without the env var: still valid, but the id must be absent.
 OUT="$(printf '%s' '{"source":"compact"}' | env -u WAGGLE_NOTION_TASKS_DB_ID bash "$SCRIPT" 2>/dev/null)"
 assert_session_json "env-unset: well-formed SessionStart context" "$OUT"
