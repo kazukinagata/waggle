@@ -14,9 +14,9 @@ description: >
   If the user mentions tasks in any way, use this skill.
   Invoke this skill for any Tasks DB write — do not call
   `notion-create-pages`, `notion-update-page`, or `notion-update-relation`
-  on task pages directly, even for single-field edits. Direct writes are
-  blocked by a PreToolUse hook and skip quality gates (AC/EP rubric,
-  executor invariants, Acknowledged At auto-set, subtask cascading).
+  on task pages directly, even for single-field edits. Direct writes skip
+  quality gates (AC/EP rubric, executor invariants, Acknowledged At
+  auto-set, subtask cascading); a SessionStart reminder reinforces this.
 user-invocable: true
 ---
 

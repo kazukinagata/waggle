@@ -1,13 +1,13 @@
 {
-  "description": "Guards direct Notion MCP writes to Waggle Task pages (PreToolUse). Delegates to hooks/check-task-write.sh; fails open cleanly when CLAUDE_PLUGIN_ROOT is unresolved (e.g. Cowork-Windows).",
+  "description": "Injects standing Waggle task-protocol guidance into the session (SessionStart). Delegates to hooks/session-guidance.sh; fails open cleanly when CLAUDE_PLUGIN_ROOT is unresolved (e.g. Cowork-Windows). Re-runs after compaction so the guidance survives context compaction.",
   "hooks": {
-    "PreToolUse": [
+    "SessionStart": [
       {
-        "matcher": "mcp__[A-Za-z][A-Za-z0-9_-]*__notion-(create-pages|update-page|update-relation)",
+        "matcher": "startup|compact|resume",
         "hooks": [
           {
             "type": "command",
-            "command": "P=\"${CLAUDE_PLUGIN_ROOT:-}/hooks/check-task-write.sh\"; [ -f \"$P\" ] && exec bash \"$P\"; echo '{}'",
+            "command": "P=\"${CLAUDE_PLUGIN_ROOT:-}/hooks/session-guidance.sh\"; [ -f \"$P\" ] && exec bash \"$P\"; echo '{}'",
             "timeout": 5
           }
         ]
