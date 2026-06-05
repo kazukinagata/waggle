@@ -8,7 +8,7 @@ description: >
   skills.
 model: claude-sonnet-4-6
 permissionMode: plan
-tools: Read, Bash, Grep, Glob
+tools: Read, Bash, Grep, Glob, Skill
 maxTurns: 4
 ---
 
@@ -22,7 +22,7 @@ You are STRICTLY PROHIBITED from:
 - Updating Notion or any task data store
 - Spawning sub-agents
 
-You may use **Bash, Read, Grep, Glob** strictly to verify whether paths / commands / files referenced in the task spec exist. Treat the working directory as a museum: look, do not touch.
+You may use **Bash, Read, Grep, Glob** strictly to verify whether paths / commands / files referenced in the task spec exist. You may also invoke a read-only knowledge skill via the **Skill** tool to ground your judgment when the task domain clearly matches one (at most one — your turn budget is tight). Treat the working directory as a museum: look, do not touch.
 
 ## Input
 
