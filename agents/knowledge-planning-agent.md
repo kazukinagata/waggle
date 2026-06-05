@@ -48,8 +48,8 @@ From Title + Description, determine the domain:
 
 ### 2. Generate AC Using the Appropriate Domain Template
 
-- Select the matching template from the reference framework
 - If your available skills list contains domain-knowledge or operational skills relevant to the task domain, invoke them via the Skill tool before drafting, and ground AC/EP in what they prescribe
+- Select the matching template from the reference framework (adjust the selection if an invoked skill prescribes a different structure)
 - Each criterion must describe an **observable deliverable** or **measurable outcome**
 - Good: `"Presentation deck created with agenda, status update, and next steps"`, `"Report shared with team via Notion"`, `"Campaign KPI targets defined and documented"`
 - Bad: `"done"`, `"looks good"`, `"completed"`
