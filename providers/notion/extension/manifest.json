@@ -1,8 +1,8 @@
 {
   "manifest_version": "0.3",
   "name": "notion-extension",
-  "version": "1.0.0",
-  "description": "Notion database querying with people property filters and relation property updates. Designed for Waggle plugin.",
+  "version": "1.1.0",
+  "description": "Notion database querying with people property filters, relation property updates, and page-body image upload/read. Designed for Waggle plugin.",
   "author": {
     "name": "Kazuki Nagata"
   },
@@ -25,18 +25,26 @@
     {
       "name": "notion-update-relation",
       "description": "Update a relation property on a Notion page. Supports replace (set exact list) and append (merge with existing, dedup) modes."
+    },
+    {
+      "name": "notion-upload-image",
+      "description": "Append an image block to a Notion page body from a local file (Notion File Upload API, max 20MB) or an external URL. Requires the integration's 'Insert content' capability."
+    },
+    {
+      "name": "notion-read-images",
+      "description": "Read images from a Notion page body and return them as inline image content the model can see, with a JSON summary mapping block IDs to images."
     }
   ],
   "user_config": {
     "notion_token": {
       "type": "string",
       "title": "Notion Internal Integration Token",
-      "description": "Your Notion internal integration token (ntn_...). Create one at https://www.notion.so/profile/integrations with Read content permission, then connect it to your Waggle page.",
+      "description": "Your Notion internal integration token (ntn_...). Create one at https://www.notion.so/profile/integrations with Read content, Update content, and Insert content capabilities, then connect it to your Waggle page.",
       "sensitive": true,
       "required": true
     }
   },
-  "keywords": ["notion", "query", "relation", "waggle", "database", "filter"],
+  "keywords": ["notion", "query", "relation", "waggle", "database", "filter", "image", "upload"],
   "license": "MIT",
   "compatibility": {
     "platforms": ["darwin", "win32", "linux"]
