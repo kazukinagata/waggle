@@ -4,6 +4,16 @@ All notable changes to the Waggle project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## Give planning and reviewer agents the Skill tool — 2026-06-05
+
+The planning agents drafted AC / Execution Plans from generic knowledge only. Org-distributed knowledge and operational skills (installed plugins) were invisible to them: a restricted `tools:` list excludes the `Skill` tool, and excluding the `Skill` tool also removes the available-skills listing from the agent's system prompt (verified empirically — an agent with `tools: Read, Bash, Grep, Glob` reports no Skill tool and no skills list, while an all-tools agent sees both). Adding `Skill` gives the agents the catalog *and* the ability to load a skill properly, so AC/EP can be grounded in domain procedures instead of re-derived from scratch.
+
+- **`waggle` 2.9.0** (MINOR — agent capability extension; no skill or provider changes):
+  - `agents/code-planning-agent.md`, `agents/knowledge-planning-agent.md`, `agents/task-quality-reviewer-agent.md`: `tools` now include `Skill`.
+  - Planning agents gain one design-step instruction: if the available skills list contains domain-knowledge or operational skills relevant to the task, invoke them via the Skill tool before drafting, and ground AC/EP in what they prescribe.
+  - Reviewer gains a bounded allowance: may invoke at most one read-only knowledge skill to ground its judgment (`maxTurns: 4` is unchanged and remains the hard cap).
+  - **Generic by design.** Waggle names no specific skills or plugins; which skills exist is an installation concern. Org-specific nudging (e.g. "use these plugins for this domain") belongs in org extension plugins — e.g. a `SubagentStart` hook that injects `additionalContext` for these agent types.
+
 ## Page-body image upload & read support (Notion provider) — 2026-06-05
 
 The Notion provider previously handled only database properties — there was no way to paste an image into a task page body, or to make images pasted there (mockups, screenshots a human added as context) visible to the agent. Both directions now exist on both access paths (Desktop Extension MCP tools and CLI bash scripts).

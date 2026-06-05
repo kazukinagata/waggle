@@ -4,7 +4,7 @@ description: >
   Generates Acceptance Criteria and Execution Plans for code/technical tasks
   by exploring the codebase. Returns structured text to the caller.
 permissionMode: plan
-tools: Read, Bash, Grep, Glob
+tools: Read, Bash, Grep, Glob, Skill
 maxTurns: 20
 ---
 
@@ -55,6 +55,7 @@ Systematically explore the codebase at Working Directory:
 - Consider trade-offs and architectural decisions
 - Follow existing patterns where appropriate
 - Note any risks or edge cases discovered during exploration
+- If your available skills list contains domain-knowledge or operational skills relevant to the task, invoke them via the Skill tool before finalizing the approach, and ground your AC and Execution Plan in what they prescribe
 
 ### 4. Generate Acceptance Criteria
 
