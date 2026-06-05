@@ -197,7 +197,7 @@ For faster task queries with server-side filtering (by assignee, status, etc.), 
 2. Click **New integration**
 3. Name: `Waggle CLI`
 4. Select the workspace that contains your Waggle databases
-5. Capabilities: **Read content** (minimum required)
+5. Capabilities: **Read content** (minimum required). Also enable **Update content** (relation updates) and **Insert content** (page-body image upload) to use the full feature set — without Insert content, image uploads fail with `403 restricted_resource`.
 6. Click **Submit** and copy the **Internal Integration Secret** (`ntn_...`)
 
 Then connect the integration to your databases:

@@ -263,6 +263,70 @@ Returns a minimal confirmation echo: `{ok, page_id, property_name, mode, relatio
 
 Use the relation update path for **any** relation field update. For non-relation fields, continue using `notion-update-page`. A single task update that changes both relation and non-relation fields requires two calls.
 
+## Page Body Images
+
+Two operations on images in a task page **body** (blocks, not database properties): **upload** (append an image block — e.g. an agent attaching a screenshot to a task) and **read** (make images pasted in the body visible to the agent — e.g. a mockup a human pasted as task context).
+
+### Image Path Detection
+
+The available path depends on `execution_environment` because `NOTION_TOKEN` is exposed to the shell only in CLI; in Claude Desktop / Cowork the token is injected directly into MCP tool invocations and cannot drive a bash script.
+
+**CLI (`execution_environment = "cli"`):**
+1. `NOTION_TOKEN` env var available in shell (check: `[ -n "$NOTION_TOKEN" ] && echo "SET" || echo "NOT SET"`) → Path 1 (bash scripts)
+2. Otherwise → warn the user (no fallback)
+
+**Claude Desktop / Cowork (`execution_environment = "claude-desktop"` or `"cowork"`):**
+1. `mcp__notion-extension__notion-upload-image` / `mcp__notion-extension__notion-read-images` tools available → Path 2 (Desktop Extension)
+2. Otherwise → warn the user (no fallback)
+
+If no path is available, warn the user. The warning depends on environment:
+
+- **CLI**: "Page-body image operations require `NOTION_TOKEN` to be available in your shell environment. Set it in `~/.claude/settings.json` env block, or export it in your shell profile."
+- **Claude Desktop / Cowork**: "Page-body image operations require the `notion-extension` Desktop Extension v1.1.0 or later. Install or upgrade it via the plugin setup." (The tools were added in v1.1.0 — their absence on an otherwise-working install means an older extension version.)
+
+### Path 1: Bash Scripts (CLI, requires NOTION_TOKEN)
+
+**Upload** — append an image to a page body from a local file or an external URL:
+
+```bash
+bash ${CLAUDE_SKILL_DIR}/scripts/upload-image.sh <page_id> </path/to/image.png> ["caption"]
+bash ${CLAUDE_SKILL_DIR}/scripts/upload-image.sh <page_id> --url <https://example.com/image.png> ["caption"]
+```
+
+Prints `{ok, page_id, block_id, image_type}` on success.
+
+**Download** — save all page-body images to local files:
+
+```bash
+bash ${CLAUDE_SKILL_DIR}/scripts/download-images.sh <page_id> [output_dir]
+```
+
+Prints a JSON manifest `{images: [{block_id, path, mime_type, source_type, caption}]}` (default `output_dir`: `${TMPDIR:-/tmp}/notion-images/<page_id>`). View the images by reading the saved files with the Read tool.
+
+### Path 2: Desktop Extension (Claude Desktop / Cowork, extension v1.1.0+)
+
+**Upload** — call `mcp__notion-extension__notion-upload-image` with:
+- `page_id`: the Notion page UUID
+- exactly one of `file_path` (local image file, max 20MB) or `external_url` (public image URL)
+- `caption`: optional caption text
+
+Returns `{ok, page_id, block_id, image_type}`.
+
+**Read** — call `mcp__notion-extension__notion-read-images` with:
+- `page_id`: the Notion page UUID
+- `max_images`: optional cap on inline images (default 10)
+- `block_ids`: optional filter to specific image blocks
+- `include_nested`: recurse into toggles/columns/callouts (default true, depth 3)
+
+The result is a text part with a JSON summary (`{count, total_found, images, skipped}`; `images[i].index` maps to the i-th image part) followed by the images as inline image content — they are directly visible, no file handling needed.
+
+### Caveats
+
+- **Upload requires the integration's "Insert content" capability.** A `403 restricted_resource` on upload means the capability is missing — enable it at https://www.notion.so/profile/integrations (integration → Capabilities → Insert content), then retry. Read paths work without it.
+- Local-file uploads are capped at 20MB (Notion single-part upload); Notion free workspaces enforce a lower per-file cap and return their own error.
+- `file`-type image URLs returned by the Notion API are signed and expire after ~1 hour. Both paths download immediately, so callers never handle raw URLs; do not cache or re-share URLs from raw block fetches.
+- The read tool skips images over 5MB and non-raster types (svg, tiff, heic) — they appear in `skipped` with a reason instead of as inline content.
+
 ## Delete Operation
 
 Notion does not support hard delete via the API. To delete a task, archive the page:
