@@ -146,4 +146,4 @@ The response is a mixed content array: first a text part with a JSON summary, th
 }
 ```
 
-Images over 5MB and non-raster types (svg, tiff, heic) are listed in `skipped` instead of returned inline.
+Images over 5MB, non-raster types (svg, tiff, heic), and requested `block_ids` that match no image block are listed in `skipped` (with a reason) instead of returned inline. `total_found` always counts every image discovered on the page before filtering.

@@ -6,6 +6,7 @@ import {
   MAX_UPLOAD_BYTES,
   READABLE_MIME_TYPES,
   collectImageBlocks,
+  filterByBlockIds,
   mimeFromFilename,
   normalizeId,
   validateUploadInput,
@@ -95,6 +96,20 @@ check(
   "image with missing url -> url undefined, still listed",
   collectImageBlocks([{ id: "x", type: "image", image: { type: "file" } }]).images[0].url === undefined
 );
+
+console.log("== filterByBlockIds ==");
+const pool = [
+  { block_id: "32e23a46-1f6c-8192-b603-fbd32bf35c8e" },
+  { block_id: "aaaa1111-2222-3333-4444-555566667777" },
+];
+const f1 = filterByBlockIds(pool, ["32E23A461F6C8192B603FBD32BF35C8E"]);
+check("dash-insensitive match", f1.selected.length === 1 && f1.selected[0].block_id === pool[0].block_id);
+check("matched id not reported missing", f1.missing.length === 0);
+const f2 = filterByBlockIds(pool, ["aaaa1111-2222-3333-4444-555566667777", "dead-beef"]);
+check("partial match selects only existing", f2.selected.length === 1);
+check("unmatched id reported as given", f2.missing.length === 1 && f2.missing[0] === "dead-beef");
+const f3 = filterByBlockIds([], ["x"]);
+check("empty pool -> all missing", f3.selected.length === 0 && f3.missing.length === 1);
 
 console.log("== constants ==");
 check("readable: png/jpeg/gif/webp", ["image/png", "image/jpeg", "image/gif", "image/webp"].every((m) => READABLE_MIME_TYPES.has(m)));

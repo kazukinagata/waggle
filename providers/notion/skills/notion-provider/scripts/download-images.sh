@@ -17,6 +17,8 @@
 #   block to <output_dir>/<block_id>.<ext>, and prints a JSON manifest.
 #   Notion "file"-type image URLs are signed and expire after ~1 hour, so
 #   images are downloaded immediately rather than returning URLs.
+#   Images over 5MB are skipped with a warning (mirrors the extension's
+#   notion-read-images limit — the model cannot view larger images anyway).
 #
 # Output:
 #   JSON: {"images": [{"block_id", "path", "mime_type", "source_type", "caption"}, ...]}
@@ -45,6 +47,7 @@ fi
 API_VERSION="2022-06-28"
 MAX_RETRIES=3
 MAX_DEPTH=3
+MAX_FILE_BYTES=$((5 * 1024 * 1024))
 
 notion_api() {
   local method="$1" url="$2"
@@ -154,13 +157,21 @@ while IFS= read -r entry; do
     continue
   fi
 
-  # Signed S3 / external URLs take no Notion auth header.
+  # Signed S3 / external URLs take no Notion auth header. --max-filesize
+  # aborts oversized transfers when the server announces a length; the stat
+  # check below covers chunked responses where it cannot.
   tmp_file="${OUTPUT_DIR}/.download.tmp"
-  content_type=$(curl -sL -o "$tmp_file" -w '%{content_type}' "$image_url") || {
-    echo "Warning: download failed for block ${block_id}; skipping." >&2
+  content_type=$(curl -sL --max-filesize "$MAX_FILE_BYTES" -o "$tmp_file" -w '%{content_type}' "$image_url") || {
+    echo "Warning: download failed or exceeded ${MAX_FILE_BYTES} bytes for block ${block_id}; skipping." >&2
     rm -f "$tmp_file"
     continue
   }
+  file_size=$(stat -c%s "$tmp_file" 2>/dev/null || stat -f%z "$tmp_file")
+  if [ "$file_size" -gt "$MAX_FILE_BYTES" ]; then
+    echo "Warning: block ${block_id} is ${file_size} bytes (cap ${MAX_FILE_BYTES}); skipping." >&2
+    rm -f "$tmp_file"
+    continue
+  fi
   mime_type="${content_type%%;*}"
 
   ext=$(ext_from_mime "$mime_type")

@@ -161,8 +161,15 @@ else
   # (multipart), then attach within 1 hour as an image block.
   create_body=$(jq -n --arg fn "$FILENAME" '{mode: "single_part", filename: $fn}')
   upload_json=$(notion_api POST "https://api.notion.com/v1/file_uploads" "$create_body")
-  UPLOAD_ID=$(echo "$upload_json" | jq -r '.id')
-  UPLOAD_URL=$(echo "$upload_json" | jq -r '.upload_url')
+  # `// empty` so a missing field yields "" rather than the string "null"
+  # (which would surface later as a misleading curl host-resolution error).
+  UPLOAD_ID=$(echo "$upload_json" | jq -r '.id // empty')
+  UPLOAD_URL=$(echo "$upload_json" | jq -r '.upload_url // empty')
+  if [ -z "$UPLOAD_ID" ] || [ -z "$UPLOAD_URL" ]; then
+    echo "Error: unexpected create-upload response (missing id/upload_url):" >&2
+    echo "$upload_json" >&2
+    exit 2
+  fi
 
   notion_api POST "$UPLOAD_URL" "" "$FILE_PATH" "$MIME_TYPE" > /dev/null
 

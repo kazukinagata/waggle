@@ -14,8 +14,8 @@ import {
   MAX_UPLOAD_BYTES,
   READABLE_MIME_TYPES,
   collectImageBlocks,
+  filterByBlockIds,
   mimeFromFilename,
-  normalizeId,
   validateUploadInput,
 } from "./helpers.js";
 
@@ -152,7 +152,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
     {
       name: "notion-read-images",
       description:
-        "Read images from a Notion page body and return them as inline image content the model can see, preceded by a text part with a JSON summary ({count, total_found, images:[{index, block_id, mime_type, size_bytes, caption, source_type}], skipped}) whose images array is in the same order as the image parts. Recurses into nested blocks (toggles, columns, callouts; depth 3) but never into child pages/databases. Images over 5MB and non-raster types (svg, tiff, heic) are listed in skipped instead of returned.",
+        "Read images from a Notion page body and return them as inline image content the model can see, preceded by a text part with a JSON summary ({count, total_found, images:[{index, block_id, mime_type, size_bytes, caption, source_type}], skipped}) whose images array is in the same order as the image parts. total_found counts all images discovered on the page before any filtering. Recurses into nested blocks (toggles, columns, callouts; depth 3) but never into child pages/databases. Images over 5MB, non-raster types (svg, tiff, heic), and requested block_ids that match no image are listed in skipped with a reason instead of returned.",
       inputSchema: {
         type: "object",
         properties: {
@@ -276,12 +276,30 @@ async function handleUpdateRelation(args) {
   };
 }
 
+// A hung connection must not block the MCP server indefinitely — every raw
+// fetch (Notion REST + image downloads) gets a hard timeout.
+const FETCH_TIMEOUT_MS = 30_000;
+
+async function fetchWithTimeout(url, options = {}) {
+  try {
+    return await fetch(url, {
+      ...options,
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+    });
+  } catch (error) {
+    if (error?.name === "TimeoutError" || error?.name === "AbortError") {
+      throw new Error(`Request timed out after ${FETCH_TIMEOUT_MS}ms: ${url}`);
+    }
+    throw error;
+  }
+}
+
 // Direct REST call for endpoints the pinned @notionhq/client predates
 // (File Upload API). Body may be a plain object (JSON) or FormData
 // (multipart — fetch sets the boundary Content-Type itself).
 async function notionApi(method, path, body) {
   const isForm = body instanceof FormData;
-  const response = await fetch(`https://api.notion.com${path}`, {
+  const response = await fetchWithTimeout(`https://api.notion.com${path}`, {
     method,
     headers: {
       Authorization: `Bearer ${NOTION_TOKEN}`,
@@ -405,8 +423,15 @@ async function handleReadImages(args) {
   const skipped = [];
   let selected = found;
   if (block_ids?.length) {
-    const wanted = new Set(block_ids.map(normalizeId));
-    selected = found.filter((img) => wanted.has(normalizeId(img.block_id)));
+    const filtered = filterByBlockIds(found, block_ids);
+    selected = filtered.selected;
+    for (const missingId of filtered.missing) {
+      skipped.push({
+        block_id: missingId,
+        reason:
+          "no image block with this ID found on the page (or it sits below the recursion depth)",
+      });
+    }
   }
   if (selected.length > max_images) {
     for (const img of selected.slice(max_images)) {
@@ -427,7 +452,16 @@ async function handleReadImages(args) {
     }
     // file-type URLs are pre-signed S3 links (valid ~1h); external URLs are
     // plain public links. Neither takes the Notion auth header.
-    const response = await fetch(img.url);
+    let response;
+    try {
+      response = await fetchWithTimeout(img.url);
+    } catch (error) {
+      skipped.push({
+        block_id: img.block_id,
+        reason: `download failed: ${error?.message ?? error}`,
+      });
+      continue;
+    }
     if (!response.ok) {
       skipped.push({
         block_id: img.block_id,

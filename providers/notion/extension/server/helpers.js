@@ -56,6 +56,23 @@ export function normalizeId(id) {
   return (id || "").replace(/-/g, "").toLowerCase();
 }
 
+// Apply a caller-supplied block_ids filter to collected images. Returns the
+// matching images plus the requested IDs (as given by the caller) that matched
+// nothing — so the response can report them instead of silently returning a
+// smaller set.
+export function filterByBlockIds(images, blockIds) {
+  const wanted = new Map(blockIds.map((id) => [normalizeId(id), id]));
+  const selected = (images || []).filter((img) => {
+    const key = normalizeId(img.block_id);
+    if (wanted.has(key)) {
+      wanted.delete(key);
+      return true;
+    }
+    return false;
+  });
+  return { selected, missing: [...wanted.values()] };
+}
+
 // Split one page of block-children results into image entries and container
 // block IDs to recurse into. child_page / child_database are never descended
 // into — images inside subpages belong to those pages, not this body.

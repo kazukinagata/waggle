@@ -325,7 +325,7 @@ The result is a text part with a JSON summary (`{count, total_found, images, ski
 - **Upload requires the integration's "Insert content" capability.** A `403 restricted_resource` on upload means the capability is missing — enable it at https://www.notion.so/profile/integrations (integration → Capabilities → Insert content), then retry. Read paths work without it.
 - Local-file uploads are capped at 20MB (Notion single-part upload); Notion free workspaces enforce a lower per-file cap and return their own error.
 - `file`-type image URLs returned by the Notion API are signed and expire after ~1 hour. Both paths download immediately, so callers never handle raw URLs; do not cache or re-share URLs from raw block fetches.
-- The read tool skips images over 5MB and non-raster types (svg, tiff, heic) — they appear in `skipped` with a reason instead of as inline content.
+- Both read paths skip images over 5MB (the model cannot view larger images): the extension tool reports them in `skipped`, the bash script warns on stderr. The extension tool additionally skips non-raster types (svg, tiff, heic) and reports requested `block_ids` that match no image — all in `skipped` with a reason.
 
 ## Delete Operation
 
