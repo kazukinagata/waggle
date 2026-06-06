@@ -14,6 +14,10 @@ It enforces required fields as hard-block errors and recommends optional fields 
 
 In v2.8.0 it also hosts the **Quality Rubric (Layer 1)** — a deterministic AC/EP content check applied at Ready transitions. See `references/quality-rubric.md` for the full rule set. The script itself remains LLM-free; Rubric evaluation is regex/length heuristics only.
 
+**Silent operation:** This skill runs as an internal step of an invoking skill. Return
+results to the invoking flow without user-facing narration — the caller owns all user
+communication. Only errors, warnings, and prompts required to proceed may surface directly.
+
 ## How to Invoke This Skill
 
 Other skills invoke this one via natural language — e.g., "Invoke the `validating-fields` skill to validate the task fields for target status Ready". When the agent receives that instruction, it loads this SKILL.md and follows the steps below.

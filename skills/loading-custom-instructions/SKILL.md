@@ -15,6 +15,10 @@ Shared loader that makes user-supplied custom instructions available to any
 task-creation / intake / planning flow without each skill re-implementing the
 environment branch.
 
+**Silent operation:** This skill runs as an internal step of an invoking skill. Return
+results to the invoking flow without user-facing narration — the caller owns all user
+communication. Only errors, warnings, and prompts required to proceed may surface directly.
+
 ## Contract
 
 **Input**: an instruction `key` (kebab-case; e.g. `task-creation`, `intake`).

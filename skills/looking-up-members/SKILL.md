@@ -9,6 +9,10 @@ user-invocable: false
 Resolve a member name or email to a provider user ID.
 Uses the `org_members` cache populated by `resolving-identity`.
 
+**Silent operation:** This skill runs as an internal step of an invoking skill. Return
+results to the invoking flow without user-facing narration — the caller owns all user
+communication. Only errors, warnings, and prompts required to proceed may surface directly.
+
 ## Prerequisites
 
 - `active_provider` must already be determined.

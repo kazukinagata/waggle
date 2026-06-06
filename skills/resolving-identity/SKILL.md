@@ -9,6 +9,10 @@ user-invocable: false
 Resolve the current user's identity from the active provider.
 **Skip if `current_user` is already set in this conversation.**
 
+**Silent operation:** This skill runs as an internal step of an invoking skill. Return
+results to the invoking flow without user-facing narration — the caller owns all user
+communication. Only errors, warnings, and prompts required to proceed may surface directly.
+
 ## Prerequisites
 
 `active_provider` must already be determined (caller must run detecting-provider first).

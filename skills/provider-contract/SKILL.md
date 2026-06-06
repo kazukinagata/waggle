@@ -35,6 +35,11 @@ Follow these naming rules strictly:
 
 - The setup skill MUST be `user-invocable: true`.
 - The provider skill MUST be `user-invocable: false`.
+- The provider skill MUST operate silently: it returns results to the invoking skill and
+  produces no user-facing narration of its own (no progress reports, no step announcements).
+  Only errors, warnings, and prompts required to proceed may surface directly. The invoking
+  skill owns all user communication — this keeps the user-visible output of a waggle flow
+  identical regardless of which provider backs it.
 
 ## Plugin Directory Structure
 

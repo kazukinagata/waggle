@@ -119,6 +119,7 @@ user-invocable: true|false
 - For self-references within a skill, use `${CLAUDE_SKILL_DIR}` (the official Claude Code runtime variable for the current skill's directory) — not hardcoded `${CLAUDE_PLUGIN_ROOT}/skills/<self>/...` paths.
 - Provider-specific logic belongs in `skills/providers/{name}/`
 - The `CLAUDE_PLUGIN_ROOT` variable points to the plugin root at runtime; `${CLAUDE_SKILL_DIR}` points to the current skill's own directory
+- **Output discipline**: skills run as multi-step pipelines, but the user only needs outcomes — without an explicit directive the agent narrates every step transition and relays protocol internals (provider detection, schema checks, cache state). Every user-invocable workflow skill carries an `## Output Discipline` section (limiting user-facing text to prompts, errors/warnings, outcome-changing intermediate results, and the final summary); every shared (`user-invocable: false`) skill carries a `**Silent operation:**` line. New skills must include the matching block. Pure specification skills (`waggle-protocol`, `provider-contract`) are exempt — they are documents, not pipelines.
 
 ## Semantic Versioning
 

@@ -14,6 +14,23 @@ user-invocable: true
 
 Diagnoses common issues and guides the user through resolution.
 
+## Output Discipline
+
+This skill runs as a multi-step pipeline, but the user only needs its outcomes. Do not
+narrate step transitions ("Now I'll...", "X done, next Y") and do not relay protocol
+internals — provider detection, config/schema checks, cache state, validation plumbing,
+view-server pushes. Surfacing them buries what actually matters.
+
+Emit user-facing text only when it changes something for the user:
+
+- a prompt or confirmation that needs their input
+- an error or a warning
+- an intermediate result that changes the recommended resolution path
+- the final result summary
+
+Diagnostic findings (provider, schema, config state) are this skill's outcome — report
+them in the diagnosis, not as step-by-step narration while checking.
+
 ## Step 1: Session Bootstrap
 
 Invoke the `bootstrap-session` skill to establish the active provider and current user.

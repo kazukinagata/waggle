@@ -9,6 +9,10 @@ user-invocable: false
 This file contains all Notion-specific implementation details for waggle.
 Load this file when the active provider is **notion**.
 
+**Silent operation:** This skill runs as an internal step of an invoking skill. Return
+results to the invoking flow without user-facing narration — the caller owns all user
+communication. Only errors, warnings, and prompts required to proceed may surface directly.
+
 ## Config Retrieval
 
 When `detecting-provider` requests config retrieval for the Notion provider, follow these steps to populate `headless_config`:
