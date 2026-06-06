@@ -19,7 +19,7 @@ Before creating each task:
 | Title | `From @{sender}: {message summary (50 chars max)}` |
 | Description | Build the description in order: (1) If `thread_context` is available, include thread context followed by a `---` separator. (2) Include the full original message text. (3) If `attachment_info` is available and has images, include an `[Attachments]` section (see "Attachment Info in Descriptions" below). (4) Append `Source: {tool_name} DM from @{sender} at {datetime}` at the end. Steps 3 and 4 apply regardless of whether thread context is present. |
 | Tags | Default `["ingesting-messages"]`. If `custom_task_creation_instructions` is non-null and defines tag rules (project-specific naming, required tags, category mapping, etc.), apply them on top of or in place of the default according to what the instructions say. If the user's custom rules add tags, keep `"ingesting-messages"` as well unless the rules explicitly tell you to drop it. |
-| Context | `Received via {tool_name} on {date}` |
+| Context | `Received via {tool_name} on {date}`. When the in-memory verdict for this draft is non-PASS (whether from Phase A.5 or a subsequent Re-review), append the findings block returned by `reviewing-quality` after this line (the block carries its own delimiters; see the Ready+ rule below). |
 
 > **Note (v2.8.1+):** Issuer is intentionally not in this table. The active provider auto-populates Issuer on create (Notion: `created_by` column type; SQLite/Turso: `${current_user.id}` substituted into the Create Task INSERT template). Including Issuer in the create payload is wrong for Notion (the API rejects writes to `created_by`) and redundant for SQLite/Turso. See `skills/waggle-protocol/SKILL.md` § Issuer Auto-Populate Contract.
 
@@ -88,6 +88,8 @@ Source: slack DM from @alice at 2026-04-10 09:15
 ## Category-Specific Fields
 
 > **Ready+ creates require a verdict (v2.8.x+).** Any task created at a Ready+ status (`Ready` / `In Progress` / `In Review` / `Done`) **must carry a valid `Quality Verdict` in the same `notion-create-pages` payload** — set it to the `verdict_string` returned by the `reviewing-quality` skill (live mode) for that task's draft fields. A direct create that sets a Ready+ status without a valid verdict is rejected before it reaches the provider. If a verdict cannot be produced for a given task (e.g. the draft was edited after review and not re-reviewed, or a worthiness item is being created as a task without review), **create it at `Status: Backlog` instead** — it will receive a verdict at its next Ready transition (via `planning-tasks`, `managing-tasks`, or `running-daily-tasks` Step 2.6). Tasks created at `Backlog` / `Blocked` are below the gate and need no verdict.
+>
+> **Non-PASS creates also carry the findings block (v2.12.0+).** When the in-memory verdict for a draft is `NEEDS_REFINEMENT` or `REJECT` (a user-accepted non-PASS create, at any status), append the findings block returned by `reviewing-quality` to the task's `Context` field **in the same create payload** — this is the deferred-write counterpart of the block `reviewing-quality` writes itself for existing tasks, and it is what lets a later session see *what* to fix, not just that the spec fell short. Never carry a block whose hash does not match the `verdict_string` being written (stale findings from a pre-edit draft).
 
 ### Category A (Hearing Needed)
 

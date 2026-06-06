@@ -53,7 +53,6 @@ When `live` mode is invoked for a task that has not been created yet (`managing-
 
 - Return the `verdict_string` **and** the rendered findings block (see `references/cache-format.md` § Findings Block Format) to the caller, which holds both in memory and includes them in the eventual create payload (`Quality Verdict` property + `Context` field respectively).
 - During a creation-time refine loop (the caller re-plans and re-invokes `live` on revised content), the caller passes the previous round's `verdict_string` and failing axes back as a **`prior_verdict` hint** in the invocation (natural language is fine: "the previous verdict for this draft was `<verdict_string>` with failing axes `<axes>`"). Step 5 uses this hint as the "existing cached verdict" whenever the provider has no record (task not yet created) — same-axis failure counting, and the resulting 7-day suppression, work identically to the persisted path. Without the hint, suppression cannot fire at creation time.
-- Note: `ingesting-messages` currently ignores the returned findings block (its create payloads carry only the `verdict_string`); carrying the block into its deferred creates is a planned follow-up. Implementors should not infer otherwise from this section.
 
 ## Pipeline
 

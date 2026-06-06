@@ -4,6 +4,16 @@ All notable changes to the Waggle project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## Findings block carried into ingesting-messages deferred creates — 2026-06-06
+
+Follow-up to v2.11.0 (its explicitly deferred item). `ingesting-messages` Phase A.5 runs the quality review before the task exists, so `reviewing-quality` returns the verdict and findings block to the caller instead of writing them (deferred-write contract). v2.11.0 updated the contract but not `ingesting-messages` itself — the returned findings block was ignored, so DM-sourced tasks accepted with a `NEEDS_REFINEMENT` / `REJECT` verdict carried only the one-line verdict: a later `/planning-tasks` run or Ready-transition gate fell back to verdict-only display with no record of *what* to fix.
+
+- **`waggle` 2.11.0 → 2.12.0** (MINOR — behavior change in `ingesting-messages`; no schema change):
+  - Phase A.5 holds the returned findings block in memory alongside the verdict; on non-PASS creates (any status) Step 3 appends it to the task's `Context` in the same create payload, mirroring what `reviewing-quality` writes itself for existing tasks.
+  - `task-creation-templates.md` Common Fields and the Ready+ rule document the carry: never attach a block whose hash does not match the `verdict_string` being written.
+  - Phase B edit invalidation now covers the block: editing a draft discards verdict + block together; Re-review carries the freshly returned block, Defer omits both.
+  - `reviewing-quality` drops the "ingesting-messages currently ignores the returned findings block" interim note — the contract now holds for all creation-time callers.
+
 ## Creation-time quality gate + findings persistence — 2026-06-06
 
 In a planning-assisted `managing-tasks` creation (user asks the planning agent to draft AC/EP), a `NEEDS_REFINEMENT` Reviewer verdict led to the task being silently created at Backlog — no user choice — and the Reviewer's gaps and suggested fixes survived only in chat (only the one-line `Quality Verdict` string was persisted). Two root causes: the task-creation flow had no instruction for branching on a creation-time verdict (the equivalent gate already existed in `planning-tasks` Step 5 and `ingesting-messages` Phase B), and no skill persisted the findings anywhere — which also made `schema-and-transitions.md`'s "present the cached gaps + suggested fixes" instruction unfulfillable on the cache-only pre-Ready path. A further mismatch: the Reviewer's gaps are usually requester-side information (who approves, what the brief is), so the existing "re-spawn the planning agent with the fixes attached" refinement could never resolve them without asking the user.
