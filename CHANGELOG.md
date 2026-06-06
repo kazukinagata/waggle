@@ -15,7 +15,8 @@ In a planning-assisted `managing-tasks` creation (user asks the planning agent t
   - `managing-tasks` pre-Ready quality gate documents where the cached gaps/fixes actually come from (the persisted block) and the fallback when they are absent or stale.
   - `waggle-protocol` Quality Spec gains a "Findings Persistence" section; the `Context` extended-field description notes the managed block; `managing-tasks` planning-assisted creation joins the allowed live-Reviewer call sites.
 - Providers unchanged — the block lives inside the existing `Context` column.
-- Out of scope (follow-up): carrying the findings block into `ingesting-messages` deferred create payloads.
+- `CLAUDE.md` documents that plugin-level subagents under `agents/` are a stable public interface (not skill internals) — multiple skills already spawn them by name; renaming one is a breaking interface change.
+- Out of scope (follow-up): carrying the findings block into `ingesting-messages` deferred create payloads (`reviewing-quality` documents that the returned block is currently ignored there).
 
 ## Output discipline — suppress step-by-step narration — 2026-06-06
 

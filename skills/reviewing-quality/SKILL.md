@@ -52,7 +52,8 @@ The invoking skill describes the task and the mode in natural language; this ski
 When `live` mode is invoked for a task that has not been created yet (`managing-tasks` planning-assisted creation, `ingesting-messages` Phase A.5), Steps 6's provider writes are impossible. Instead:
 
 - Return the `verdict_string` **and** the rendered findings block (see `references/cache-format.md` § Findings Block Format) to the caller, which holds both in memory and includes them in the eventual create payload (`Quality Verdict` property + `Context` field respectively).
-- During a creation-time refine loop (the caller re-plans and re-invokes `live` on revised content), the previous **in-memory** verdict serves as the "existing cached verdict" for the Step 5 suppression check — same-axis failure counting works identically to the persisted path.
+- During a creation-time refine loop (the caller re-plans and re-invokes `live` on revised content), the caller passes the previous round's `verdict_string` and failing axes back as a **`prior_verdict` hint** in the invocation (natural language is fine: "the previous verdict for this draft was `<verdict_string>` with failing axes `<axes>`"). Step 5 uses this hint as the "existing cached verdict" whenever the provider has no record (task not yet created) — same-axis failure counting, and the resulting 7-day suppression, work identically to the persisted path. Without the hint, suppression cannot fire at creation time.
+- Note: `ingesting-messages` currently ignores the returned findings block (its create payloads carry only the `verdict_string`); carrying the block into its deferred creates is a planned follow-up. Implementors should not infer otherwise from this section.
 
 ## Pipeline
 
@@ -109,6 +110,8 @@ Treat `INSUFFICIENT_CONTEXT` as `NEEDS_REFINEMENT` for cache/return purposes; su
 ### Step 5 — Suppression
 
 Before writing the cache entry, check the existing cached verdict. If the previous verdict was also `NEEDS_REFINEMENT` or `REJECT` AND its failing axes overlap with the new failing axes by ≥1 axis, set `suppressed-until` = now + 7 days. This stops the grinding loop on inherently vague tasks.
+
+When the provider has no record (creation-time caller, task not yet created), use the `prior_verdict` hint supplied by the caller as the existing cached verdict — see "Deferred-write contract" above. No hint + no record = first review, no suppression.
 
 ### Step 6 — Cache write
 

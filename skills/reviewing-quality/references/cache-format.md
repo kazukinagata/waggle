@@ -107,4 +107,4 @@ Delimiter lines are exact-match anchors:
 ^--- End Quality Review Findings ---$
 ```
 
-If the opening delimiter is present but the closing one is missing or the body is malformed, treat the block as stale (ignore contents) but still replace the whole region from the opening delimiter to end-of-field on the next write, so a corrupted block cannot accumulate.
+If the opening delimiter is present but the closing one is missing or the body is malformed, treat the block as stale (ignore contents). On the next write, bound the replaced region conservatively so user-authored text is never consumed: replace from the opening delimiter through the last consecutive line that parses as block content (the `Gaps:` / `Suggested fixes:` headers and their `- ` bullets), or through the closing delimiter when present — never blindly to end-of-field. Any trailing lines that do not parse as block content (e.g. user notes appended after an unterminated block) are preserved after the new block; surface a one-line warning to the caller when such trailing content was found inside an unterminated region.

@@ -212,10 +212,10 @@ When the user requests agent-drafted AC / Execution Plan during creation, the dr
 
 1. Derive one concrete question per requester-side gap (e.g. "Who approves the In Review step, and via what channel?") and ask the user via AskUserQuestion. Gaps an agent can resolve alone (internal inconsistencies the Reviewer already named a fix for) need no question — carry the fix forward directly.
 2. Re-spawn the planning agent with the user's answers and the Reviewer's suggested fixes attached as additional context.
-3. Re-invoke `reviewing-quality` in `live` mode on the revised draft (the previous in-memory verdict feeds its suppression check).
+3. Re-invoke `reviewing-quality` in `live` mode on the revised draft, passing the previous round's `verdict_string` and failing axes as the `prior_verdict` hint — the task does not exist yet, so this hint is the only way its suppression check can count consecutive same-axis failures.
 4. Branch again as in step 3 above. The loop ends when:
    - the verdict is **PASS** (create at Ready), or
-   - the user picks **`[Create at Backlog as-is]`** (create at Backlog with the latest verdict + findings block), or
-   - **suppression triggers** (two consecutive failures on the same axis) — create at Backlog with the suppressed verdict + findings block and tell the user re-review is frozen for 7 days unless they substantively rewrite the spec.
+   - the user picks **`[Create at Backlog as-is]`** (create at Backlog with the latest verdict + findings block; for `REJECT`, apply the `[NEEDS-REFINE]` prefix to AC and EP as in step 3), or
+   - **suppression triggers** (two consecutive failures on the same axis) — create at Backlog with the suppressed verdict + findings block (same `[NEEDS-REFINE]` rule for `REJECT`) and tell the user re-review is frozen for 7 days unless they substantively rewrite the spec.
 
 Each round costs one planning-agent and one Reviewer call but is gated on the user's explicit choice to continue, so the loop cannot run away on its own.
