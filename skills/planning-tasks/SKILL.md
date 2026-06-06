@@ -94,8 +94,12 @@ If the task title starts with `[Hearing]`:
 
 5. **Quality gate (v2.8.0+)**: After the user accepts the AC/EP, invoke the `reviewing-quality` skill in `live` mode for the updated task. It returns a verdict (`PASS` / `NEEDS_REFINEMENT` / `REJECT`) plus per-axis findings and concrete suggested fixes. Branch on the verdict:
    - **PASS** → invoke the `validating-fields` skill with target `"Ready"`; on `valid: true`, the task is Ready-eligible. **When you write the Status=Ready promotion, include the `Quality Verdict` property set to the `verdict_string` returned by `reviewing-quality` in the *same* provider update** — the verdict must travel in the same payload as the status change, not in a separate write. A direct write that sets Status=Ready without a valid verdict is rejected before it reaches the provider.
-   - **NEEDS_REFINEMENT** → surface the Reviewer's suggested fixes and ask the user `[Apply suggested fixes & re-plan] [Save anyway]`. If `Apply`, re-spawn the planning agent with the fixes attached as additional context, then invoke `reviewing-quality` again (at most once). If the second verdict is still `NEEDS_REFINEMENT` (same failing axes), save with `[NEEDS-REFINE]` prefix and keep Status=Backlog.
-   - **REJECT** → save with `[NEEDS-REFINE]` prefix and keep Status=Backlog. The verdict (with the same `[NEEDS-REFINE]` rationale) is written to the `Quality Verdict` Notion column by `reviewing-quality`.
+   - **NEEDS_REFINEMENT** → surface the Reviewer's gaps and suggested fixes and ask the user `[Refine now] [Save anyway]`. The gaps are usually requester-side information (who approves, what the brief is) that a re-plan cannot invent, so refining starts with the user:
+     1. Derive one concrete question per requester-side gap and ask via AskUserQuestion (gaps the Reviewer already named a self-contained fix for need no question — carry the fix forward directly).
+     2. Re-spawn the planning agent with the user's answers and the Reviewer's fixes attached as additional context, then invoke `reviewing-quality` in `live` mode again.
+     3. Repeat until the verdict is `PASS`, the user picks `[Save anyway]`, or suppression triggers (two consecutive same-axis failures — `reviewing-quality` freezes re-review for 7 days). On `[Save anyway]` or suppression, save with `[NEEDS-REFINE]` prefix and keep Status=Backlog; the gaps/fixes are persisted on the task's `Context` field as a findings block by `reviewing-quality`, so a later session can pick up where this one left off.
+     Each round is gated on the user's explicit choice to continue, so the loop cannot run away on its own.
+   - **REJECT** → save with `[NEEDS-REFINE]` prefix and keep Status=Backlog. The verdict (with the same `[NEEDS-REFINE]` rationale) is written to the `Quality Verdict` Notion column by `reviewing-quality`, and the gaps/fixes are persisted as a findings block on `Context`.
    - **UNREVIEWED** (upstream error only — worthiness-skipped tasks now return `PASS` with a `verdict_string`, not `UNREVIEWED`) → do **not** promote to Ready. `UNREVIEWED` carries an empty `verdict_string`, so a Status=Ready write would be rejected by the provider guard. Keep Status=Backlog, surface the error to the user, and let them retry planning.
 
 ### Batch Execution
@@ -159,7 +163,7 @@ Planning results (5 tasks):
 For each accepted task in the chunk, invoke the `reviewing-quality` skill in batch mode (the skill internally fans out 5 Reviewer agents in parallel, reusing the same chunking pattern). Then branch each task on its verdict using the same rules as the single-task flow (Step 5):
 
 - **PASS** → run `validating-fields` for `"Ready"`; promote to Ready on `valid: true`. The Status=Ready write **must carry the `Quality Verdict` property set to that task's `verdict_string` (from `reviewing-quality`) in the same provider update** — same atomic-promotion rule as the single-task flow (Step 5).
-- **NEEDS_REFINEMENT** → save with `[NEEDS-REFINE]` prefix and keep Backlog. Do not auto-retry in batch mode — the user can `/planning-tasks` the task individually if they want to apply Reviewer's suggested fixes.
+- **NEEDS_REFINEMENT** → save with `[NEEDS-REFINE]` prefix and keep Backlog. Do not auto-retry in batch mode — the user can `/planning-tasks` the task individually if they want to apply Reviewer's suggested fixes. The gaps/fixes are persisted on each task's `Context` field as a findings block by `reviewing-quality`, so the individual re-plan has them on record.
 - **REJECT** → save with `[NEEDS-REFINE]` prefix and keep Backlog.
 
 Summary: "Planned N tasks. M PASS (Ready-eligible). R NEEDS_REFINEMENT (kept in Backlog with [NEEDS-REFINE]). J REJECT. K need more context."

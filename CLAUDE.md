@@ -46,6 +46,8 @@ A skill must NOT know anything about another skill beyond the name and descripti
 
 The only stable public contract is the frontmatter (name + description); agents resolve invocations through skill discovery. The target skill's internal structure (script layout, function names, step numbers, reference file names) must be free to evolve without breaking dependents.
 
+Plugin-level subagents under `agents/` (e.g. `code-planning-agent`, `knowledge-planning-agent`, `task-quality-reviewer-agent`, `task-agent`) are **not** skill internals — they are a stable public interface of the plugin, and any skill may spawn them by name (multiple skills already do). Renaming an agent is a breaking change to that interface and requires updating every referencing skill in the same commit.
+
 A skill is always free to reference its own files. For self-references, use the official Claude Code runtime variable `${CLAUDE_SKILL_DIR}`, which the runtime automatically resolves to the directory containing the current skill's SKILL.md:
 
 ```bash
