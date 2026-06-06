@@ -43,9 +43,16 @@ The invoking skill describes the task and the mode in natural language; this ski
 
 | Mode | Behavior |
 |---|---|
-| `live` | Always compute fresh: Rubric → if pass, spawn the Reviewer agent. Write verdict to cache. Used by `planning-tasks` after AC/EP generation, and by `ingesting-messages` Phase A.5 (verdict held in memory until the task is created in Step 3 — see ingesting-messages SKILL.md for the deferred-write contract). |
+| `live` | Always compute fresh: Rubric → if pass, spawn the Reviewer agent. Write verdict to cache. Used by `planning-tasks` after AC/EP generation, by `managing-tasks` planning-assisted creation, and by `ingesting-messages` Phase A.5. The latter two run **before the task exists** — see "Deferred-write contract (creation-time callers)" below. |
 | `cache-only` | Read the cached verdict. If hash matches and is non-empty, return it. If cache miss or hash mismatch, return verdict=`UNREVIEWED` to the caller; **do not** spawn the Reviewer. Used by `executing-tasks` dispatch and `managing-tasks` pre-Ready (hot paths). |
 | `live, cache-aware` | First check cache (hash + suppression). If cache hit and PASS, return it. Otherwise fall through to `live`. Used by `delegating-tasks` (via `assigning-to-others`), `running-daily-tasks` Step 2.6, and `monitoring-tasks --deep`. |
+
+### Deferred-write contract (creation-time callers)
+
+When `live` mode is invoked for a task that has not been created yet (`managing-tasks` planning-assisted creation, `ingesting-messages` Phase A.5), Steps 6's provider writes are impossible. Instead:
+
+- Return the `verdict_string` **and** the rendered findings block (see `references/cache-format.md` § Findings Block Format) to the caller, which holds both in memory and includes them in the eventual create payload (`Quality Verdict` property + `Context` field respectively).
+- During a creation-time refine loop (the caller re-plans and re-invokes `live` on revised content), the previous **in-memory** verdict serves as the "existing cached verdict" for the Step 5 suppression check — same-axis failure counting works identically to the persisted path.
 
 ## Pipeline
 
@@ -83,9 +90,13 @@ When returning a suppressed cache hit on a content-hash mismatch, the response p
 
 In `cache-only` mode, a cache miss returns verdict = `UNREVIEWED` to the caller. The caller decides how to surface this to the user (typically a 2-choice `[Refine first] [Proceed anyway]` prompt).
 
+**Findings on cache hit:** when the cached verdict is `NEEDS_REFINEMENT` or `REJECT`, also read the task's `Context` field and look for a Quality Review Findings block (format in `references/cache-format.md`). If the block's `hash` equals the cached verdict's hash, parse it and populate `gaps` / `fixes` in the return payload — this is what lets cache-only callers present the gaps and suggested fixes without a live Reviewer call. On hash mismatch (stale findings from an earlier review of different content) or no block, leave `gaps` / `fixes` empty; the caller falls back to verdict-only display.
+
 ### Step 4 — Reviewer agent (Layer 2)
 
 Spawn the `task-quality-reviewer-agent` subagent with the task spec block (Title, Description, AC, EP, Context, Working Directory, Repository, Executor).
+
+Before passing `Context`, strip any Quality Review Findings block it contains (this skill's own persisted output from a previous round) — the Reviewer must evaluate the requester's spec, not be steered by its own prior findings.
 
 Wait for its return. Parse the structured output to extract:
 - Verdict (`PASS` / `NEEDS_REFINEMENT` / `REJECT` / `INSUFFICIENT_CONTEXT`)
@@ -103,6 +114,14 @@ Before writing the cache entry, check the existing cached verdict. If the previo
 
 Write the verdict to the task's `Quality Verdict` field in the format documented in `references/cache-format.md`. Single line, overwrites the previous entry.
 
+**Findings persistence (same write step):** keep the gaps and suggested fixes on the task, not just in chat — they are what the user (or a later session) needs to act on a non-PASS verdict.
+
+- Verdict is `NEEDS_REFINEMENT` or `REJECT` → render a Quality Review Findings block (format in `references/cache-format.md`) from the Reviewer's gaps and fixes (or the Rubric errors when the Reviewer was not spawned) and upsert it into the task's `Context` field: replace any existing findings block, leave the rest of `Context` untouched. At most one block per task.
+- Verdict is `PASS` → remove any existing findings block from `Context` (the issues are resolved; stale findings would mislead executors).
+- The block carries the same `hash` as the verdict line, so staleness is detectable without extra writes. `Context` is not part of the content hash, so writing the block never invalidates the verdict cache.
+- Graceful degradation: if the provider/task has no `Context` field, skip findings persistence — the verdict line still caches; gaps/fixes surface in chat only.
+- Creation-time callers: see "Deferred-write contract" above — the block is returned to the caller instead of written.
+
 ### Step 7 — Return to caller
 
 Return a structured payload:
@@ -116,7 +135,10 @@ suppressed_until: <iso8601 | null>
 per_axis: { goal: ◯|△|✗, boundary: ◯|△|✗, ... }   # only on live verdicts
 gaps: [...]                                          # only on non-PASS verdicts
 fixes: [...]                                         # only on non-PASS verdicts
+findings_block: "<rendered block>" | null            # non-PASS only; for deferred-write callers
 ```
+
+On live non-PASS verdicts, `gaps` / `fixes` come from the Reviewer's output. On **cache hits**, they are populated from the persisted findings block when its hash matches (see Step 3) — so callers on hot paths can present them without a live call.
 
 `verdict_string` is the **canonical cache string** for this verdict — byte-identical to what was written to (Step 6) or read from the task's `Quality Verdict` field. Callers that promote a task to a Ready+ status (`Ready` / `In Progress` / `In Review` / `Done`) **must echo this exact string into the `Quality Verdict` property of the same provider write that sets the new Status**, so the promotion is atomic and self-evidencing (the persisted verdict travels in the same payload as the status change). For a real verdict (`PASS` / `NEEDS_REFINEMENT` / `REJECT`), or a worthiness-skip `PASS` (return the preserved pre-existing entry, or a fresh `PASS` line if none exists), `verdict_string` is non-empty. Only a `cache-only` miss (`UNREVIEWED`) returns `verdict_string: ""`.
 

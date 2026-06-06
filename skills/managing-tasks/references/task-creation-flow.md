@@ -164,6 +164,8 @@ Do not skip fields — ask for each one unless the user has already explicitly p
 
 **Auto-planning shortcut**: If the user says "auto" or "generate" for AC or Execution Plan, propose AC and Execution Plan based on the Description. If Description is too vague (no nouns, no context), ask the user to elaborate first.
 
+**Planning-assisted creation**: If the user asks for the AC / Execution Plan to be drafted by a planning agent during creation (e.g. "have the planning agent draft it"), follow "Planning-Assisted Creation & Creation-Time Quality Gate" below instead of drafting inline.
+
 **"Defer" shortcut (v2.8.0+)**: If the user says "later" or "defer" for AC or Execution Plan, do NOT save the field empty. Insert the appropriate placeholder:
 - AC empty → `[DRAFT-AC] {one-line summary of the user's intent}` (intent summary can be the Title or the user's verbatim deferral note)
 - EP empty → `[DRAFT-EP] 1. Refine this plan with /planning-tasks 2. ...`
@@ -191,3 +193,29 @@ Do NOT hardcode Status to Backlog. Determine it dynamically:
 2. Run `validate-task-fields.sh "Ready"` against the gathered fields
 3. If `valid: true` → create with **Status = Ready**
 4. If `valid: false` → create with **Status = Backlog**, inform the user which fields need refinement before the task can be promoted to Ready
+
+When a creation-time Reviewer verdict exists (planning-assisted creation below), Ready additionally requires that verdict to be `PASS`, and the create payload must carry the `Quality Verdict` string — the Rubric-only rule above applies only when no Reviewer verdict was computed.
+
+## Planning-Assisted Creation & Creation-Time Quality Gate
+
+When the user requests agent-drafted AC / Execution Plan during creation, the draft gets a live quality review **before** the task is created. The verdict decides the status — but on a non-PASS verdict, **the user decides what happens next; never silently create the task**. The Reviewer's gaps are typically requester-side information (who approves, what the brief is) that only the user can supply, so the choice between fixing now and parking the task is theirs.
+
+1. **Draft**: spawn the appropriate planning agent — `code-planning-agent` when the task has a Working Directory / repository target, `knowledge-planning-agent` otherwise — with the gathered Title, Description, Context, and Executor. It returns AC + Execution Plan.
+2. **Review**: invoke the `reviewing-quality` skill in `live` mode on the drafted spec. The task does not exist yet, so the deferred-write contract applies: hold the returned `verdict_string` and findings block in memory for the create payload.
+3. **Branch on the verdict**:
+   - **PASS** → show the drafted AC/EP and proceed with Status Auto-Determination above (Rubric `valid: true` → create at **Ready** with the `Quality Verdict` property set to `verdict_string` in the same create payload).
+   - **NEEDS_REFINEMENT / REJECT** → show the drafted AC/EP together with the Reviewer's per-axis findings, gaps, and suggested fixes, then ask via AskUserQuestion:
+     - **`[Refine now]`** — resolve the gaps interactively, see the refine loop below.
+     - **`[Create at Backlog as-is]`** — create with **Status = Backlog**, `Quality Verdict` = `verdict_string`, and `Context` containing the findings block returned by `reviewing-quality` (appended after any user-provided context). For `REJECT`, apply the `[NEEDS-REFINE]` prefix to AC and EP per the protocol's reserved prefixes. The final summary must state what needs fixing before the task can be promoted to Ready.
+
+**Refine loop (user-driven, runs until PASS):**
+
+1. Derive one concrete question per requester-side gap (e.g. "Who approves the In Review step, and via what channel?") and ask the user via AskUserQuestion. Gaps an agent can resolve alone (internal inconsistencies the Reviewer already named a fix for) need no question — carry the fix forward directly.
+2. Re-spawn the planning agent with the user's answers and the Reviewer's suggested fixes attached as additional context.
+3. Re-invoke `reviewing-quality` in `live` mode on the revised draft (the previous in-memory verdict feeds its suppression check).
+4. Branch again as in step 3 above. The loop ends when:
+   - the verdict is **PASS** (create at Ready), or
+   - the user picks **`[Create at Backlog as-is]`** (create at Backlog with the latest verdict + findings block), or
+   - **suppression triggers** (two consecutive failures on the same axis) — create at Backlog with the suppressed verdict + findings block and tell the user re-review is frozen for 7 days unless they substantively rewrite the spec.
+
+Each round costs one planning-agent and one Reviewer call but is gated on the user's explicit choice to continue, so the loop cannot run away on its own.

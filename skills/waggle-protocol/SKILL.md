@@ -47,7 +47,7 @@ Providers MAY support these additional fields. Skills degrade gracefully if abse
 
 | Field | Type | Description |
 |---|---|---|
-| Context | rich_text | Background info, constraints, delegation history |
+| Context | rich_text | Background info, constraints, delegation history. May carry a managed Quality Review Findings block (see Quality Spec § Findings Persistence) |
 | Artifacts | rich_text | PR URLs, file paths (newline-separated) |
 | Repository | url | GitHub repository URL |
 | Due Date | date | ISO 8601 format |
@@ -227,9 +227,20 @@ The `Quality Verdict` core field stores at most one line in the format:
 - `suppressed-until` (optional) freezes re-review for 7 days after 2 consecutive same-axis failures (anti-grinding guard).
 - `v1` is the format version. Future versions remain parse-compatible.
 
-Live Reviewer invocation is allowed at: `planning-tasks`, `ingesting-messages` Phase A.5, `running-daily-tasks` Step 2.6, `delegating-tasks` (cache miss), `monitoring-tasks --deep`.
+Live Reviewer invocation is allowed at: `planning-tasks`, `managing-tasks` planning-assisted creation, `ingesting-messages` Phase A.5, `running-daily-tasks` Step 2.6, `delegating-tasks` (cache miss), `monitoring-tasks --deep`.
 
-Live Reviewer invocation is **forbidden** at: `executing-tasks` dispatch (cache-only), `managing-tasks` pre-Ready (cache-only). These are hot paths.
+Live Reviewer invocation is **forbidden** at: `executing-tasks` dispatch (cache-only), `managing-tasks` pre-Ready status transition (cache-only). These are hot paths.
+
+### Findings Persistence
+
+A non-PASS verdict line alone tells a later session *that* a spec fell short, not *why*. The gaps and suggested fixes behind a `NEEDS_REFINEMENT` / `REJECT` verdict are persisted on the task itself as a **Quality Review Findings block** inside the `Context` extended field:
+
+- The block is managed by the verdict pipeline (`reviewing-quality` skill) — written on non-PASS verdicts, replaced in place on re-review, **removed on PASS**. Users do not edit it directly.
+- It carries the same content `hash` as the verdict line; a hash mismatch marks the findings as stale and they are ignored.
+- `Context` is not part of the content hash, so managing the block never invalidates the verdict cache.
+- Graceful degradation: when a provider does not support `Context`, findings surface in conversation only and the verdict line still caches.
+
+This is what makes the cache-only hot paths able to present "what to fix" (not just the verdict) when gating a promotion or dispatch. The exact block format is owned by the `reviewing-quality` skill's reference documentation, kept in sync with this section.
 
 ### Calibration Requirement
 

@@ -72,3 +72,39 @@ Callers SHOULD surface the `suppressed_until` value in their UI when the cached 
 ## Why 7 days for suppression
 
 7 days is long enough that the user can address the inherent vagueness in their own workflow (a sprint, a planning cycle). Shorter would grind the user; longer would let truly stale verdicts linger. Tuned to "weekly planning cadence" as the implicit recovery window.
+
+## Findings Block Format
+
+Companion to the verdict line. The verdict line answers "is this spec good enough?"; the findings block answers "what exactly is missing?" — without it, a non-PASS verdict's gaps and suggested fixes survive only in the chat transcript and are gone by the time anyone acts on the task.
+
+The block is stored inside the task's `Context` extended field (the verdict line itself stays single-line — see "Why a single line" above):
+
+```
+--- Quality Review Findings hash=<8hex> @<iso8601> ---
+Gaps:
+- <gap 1>
+- <gap 2>
+Suggested fixes:
+- <fix 1>
+- <fix 2>
+--- End Quality Review Findings ---
+```
+
+Rules:
+
+- **At most one block per task.** Writes replace the existing block in place; the rest of `Context` is preserved verbatim.
+- **`hash` equals the verdict line's hash** (same `sha256("${Title}|${Description}|${AC}|${EP}")[:8]`). A block whose hash differs from the current verdict line is stale: ignore its contents and report findings as unavailable. `Context` is not part of the content hash, so writing or removing the block never invalidates the verdict cache.
+- **Lifecycle:** written on `NEEDS_REFINEMENT` / `REJECT` (Reviewer gaps/fixes, or Rubric errors when the Reviewer was skipped); deleted on `PASS`.
+- **Size cap ~1500 characters.** Keep one line per gap/fix. When truncating, drop fixes before gaps (gaps are the diagnosis; fixes can be re-derived).
+- **Self-exclusion:** the block is stripped from `Context` before the spec is handed to the Reviewer agent, so a review never reads its own prior output.
+
+### Parsing
+
+Delimiter lines are exact-match anchors:
+
+```
+^--- Quality Review Findings hash=(?P<hash>[0-9a-f]{8}) @(?P<at>\S+) ---$
+^--- End Quality Review Findings ---$
+```
+
+If the opening delimiter is present but the closing one is missing or the body is malformed, treat the block as stale (ignore contents) but still replace the whole region from the opening delimiter to end-of-field on the next write, so a corrupted block cannot accumulate.
