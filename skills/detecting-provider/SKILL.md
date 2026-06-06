@@ -9,6 +9,10 @@ user-invocable: false
 Determine the execution environment, the active provider, and load its SKILL.md.
 **Skip if already determined in this conversation.**
 
+**Silent operation:** This skill runs as an internal step of an invoking skill. Return
+results to the invoking flow without user-facing narration — the caller owns all user
+communication. Only errors, warnings, and prompts required to proceed may surface directly.
+
 ## Step 1: Environment Detection
 
 Determine `execution_environment` ∈ {`cowork`, `claude-desktop`, `cli`}.

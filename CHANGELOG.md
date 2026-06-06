@@ -4,6 +4,20 @@ All notable changes to the Waggle project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## Output discipline — suppress step-by-step narration — 2026-06-06
+
+Skill flows narrated every internal step to the user ("Now I'll detect the provider…", "Config resolved. Now validating the schema.", verdict hashes, view-server push results). A single `managing-tasks` task creation produced ~20 such one-liners around its tool calls — protocol internals relayed as chat, burying the messages that matter (prompts, gate verdicts, the final summary). Root cause: no skill carried any output-style directive, so the agent fell back to its default narrate-every-transition behavior, amplified by the fine-grained step structure and the 6+ SKILL.md loads per flow.
+
+- **`waggle` 2.9.0 → 2.10.0** (MINOR — behavior change across all workflow skills):
+  - Every user-invocable workflow skill (12 core) gains an `## Output Discipline` section: no step-transition narration, no protocol internals; user-facing text is limited to (a) prompts needing input, (b) errors/warnings, (c) intermediate results that change the outcome — e.g. a non-PASS quality verdict and its gaps, which explain why a task lands at Backlog instead of Ready (PASS verdicts fold silently into the final summary), and (d) the final result summary.
+  - Every shared skill (8 core) gains a `**Silent operation:**` line: return results to the invoking flow; the caller owns all user communication; only errors, warnings, and prompts required to proceed surface directly.
+  - `provider-contract` adds the silent-operation rule as a contract requirement for provider skills, so a waggle flow's user-visible output is identical regardless of backing provider.
+  - `waggle-protocol` and `provider-contract` themselves carry no Output Discipline block — they are specification documents, not pipelines.
+  - `CLAUDE.md` Key Conventions documents the pattern so new skills include the matching block.
+  - Wording follows skill-creator guidance: explain the why instead of bare MUSTs, keep the block lean, generalize rather than enumerate specific offenders.
+- **`waggle-notion` 3.4.0 → 3.5.0, `waggle-sqlite` 2.1.0 → 2.2.0, `waggle-turso` 2.1.0 → 2.2.0** (MINOR each):
+  - `{provider}-provider` skills gain the `**Silent operation:**` line; `{provider}-setup` skills gain the `## Output Discipline` section.
+
 ## Give planning and reviewer agents the Skill tool — 2026-06-05
 
 The planning agents drafted AC / Execution Plans from generic knowledge only. Org-distributed knowledge and operational skills (installed plugins) were invisible to them: a restricted `tools:` list excludes the `Skill` tool, and excluding the `Skill` tool also removes the available-skills listing from the agent's system prompt (verified empirically — an agent with `tools: Read, Bash, Grep, Glob` reports no Skill tool and no skills list, while an all-tools agent sees both). Adding `Skill` gives the agents the catalog *and* the ability to load a skill properly, so AC/EP can be grounded in domain procedures instead of re-derived from scratch.

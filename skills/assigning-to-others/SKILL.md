@@ -12,6 +12,10 @@ user-invocable: false
 
 When assigning a task to someone other than the current user, apply the following field constraints. The rationale is that the recipient's execution environment (filesystem, git, agent session) is unknown to the delegator.
 
+**Silent operation:** This skill runs as an internal step of an invoking skill. Return
+results to the invoking flow without user-facing narration — the caller owns all user
+communication. Only errors, warnings, and prompts required to proceed may surface directly.
+
 ## Required Field Resets
 
 | Field | Value | Reason |

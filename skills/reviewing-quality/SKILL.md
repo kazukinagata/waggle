@@ -15,6 +15,10 @@ user-invocable: false
 
 This skill is the single integration point for the v2.8.0 quality gates. All Reviewer-related logic lives here so that the 7 caller skills do not duplicate cache handling, spawn orchestration, or rubric evaluation.
 
+**Silent operation:** This skill runs as an internal step of an invoking skill. Return
+results to the invoking flow without user-facing narration — the caller owns all user
+communication. Only errors, warnings, and prompts required to proceed may surface directly.
+
 ## Why this skill exists
 
 Without a shared owner:

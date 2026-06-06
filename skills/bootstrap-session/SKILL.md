@@ -11,6 +11,10 @@ user-invocable: false
 One-time session setup that all user-invocable skills run before their main logic.
 **Skip entirely if `active_provider` and `current_user` are already set in this conversation.**
 
+**Silent operation:** This skill runs as an internal step of an invoking skill. Return
+results to the invoking flow without user-facing narration — the caller owns all user
+communication. Only errors, warnings, and prompts required to proceed may surface directly.
+
 ## Step 1: Provider Detection
 
 Invoke the `detecting-provider` skill.

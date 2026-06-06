@@ -9,6 +9,10 @@ user-invocable: false
 This file contains all SQLite-specific implementation details for waggle.
 Load this file when the active provider is **sqlite**.
 
+**Silent operation:** This skill runs as an internal step of an invoking skill. Return
+results to the invoking flow without user-facing narration — the caller owns all user
+communication. Only errors, warnings, and prompts required to proceed may surface directly.
+
 ## Config Retrieval
 
 When `detecting-provider` requests config retrieval for the SQLite provider:
