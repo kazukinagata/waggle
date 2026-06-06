@@ -25,9 +25,11 @@ Emit user-facing text only when it changes something for the user:
 
 - a prompt or confirmation that needs their input
 - an error or a warning
-- an intermediate result that changes the outcome (e.g., a non-PASS quality verdict and
-  the gaps behind it — it explains why a task lands at a different status than expected)
+- an intermediate result that changes the recommended resolution path
 - the final result summary
+
+Diagnostic findings (provider, schema, config state) are this skill's outcome — report
+them in the diagnosis, not as step-by-step narration while checking.
 
 ## Step 1: Session Bootstrap
 
