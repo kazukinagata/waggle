@@ -545,17 +545,17 @@ Before showing the auto-generated draft to the user:
 
 2. **Rubric (Layer 1)** — invoke the `validating-fields` skill with the generated task data and target status `"Ready"`. It returns `{valid, errors, warnings}`.
 
-3. **Reviewer (Layer 2, v2.8.0+)** — if Rubric passes, invoke the `reviewing-quality` skill in `live` mode. **Important**: at this stage the task does not exist yet (Step 3 creates it). Pass the generated draft fields directly to `reviewing-quality`; receive the verdict **in memory** for use in Phase B's display, and persist the verdict to the new task's `Quality Verdict` field **as part of Step 3's task creation** (one `create_task` call carrying Title / Description / AC / EP / Status / Quality Verdict in a single payload), not as a separate write.
+3. **Reviewer (Layer 2, v2.8.0+)** — if Rubric passes, invoke the `reviewing-quality` skill in `live` mode. **Important**: at this stage the task does not exist yet (Step 3 creates it). Pass the generated draft fields directly to `reviewing-quality`; receive the verdict — and, on non-PASS, the rendered findings block — **in memory** for use in Phase B's display, and persist both **as part of Step 3's task creation** (one `create_task` call carrying Title / Description / AC / EP / Status / Quality Verdict — plus the findings block appended to `Context` when the verdict is non-PASS — in a single payload), not as separate writes.
 
    Branch on the verdict:
    - `PASS` → display the draft normally in Phase B.
-   - `NEEDS_REFINEMENT` or `REJECT` → mark the draft `[NEEDS-REFINE]` in the Phase B display, surface the Reviewer's specific gaps and suggested fixes inline, and let the user decide what to do in Phase B.
+   - `NEEDS_REFINEMENT` or `REJECT` → mark the draft `[NEEDS-REFINE]` in the Phase B display, surface the Reviewer's specific gaps and suggested fixes inline, and let the user decide what to do in Phase B. Keep the returned findings block with the draft — if the task is created, the block travels in the create payload's `Context` so the gaps survive the session (a later `/planning-tasks` run or Ready-transition gate reads them from there).
 
 If Rubric fails (`valid: false`), do NOT spawn the Reviewer — the draft is marked `[NEEDS-REFINE]` and the Rubric errors are surfaced. (Rubric is the cheap pre-filter; the protocol forbids spending Reviewer dollars on tasks that already fail the deterministic check.)
 
-If the user edits the draft in Phase B, the in-memory verdict is invalidated — it no longer matches the actual content. A Category B task is created at `Status: Ready`, which requires a valid verdict in the same create payload (see the Ready+ rule in `references/task-creation-templates.md`), so an edited draft cannot be created at Ready with an empty verdict. Resolve it one of two ways at task-creation time in Step 3:
-- **Re-review** — invoke `reviewing-quality` in `live` mode on the edited content, and persist the returned `verdict_string` as `Quality Verdict` in the Ready create payload; or
-- **Defer** — create the task at `Status: Backlog` instead (verdict omitted); the next Ready transition (via `planning-tasks`, `managing-tasks`, or `running-daily-tasks` Step 2.6) computes a fresh verdict on the actual content before promotion.
+If the user edits the draft in Phase B, the in-memory verdict — and any findings block that came with it — is invalidated: neither matches the actual content anymore (the block's hash would disagree with a fresh verdict's hash anyway). A Category B task is created at `Status: Ready`, which requires a valid verdict in the same create payload (see the Ready+ rule in `references/task-creation-templates.md`), so an edited draft cannot be created at Ready with an empty verdict. Resolve it one of two ways at task-creation time in Step 3:
+- **Re-review** — invoke `reviewing-quality` in `live` mode on the edited content, and persist the returned `verdict_string` as `Quality Verdict` in the Ready create payload (on non-PASS, carry the freshly returned findings block into `Context` — never the stale one); or
+- **Defer** — create the task at `Status: Backlog` instead (verdict and findings block both omitted); the next Ready transition (via `planning-tasks`, `managing-tasks`, or `running-daily-tasks` Step 2.6) computes a fresh verdict on the actual content before promotion.
 
 Only AC/EP accepted unchanged keep the in-memory verdict and are created at Ready directly.
 
