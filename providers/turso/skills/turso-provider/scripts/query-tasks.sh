@@ -67,6 +67,7 @@ echo "$RESPONSE" | jq '
       project: .project,
       team: .team,
       assignee: (.assignee | if . == null or . == "" then [] else (try fromjson catch []) end),
+      attachments: (.attachments | if . == null or . == "" then [] else (try fromjson catch []) end),
       complexity_score: .complexity_score,
       backlog_order: .backlog_order,
       sprint_id: .sprint_id,

@@ -15,7 +15,10 @@ import {
   READABLE_MIME_TYPES,
   collectImageBlocks,
   filterByBlockIds,
+  mimeForAttachment,
   mimeFromFilename,
+  toWritableFiles,
+  validateSetFilesInput,
   validateUploadInput,
 } from "./helpers.js";
 
@@ -38,7 +41,7 @@ const NOTION_API_VERSION = "2022-06-28";
 const notion = new Client({ auth: NOTION_TOKEN });
 
 const server = new Server(
-  { name: "notion-extension", version: "1.1.0" },
+  { name: "notion-extension", version: "1.2.0" },
   { capabilities: { tools: {} } }
 );
 
@@ -180,6 +183,54 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
           },
         },
         required: ["page_id"],
+      },
+    },
+    {
+      name: "notion-set-files-property",
+      description:
+        "Set or append files on a Notion files-type page property (e.g. \"Attachments\"). Each files entry is either { file_path } (a local file uploaded via the Notion File Upload API; max 20MB single-part; requires the 'Insert content' capability) or { name, url } (an external file stored as-is). Mode replace sets the exact list (empty array clears); append merges with existing entries (read-modify-write). Uploaded files read back as signed URLs that expire ~1h. notion-update-page cannot set files properties — use this tool.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          page_id: {
+            type: "string",
+            description: "Notion page UUID to update",
+          },
+          property_name: {
+            type: "string",
+            description: 'files-type property name (e.g., "Attachments")',
+          },
+          mode: {
+            type: "string",
+            enum: ["replace", "append"],
+            description:
+              '"replace" sets the exact list (empty array clears the property), "append" merges with existing entries',
+          },
+          files: {
+            type: "array",
+            description:
+              "File entries. Each is { file_path } (local upload) or { name, url } (external; name required).",
+            items: {
+              type: "object",
+              properties: {
+                file_path: {
+                  type: "string",
+                  description: "Absolute path to a local file to upload. Mutually exclusive with url.",
+                },
+                url: {
+                  type: "string",
+                  description: "External file URL, stored as-is. Mutually exclusive with file_path.",
+                },
+                name: {
+                  type: "string",
+                  description: "Display filename. Required for url entries; defaults to the basename for file_path entries.",
+                },
+              },
+            },
+            default: [],
+          },
+        },
+        required: ["page_id", "property_name", "mode"],
       },
     },
   ],
@@ -393,6 +444,93 @@ async function handleUploadImage(args) {
   return { ok: true, page_id, block_id, image_type: "file_upload", filename };
 }
 
+// Upload one local file via the Notion File Upload flow; returns its upload id
+// and the basename (the default display name).
+async function uploadLocalFile(file_path) {
+  const filename = basename(file_path);
+  const mimeType = mimeForAttachment(filename);
+  const data = await readFile(file_path);
+  if (data.length > MAX_UPLOAD_BYTES) {
+    throw new Error(
+      `File "${filename}" is ${data.length} bytes; the Notion single-part upload cap is ${MAX_UPLOAD_BYTES} bytes (20MB).`
+    );
+  }
+  const upload = await notionApi("POST", "/v1/file_uploads", {
+    mode: "single_part",
+    filename,
+  });
+  const form = new FormData();
+  form.append("file", new Blob([data], { type: mimeType }), filename);
+  await notionApi("POST", `/v1/file_uploads/${upload.id}/send`, form);
+  return { id: upload.id, name: filename };
+}
+
+async function handleSetFilesProperty(args) {
+  const { page_id, property_name, mode, files = [] } = args;
+
+  const inputError = validateSetFilesInput(args);
+  if (inputError) throw new Error(inputError);
+
+  // Guard: append with no input is a read-only no-op. Returning early avoids an
+  // unnecessary round-trip write of the existing entries (mirrors the
+  // notion-update-relation guard that prevents clobbering on empty append).
+  if (mode === "append" && files.length === 0) {
+    const page = await notion.pages.retrieve({ page_id });
+    const existing = page.properties[property_name]?.files ?? [];
+    return {
+      ok: true,
+      page_id,
+      property_name,
+      mode,
+      files: existing.map((e) => ({
+        name: e.name,
+        url: e.type === "file" ? e.file?.url : e.type === "external" ? e.external?.url : null,
+      })),
+    };
+  }
+
+  // Build the new entries in Notion's write shape (upload locals first).
+  const newEntries = [];
+  for (const f of files) {
+    if (f.file_path) {
+      const { id, name } = await uploadLocalFile(f.file_path);
+      newEntries.push({ type: "file_upload", name: f.name || name, file_upload: { id } });
+    } else {
+      newEntries.push({ type: "external", name: f.name, external: { url: f.url } });
+    }
+  }
+
+  let finalFiles = newEntries;
+  if (mode === "append") {
+    const page = await notion.pages.retrieve({ page_id });
+    const existing = toWritableFiles(page.properties[property_name]?.files ?? []);
+    finalFiles = [...existing, ...newEntries];
+  }
+
+  let updated;
+  try {
+    updated = await notionApi("PATCH", `/v1/pages/${page_id}`, {
+      properties: { [property_name]: { files: finalFiles } },
+    });
+  } catch (error) {
+    rethrowWithCapabilityHint(error);
+  }
+
+  // The PATCH response is the full updated page; return the resolved files in
+  // read shape (signed URLs for uploads, stable URLs for external entries).
+  const resolved = updated.properties[property_name]?.files ?? [];
+  return {
+    ok: true,
+    page_id,
+    property_name,
+    mode,
+    files: resolved.map((e) => ({
+      name: e.name,
+      url: e.type === "file" ? e.file?.url : e.type === "external" ? e.external?.url : null,
+    })),
+  };
+}
+
 async function handleReadImages(args) {
   const { page_id, max_images = 10, block_ids, include_nested = true } = args;
 
@@ -540,6 +678,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     case "notion-read-images":
       // Returns a mixed text + image content array directly, not JSON text.
       return await handleReadImages(args);
+    case "notion-set-files-property":
+      result = await handleSetFilesProperty(args);
+      break;
     default:
       throw new Error(`Unknown tool: ${name}`);
   }

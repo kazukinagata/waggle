@@ -56,6 +56,7 @@ Providers MAY support these additional fields. Skills degrade gracefully if abse
 | Project | text | Project grouping |
 | Team | text | Team assignment |
 | Assignee | person[] | Assigned users |
+| Attachments | file[] | Files attached as task data. Array of file descriptors `{url, name, mime_type?, size?}` — references to hosted bytes, not the bytes. Hosting is per-provider (`supportsFileHosting`); see provider-contract task-schema § Provider Mapping. v2.13.0+ |
 
 ## Issuer Auto-Populate Contract (v2.8.1+)
 

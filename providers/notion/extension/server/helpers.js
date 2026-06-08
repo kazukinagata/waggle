@@ -39,6 +39,79 @@ export function mimeFromFilename(filename) {
   return MIME_BY_EXTENSION[match[1].toLowerCase()] ?? null;
 }
 
+// Attachments (files property) accept arbitrary file types, not just images.
+// Extends the image map with common document types; unknown extensions fall
+// back to application/octet-stream so any file can still be uploaded.
+const ATTACHMENT_MIME_BY_EXTENSION = {
+  ...MIME_BY_EXTENSION,
+  pdf: "application/pdf",
+  txt: "text/plain",
+  log: "text/plain",
+  csv: "text/csv",
+  md: "text/markdown",
+  json: "application/json",
+  zip: "application/zip",
+  doc: "application/msword",
+  docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  xls: "application/vnd.ms-excel",
+  xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+};
+
+export function mimeForAttachment(filename) {
+  const match = /\.([A-Za-z0-9]+)$/.exec(filename || "");
+  if (!match) return "application/octet-stream";
+  return ATTACHMENT_MIME_BY_EXTENSION[match[1].toLowerCase()] ?? "application/octet-stream";
+}
+
+// Validate notion-set-files-property input. Returns an error message string, or
+// null when valid. Each files entry must carry exactly one of file_path (local
+// upload) or url (external); external entries require a name.
+export function validateSetFilesInput({ page_id, property_name, mode, files } = {}) {
+  if (!page_id) return "page_id is required.";
+  if (!property_name) return "property_name is required.";
+  if (mode !== "replace" && mode !== "append") {
+    return 'mode must be "replace" or "append".';
+  }
+  if (!Array.isArray(files)) return "files must be an array.";
+  for (const f of files) {
+    if (!f || typeof f !== "object") return "each files entry must be an object.";
+    const hasPath = typeof f.file_path === "string" && f.file_path.length > 0;
+    const hasUrl = typeof f.url === "string" && f.url.length > 0;
+    if (hasPath && hasUrl) {
+      return "each files entry needs exactly one of file_path or url, not both.";
+    }
+    if (!hasPath && !hasUrl) {
+      return "each files entry needs file_path (local upload) or url (external).";
+    }
+    if (hasUrl && !(typeof f.name === "string" && f.name.length > 0)) {
+      return "external (url) entries require a name.";
+    }
+  }
+  return null;
+}
+
+// Convert a Notion files property's READ representation into the WRITE shape so
+// existing entries can be round-tripped in append mode. file-type (Notion-hosted)
+// entries are re-sent with their still-valid signed url (the round-trip happens
+// within the ~1h validity window); external by url; file_upload by id.
+export function toWritableFiles(entries) {
+  return (entries || [])
+    .map((e) => {
+      if (!e || typeof e !== "object") return null;
+      if (e.type === "external") {
+        return { type: "external", name: e.name, external: { url: e.external?.url } };
+      }
+      if (e.type === "file") {
+        return { type: "file", name: e.name, file: { url: e.file?.url } };
+      }
+      if (e.type === "file_upload") {
+        return { type: "file_upload", name: e.name, file_upload: { id: e.file_upload?.id } };
+      }
+      return null;
+    })
+    .filter(Boolean);
+}
+
 // Validate notion-upload-image input: exactly one of file_path / external_url.
 // Returns an error message string, or null when valid.
 export function validateUploadInput({ file_path, external_url } = {}) {

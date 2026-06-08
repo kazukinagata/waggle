@@ -4,6 +4,19 @@ All notable changes to the Waggle project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## Attachments extended field (`file[]`) — 2026-06-08
+
+A new optional `Attachments` extended field lets tasks carry files **as task data** (a property), portable across providers. This closes the gap where `rich_text` fields (Description / Acceptance Criteria) cannot hold images and PR #69 only covered page-**body** images. The abstract type is `file[]` — an array of file descriptors `{url, name, mime_type?, size?}` that **reference** hosted bytes rather than holding them, because file hosting is a per-provider capability (`supportsFileHosting`), not just a column type.
+
+- **`waggle` 2.12.0 → 2.13.0** (MINOR — new extended field + view-server data model):
+  - `waggle-protocol` Extended Fields gains `Attachments | file[]`; `provider-contract` task-schema documents the `file[]` descriptor shape, the canonical JSON, and a `supportsFileHosting` Provider Mapping table (Notion=true, SQLite/Turso=false). Waggle has no runtime capability negotiation — `supportsFileHosting` is guidance for skills: against a non-hosting provider, require an externally-hosted URL and never upload a local file.
+  - View server `Task` type carries `attachments`; providers push it through. No UI rendering yet — Notion `file`-type URLs are signed and expire ~1h, so rendering a pushed URL in a long-lived view would break; deferred to a follow-up.
+- **`waggle-notion` 3.5.0 → 3.6.0** + **`notion-extension` 1.1.0 → 1.2.0** (MINOR — new write surface):
+  - `Attachments` maps to a Notion `files` property. New `attach-file.sh` (CLI/`NOTION_TOKEN`) and `notion-set-files-property` MCP tool (Desktop/Cowork) set/append files — `notion-update-page` cannot. Local files upload via the File Upload API (reusing the body-image flow); external URLs store as-is; append is read-modify-write. Auto-repair DDL `ADD COLUMN "Attachments" FILES` (live-confirmed), best-effort with graceful manual fallback.
+  - Extension repack required (`npx @anthropic-ai/mcpb pack .`); reinstall for Desktop/Cowork. New helper unit tests (`mimeForAttachment`, `validateSetFilesInput`, `toWritableFiles`).
+- **`waggle-sqlite` 2.2.0 → 2.3.0** and **`waggle-turso` 2.2.0 → 2.3.0** (MINOR — new column, no hosting):
+  - `attachments TEXT DEFAULT '[]'` JSON-array column (same convention as `tags`/`assignee`). `init-db.sh` now also migrates existing DBs via an idempotent `pragma_table_info`-guarded `ALTER TABLE ... ADD COLUMN` (Turso does it as query-then-ALTER over the HTTP API). `supportsFileHosting=false` — values must be externally-hosted, caller-supplied URLs.
+
 ## Findings block carried into ingesting-messages deferred creates — 2026-06-06
 
 Follow-up to v2.11.0 (its explicitly deferred item). `ingesting-messages` Phase A.5 runs the quality review before the task exists, so `reviewing-quality` returns the verdict and findings block to the caller instead of writing them (deferred-write contract). v2.11.0 updated the contract but not `ingesting-messages` itself — the returned findings block was ignored, so DM-sourced tasks accepted with a `NEEDS_REFINEMENT` / `REJECT` verdict carried only the one-line verdict: a later `/planning-tasks` run or Ready-transition gate fell back to verdict-only display with no record of *what* to fix.

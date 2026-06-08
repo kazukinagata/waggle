@@ -77,6 +77,12 @@ describe("Task type — Extended fields", () => {
   it("repository is nullable URL string", () => {
     expectTypeOf<Task["repository"]>().toEqualTypeOf<string | null>();
   });
+
+  it("attachments is an array of file descriptors", () => {
+    expectTypeOf<Task["attachments"]>().toEqualTypeOf<
+      { url: string; name: string; mime_type?: string; size?: number }[]
+    >();
+  });
 });
 
 describe("TasksResponse", () => {

@@ -35,6 +35,7 @@ CREATE TABLE IF NOT EXISTS tasks (
   project TEXT,
   team TEXT,
   assignee TEXT DEFAULT '[]',
+  attachments TEXT DEFAULT '[]',
   issuer TEXT DEFAULT '',
   complexity_score INTEGER,
   backlog_order INTEGER,
@@ -79,5 +80,13 @@ CREATE TABLE IF NOT EXISTS intake_log (
   processed_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
 );
 SQL
+
+# Column migrations for existing databases. CREATE TABLE IF NOT EXISTS above does
+# not add columns to a pre-existing tasks table, so add any newer columns here.
+# Idempotent — the pragma_table_info guard makes re-runs a no-op, and the
+# DEFAULT '[]' backfills existing rows.
+if [ "$(sqlite3 "$DB_PATH" "SELECT COUNT(*) FROM pragma_table_info('tasks') WHERE name='attachments';")" = "0" ]; then
+  sqlite3 "$DB_PATH" "ALTER TABLE tasks ADD COLUMN attachments TEXT DEFAULT '[]';"
+fi
 
 echo "Database initialized at $DB_PATH"

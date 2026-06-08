@@ -5,6 +5,7 @@ MCP server for Notion database operations that the hosted Notion MCP cannot hand
 - **Update relation properties** (e.g., Blocked By, Parent Task) with replace/append modes
 - **Upload images** into a page body (local file via the Notion File Upload API, or external URL)
 - **Read images** from a page body as inline image content the model can see
+- **Set files properties** (e.g., Attachments) from local files and/or external URLs with replace/append modes
 
 ## Build
 
@@ -147,3 +148,47 @@ The response is a mixed content array: first a text part with a JSON summary, th
 ```
 
 Images over 5MB, non-raster types (svg, tiff, heic), and requested `block_ids` that match no image block are listed in `skipped` (with a reason) instead of returned inline. `total_found` always counts every image discovered on the page before filtering.
+
+## Tool: notion-set-files-property
+
+Sets or appends files on a Notion **files-type page property** (e.g. `Attachments`). `notion-update-page` cannot set files properties — use this tool. Local-file uploads require the integration's **Insert content** capability.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `page_id` | string | yes | Notion page UUID to update |
+| `property_name` | string | yes | files-type property name (e.g., "Attachments") |
+| `mode` | string | yes | `"replace"` or `"append"` |
+| `files` | object[] | no | File entries (default: `[]`). Each is `{ file_path }` (local upload) or `{ name, url }` (external; `name` required). |
+
+- **replace**: sets the property to exactly the provided files. Empty array clears the property.
+- **append**: merges with existing entries (read-modify-write). Empty array is a no-op (returns existing without writing).
+
+Each `files` entry carries exactly one of `file_path` (a local file uploaded via the Notion File Upload API, max 20MB single-part) or `url` (an external file stored as-is). For `file_path`, `name` defaults to the basename.
+
+Returns the post-update file list in read shape. Uploaded entries get a Notion-hosted **signed URL that expires after ~1 hour**; external entries keep their stable URL:
+
+```json
+{
+  "ok": true,
+  "page_id": "<uuid>",
+  "property_name": "Attachments",
+  "mode": "append",
+  "files": [
+    {"name": "spec.pdf", "url": "https://prod-files.notion-static.com/...signed..."},
+    {"name": "Figma board", "url": "https://www.figma.com/file/..."}
+  ]
+}
+```
+
+### Examples
+
+```json
+// Attach a local file (replace)
+{"page_id":"<page_id>","property_name":"Attachments","mode":"replace","files":[{"file_path":"/tmp/spec.pdf"}]}
+
+// Append an external link
+{"page_id":"<page_id>","property_name":"Attachments","mode":"append","files":[{"name":"Figma board","url":"https://www.figma.com/file/..."}]}
+
+// Clear the property
+{"page_id":"<page_id>","property_name":"Attachments","mode":"replace","files":[]}
+```

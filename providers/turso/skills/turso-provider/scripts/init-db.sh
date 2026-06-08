@@ -34,6 +34,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
     project TEXT,
     team TEXT,
     assignee TEXT DEFAULT '[]',
+    attachments TEXT DEFAULT '[]',
     issuer TEXT DEFAULT '',
     complexity_score INTEGER,
     backlog_order INTEGER,
@@ -72,5 +73,17 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
   "CREATE INDEX IF NOT EXISTS idx_tasks_priority ON tasks(priority)" \
   "CREATE INDEX IF NOT EXISTS idx_tasks_executor ON tasks(executor)" \
   "CREATE INDEX IF NOT EXISTS idx_tasks_sprint ON tasks(sprint_id)" > /dev/null
+
+# Column migrations for existing databases. CREATE TABLE IF NOT EXISTS above does
+# not add columns to a pre-existing tasks table, so add any newer columns here.
+# Compound guarded statements are awkward over the HTTP API, so query the column
+# set first, then conditionally ALTER. Idempotent — a no-op once the column exists;
+# DEFAULT '[]' backfills existing rows.
+has_attachments=$("$SCRIPT_DIR/turso-exec.sh" \
+  "SELECT COUNT(*) AS c FROM pragma_table_info('tasks') WHERE name='attachments'" \
+  | jq -r '.results[0].response.result.rows[0][0].value')
+if [ "$has_attachments" = "0" ]; then
+  "$SCRIPT_DIR/turso-exec.sh" "ALTER TABLE tasks ADD COLUMN attachments TEXT DEFAULT '[]'" > /dev/null
+fi
 
 echo "Turso database initialized."
