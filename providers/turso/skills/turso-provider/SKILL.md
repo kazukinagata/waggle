@@ -45,6 +45,8 @@ If any table is missing, run init:
 bash ${CLAUDE_PLUGIN_ROOT}/skills/turso-provider/scripts/init-db.sh
 ```
 
+`init-db.sh` also migrates column additions on an already-initialized database (`CREATE TABLE IF NOT EXISTS` does not alter an existing table). It queries `pragma_table_info('tasks')` and conditionally runs `ALTER TABLE ... ADD COLUMN` for newer columns such as `attachments` (the `Attachments` extended field), so re-running it on any existing DB is safe and a no-op once present.
+
 ## CRUD Operations
 
 ### Create Task
@@ -72,6 +74,8 @@ The `issuer` column receives `${current_user.id}` directly from the substituted 
 bash ${CLAUDE_PLUGIN_ROOT}/skills/turso-provider/scripts/turso-exec.sh \
   "UPDATE tasks SET <field> = '<value>', updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now') WHERE id = '<task_id>';"
 ```
+
+`tags`, `assignee`, and `attachments` are stored as JSON-array text. For `attachments`, set a JSON array of file descriptors — this provider does **not** host files (`supportsFileHosting=false`), so each `url` must be an externally-hosted, caller-supplied URL (e.g. `[{"url":"https://files.example.com/spec.pdf","name":"spec.pdf","mime_type":"application/pdf"}]`).
 
 ### Get Task
 
@@ -207,7 +211,7 @@ TASKS_JSON=$(bash ${CLAUDE_PLUGIN_ROOT}/skills/turso-provider/scripts/query-task
   workingDirectory: .working_directory, sessionReference: .session_reference,
   dispatchedAt: .dispatched_at, agentOutput: .agent_output, errorMessage: .error_message,
   context, artifacts, repository, dueDate: .due_date, tags, parentTaskId: .parent_task_id,
-  project, team, assignee, issuer, url: "", sprintId: .sprint_id, sprintName: null,
+  project, team, assignee, attachments, issuer, url: "", sprintId: .sprint_id, sprintName: null,
   complexityScore: .complexity_score, backlogOrder: .backlog_order
 }], updatedAt: (now | strftime("%Y-%m-%dT%H:%M:%SZ"))}')
 
@@ -244,6 +248,7 @@ curl -s http://localhost:3456/api/health -o /dev/null 2>/dev/null && \
 | project | `project` |
 | team | `team` |
 | assignee | `assignee` (JSON array) |
+| attachments | `attachments` (JSON array of `{url, name, mime_type?, size?}`; `supportsFileHosting=false` — externally-hosted URLs only) |
 | issuer | `issuer` (single user ID string; auto-populated by Create Task template, v2.8.1+) |
 | (empty string) | `url` |
 | sprint_id | `sprintId` |

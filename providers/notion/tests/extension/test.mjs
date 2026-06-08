@@ -7,8 +7,11 @@ import {
   READABLE_MIME_TYPES,
   collectImageBlocks,
   filterByBlockIds,
+  mimeForAttachment,
   mimeFromFilename,
   normalizeId,
+  toWritableFiles,
+  validateSetFilesInput,
   validateUploadInput,
 } from "../../extension/server/helpers.js";
 
@@ -110,6 +113,43 @@ check("partial match selects only existing", f2.selected.length === 1);
 check("unmatched id reported as given", f2.missing.length === 1 && f2.missing[0] === "dead-beef");
 const f3 = filterByBlockIds([], ["x"]);
 check("empty pool -> all missing", f3.selected.length === 0 && f3.missing.length === 1);
+
+console.log("== mimeForAttachment ==");
+check("png (image)", mimeForAttachment("shot.png") === "image/png");
+check("pdf", mimeForAttachment("spec.pdf") === "application/pdf");
+check("csv", mimeForAttachment("data.csv") === "text/csv");
+check("docx", mimeForAttachment("doc.docx") === "application/vnd.openxmlformats-officedocument.wordprocessingml.document");
+check("uppercase PDF", mimeForAttachment("REPORT.PDF") === "application/pdf");
+check("unknown ext -> octet-stream", mimeForAttachment("archive.rar") === "application/octet-stream");
+check("no extension -> octet-stream", mimeForAttachment("LICENSE") === "application/octet-stream");
+check("undefined -> octet-stream", mimeForAttachment(undefined) === "application/octet-stream");
+
+console.log("== validateSetFilesInput ==");
+check("file_path entry -> valid", validateSetFilesInput({ page_id: "p", property_name: "Attachments", mode: "replace", files: [{ file_path: "/tmp/a.pdf" }] }) === null);
+check("url entry with name -> valid", validateSetFilesInput({ page_id: "p", property_name: "Attachments", mode: "append", files: [{ name: "spec", url: "https://x/y" }] }) === null);
+check("empty files -> valid", validateSetFilesInput({ page_id: "p", property_name: "Attachments", mode: "replace", files: [] }) === null);
+check("missing page_id -> error", /page_id/.test(validateSetFilesInput({ property_name: "A", mode: "replace", files: [] }) ?? ""));
+check("missing property_name -> error", /property_name/.test(validateSetFilesInput({ page_id: "p", mode: "replace", files: [] }) ?? ""));
+check("bad mode -> error", /replace.*append/.test(validateSetFilesInput({ page_id: "p", property_name: "A", mode: "merge", files: [] }) ?? ""));
+check("files not array -> error", /must be an array/.test(validateSetFilesInput({ page_id: "p", property_name: "A", mode: "replace", files: "x" }) ?? ""));
+check("entry with both file_path and url -> error", /not both/.test(validateSetFilesInput({ page_id: "p", property_name: "A", mode: "replace", files: [{ file_path: "/a", url: "https://x" }] }) ?? ""));
+check("entry with neither -> error", /file_path .* or url/.test(validateSetFilesInput({ page_id: "p", property_name: "A", mode: "replace", files: [{ name: "x" }] }) ?? ""));
+check("url entry without name -> error", /require a name/.test(validateSetFilesInput({ page_id: "p", property_name: "A", mode: "replace", files: [{ url: "https://x" }] }) ?? ""));
+
+console.log("== toWritableFiles ==");
+const readEntries = [
+  { type: "external", name: "ext", external: { url: "https://cdn/x.pdf" } },
+  { type: "file", name: "hosted", file: { url: "https://s3/signed.pdf", expiry_time: "2026-06-08T06:00:00Z" } },
+  { type: "file_upload", name: "up", file_upload: { id: "u-1" } },
+  { type: "unknown", name: "drop" },
+];
+const written = toWritableFiles(readEntries);
+check("drops unknown types", written.length === 3);
+check("external round-trips url", written[0].type === "external" && written[0].external.url === "https://cdn/x.pdf");
+check("file strips expiry_time", written[1].type === "file" && written[1].file.url === "https://s3/signed.pdf" && written[1].file.expiry_time === undefined);
+check("file_upload keeps id", written[2].type === "file_upload" && written[2].file_upload.id === "u-1");
+check("empty input -> empty array", toWritableFiles([]).length === 0);
+check("undefined input -> empty array", toWritableFiles(undefined).length === 0);
 
 console.log("== constants ==");
 check("readable: png/jpeg/gif/webp", ["image/png", "image/jpeg", "image/gif", "image/webp"].every((m) => READABLE_MIME_TYPES.has(m)));

@@ -24,6 +24,9 @@ export interface Task {
   project: string | null;
   team: string | null;
   assignee: { id: string; name: string }[];
+  // File descriptors (references to hosted bytes). Notion-hosted URLs are signed
+  // and expire ~1h, so consumers needing a fresh URL re-fetch from the provider.
+  attachments: { url: string; name: string; mime_type?: string; size?: number }[];
   acknowledgedAt: string | null;
   createdAt: string | null;
   url: string;

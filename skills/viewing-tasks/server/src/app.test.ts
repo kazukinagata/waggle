@@ -32,6 +32,7 @@ function makeTask(overrides: Partial<Task> = {}): Task {
     project: null,
     team: null,
     assignee: [],
+    attachments: [],
     acknowledgedAt: null,
     createdAt: null,
     url: "https://notion.so/task-1",
@@ -108,6 +109,35 @@ describe("POST /api/data and GET /api/tasks", () => {
     expect(returned.workingDirectory).toBe("packages/api");
     expect(returned.sessionReference).toBe("scheduled-task-42");
     expect(returned.dispatchedAt).toBe("2026-03-05T10:00:00.000Z");
+  });
+
+  it("preserves the attachments file-descriptor array", async () => {
+    const task = makeTask({
+      attachments: [
+        { url: "https://files.example.com/spec.pdf", name: "spec.pdf", mime_type: "application/pdf", size: 18234 },
+        { url: "https://www.figma.com/file/abc", name: "Figma board" },
+      ],
+    });
+    const payload: TasksResponse = { tasks: [task], updatedAt: "2026-03-05T10:00:00.000Z" };
+
+    await app.request("/api/data", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+
+    const getRes = await app.request("/api/tasks");
+    const body = await getRes.json() as TasksResponse;
+    const returned = body.tasks[0];
+
+    expect(returned.attachments).toHaveLength(2);
+    expect(returned.attachments[0]).toEqual({
+      url: "https://files.example.com/spec.pdf",
+      name: "spec.pdf",
+      mime_type: "application/pdf",
+      size: 18234,
+    });
+    expect(returned.attachments[1]).toEqual({ url: "https://www.figma.com/file/abc", name: "Figma board" });
   });
 
   it("preserves Blocked status and errorMessage", async () => {

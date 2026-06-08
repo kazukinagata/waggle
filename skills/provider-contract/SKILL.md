@@ -234,6 +234,9 @@ Use this checklist to verify a provider plugin meets all requirements before rel
 - [ ] All 15 Core fields supported with correct types
 - [ ] Extended fields supported with graceful degradation if absent
 - [ ] Auto-repair creates missing fields without user intervention
+- [ ] `supportsFileHosting` declared for the `Attachments` (`file[]`) field. Providers with
+  `supportsFileHosting=false` accept attachments only as externally-hosted URLs; skills MUST NOT upload local
+  files to them. See task-schema § Provider Mapping.
 
 ### Data Format
 - [ ] Query output matches `{ "results": [Task, ...] }` format

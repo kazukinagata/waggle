@@ -36,7 +36,7 @@ Every waggle-compatible task board MUST support these fields. Providers MUST aut
 - **No circular references**: A task cannot be its own parent.
 - **Status cascading**: When all subtasks reach Done, the parent auto-transitions to Done. Adding or re-opening a subtask on a Done parent reverts it to In Progress. See managing-tasks for details.
 
-## Extended Fields (10 fields — optional)
+## Extended Fields (11 fields — optional)
 
 Providers MAY support these additional fields. Skills degrade gracefully if absent. Providers MUST NOT fail if these fields do not exist.
 
@@ -50,8 +50,22 @@ Providers MAY support these additional fields. Skills degrade gracefully if abse
 | Project | text | `project` | Project grouping |
 | Team | text | `team` | Team assignment |
 | Assignee | person[] | `assignee` | Array of `{ id, name }` objects |
+| Attachments | file[] | `attachments` | Array of file descriptors `{ url, name, mime_type?, size? }`. References to hosted bytes, not the bytes. Hosting is per-provider — see `supportsFileHosting` under Provider Mapping. v2.13.0+ |
 | Created At | datetime | `createdAt` | ISO 8601 timestamp, auto-populated on creation. Read-only. |
 | Acknowledged At | datetime | `acknowledgedAt` | ISO 8601 timestamp, auto-set when assignee first views the task. Reset on delegation. |
+
+### `file[]` shape
+
+Each element of an `attachments` array is a file descriptor:
+
+| Key | Type | Required | Description |
+|---|---|---|---|
+| `url` | string | yes | Location of the hosted bytes. Provider-hosted URLs may be signed and time-limited (see Provider Mapping); externally-hosted URLs are stable. |
+| `name` | string | yes | Display filename. |
+| `mime_type` | string | no | MIME type if known (e.g. `image/png`, `application/pdf`). |
+| `size` | number | no | Byte size if known. |
+
+The field carries **references** to bytes hosted elsewhere — never the bytes themselves. A provider that cannot host file bytes (`supportsFileHosting=false`) stores only externally-hosted URLs the caller supplies.
 
 ## Query-Only Fields
 
@@ -89,6 +103,9 @@ The following fields are used in query results but are NOT pushed to the view se
   "project": "Auth System",
   "team": "Platform",
   "assignee": [{ "id": "user-123", "name": "Alice" }],
+  "attachments": [
+    { "url": "https://files.example.com/spec.pdf", "name": "spec.pdf", "mime_type": "application/pdf", "size": 18234 }
+  ],
   "createdAt": "2026-03-20T10:00:00.000Z",
   "acknowledgedAt": null
 }
@@ -118,3 +135,21 @@ Each provider maps its native field representation to the canonical JSON keys ab
 - **SQLite/Turso**: Column `title` maps directly to `title`
 
 The mapping logic lives in each provider's SKILL.md under the "Schema" or "CRUD Operations" section.
+
+### Attachments hosting (`supportsFileHosting`)
+
+The `attachments` (`file[]`) field is special: it is not just a column type but a **hosting capability**. A
+file descriptor's `url` must point at hosted bytes, and providers differ in whether they can produce that
+hosting. This is declared per provider as `supportsFileHosting`. Waggle has no runtime capability negotiation
+— this flag is **guidance for skills**, not a value any code reads.
+
+| Provider | supportsFileHosting | Mechanism |
+|---|---|---|
+| Notion | true | Native `files` property. Local files are uploaded via the Notion File Upload API and Notion hosts them; uploaded entries read back as `type:"file"` with a **signed URL that expires (~1h)**. External-URL entries are stored as-is and are stable. |
+| SQLite | false | `attachments TEXT` column holding a JSON array. No hosting — the `url` of each descriptor must be an externally-hosted, caller-supplied URL. |
+| Turso | false | Same as SQLite (libSQL). No hosting — externally-hosted URLs only. |
+
+**Skill guidance:** when the active provider's `supportsFileHosting` is `false`, skills MUST require an
+externally-hosted `url` for each attachment and MUST NOT attempt to upload a local file. When it is `true`,
+skills may upload a local file and let the provider host it. Because provider-hosted URLs can expire,
+consumers that need a fresh URL should re-fetch the task from the provider rather than trust a cached `url`.

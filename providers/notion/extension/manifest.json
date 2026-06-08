@@ -1,8 +1,8 @@
 {
   "manifest_version": "0.3",
   "name": "notion-extension",
-  "version": "1.1.0",
-  "description": "Notion database querying with people property filters, relation property updates, and page-body image upload/read. Designed for Waggle plugin.",
+  "version": "1.2.0",
+  "description": "Notion database querying with people property filters, relation property updates, page-body image upload/read, and files-property attachment management. Designed for Waggle plugin.",
   "author": {
     "name": "Kazuki Nagata"
   },
@@ -33,6 +33,10 @@
     {
       "name": "notion-read-images",
       "description": "Read images from a Notion page body and return them as inline image content the model can see, with a JSON summary mapping block IDs to images."
+    },
+    {
+      "name": "notion-set-files-property",
+      "description": "Set or append files on a Notion files-type page property (e.g. Attachments) from local files (Notion File Upload API, max 20MB) and/or external URLs. Supports replace and append modes. Requires the integration's 'Insert content' capability for uploads."
     }
   ],
   "user_config": {
@@ -44,7 +48,7 @@
       "required": true
     }
   },
-  "keywords": ["notion", "query", "relation", "waggle", "database", "filter", "image", "upload"],
+  "keywords": ["notion", "query", "relation", "waggle", "database", "filter", "image", "upload", "files", "attachment"],
   "license": "MIT",
   "compatibility": {
     "platforms": ["darwin", "win32", "linux"]

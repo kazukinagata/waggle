@@ -267,6 +267,57 @@ Returns a minimal confirmation echo: `{ok, page_id, property_name, mode, relatio
 
 Use the relation update path for **any** relation field update. For non-relation fields, continue using `notion-update-page`. A single task update that changes both relation and non-relation fields requires two calls.
 
+## Setting the Attachments Property
+
+`Attachments` is a `files`-type property (waggle `file[]`). Like relations, `notion-update-page` cannot set
+it (its `properties` accept only `string | number | null`). Local files are uploaded via the Notion File
+Upload API and Notion hosts them; external URLs are stored as-is. The Notion `files` array is **overwritten**
+on each write, so `append` is a read-modify-write (fetch existing entries, merge, write back).
+
+### Attachments Path Detection
+
+Same environment split as relation updates — `NOTION_TOKEN` is exposed to the shell only in CLI; in
+Claude Desktop / Cowork the token is injected into MCP tool invocations and cannot drive a bash script.
+
+**CLI (`execution_environment = "cli"`):** `NOTION_TOKEN` available in shell → Path 1 (bash script);
+otherwise warn the user.
+
+**Claude Desktop / Cowork:** `mcp__notion-extension__notion-set-files-property` tool available → Path 2
+(Desktop Extension v1.2.0+); otherwise warn that the operation needs the `notion-extension` Desktop Extension
+v1.2.0 or later.
+
+### Path 1: Bash Script (CLI, requires NOTION_TOKEN)
+
+```bash
+bash ${CLAUDE_SKILL_DIR}/scripts/attach-file.sh \
+  <page_id> <property_name> <mode> [--file <path>]... [--url <name> <url>]...
+```
+
+- **mode `replace`**: set the property to exactly the provided files (zero files = clear)
+- **mode `append`**: merge with existing entries
+- `--file <path>`: local file, uploaded via the File Upload API (repeatable)
+- `--url <name> <url>`: external file entry, stored as-is (repeatable; `name` is required by Notion)
+
+Prints `{ok, page_id, property, files: [...]}` on success.
+
+### Path 2: Desktop Extension (notion-set-files-property MCP tool, Claude Desktop / Cowork)
+
+Call `mcp__notion-extension__notion-set-files-property` with:
+- `page_id`: the Notion page UUID
+- `property_name`: the files property name (e.g. `"Attachments"`)
+- `mode`: `"replace"` or `"append"`
+- `files`: array of `{ file_path }` (local upload) and/or `{ name, url }` (external) entries
+
+Returns `{ok, page_id, property_name, mode, files}` where `files` is the post-update final state.
+
+### Caveats
+
+- **Upload requires the integration's "Insert content" capability** (same as page-body image upload); a
+  `403 restricted_resource` means it is missing.
+- Uploaded entries read back as `type:"file"` with a signed URL that **expires after ~1 hour**; external
+  entries return a stable `external.url`. Consumers needing a fresh URL re-fetch the task.
+- Local-file uploads are capped at 20MB (Notion single-part upload).
+
 ## Page Body Images
 
 Two operations on images in a task page **body** (blocks, not database properties): **upload** (append an image block — e.g. an agent attaching a screenshot to a task) and **read** (make images pasted in the body visible to the agent — e.g. a mockup a human pasted as task context).
@@ -374,6 +425,7 @@ This removes the page from views but retains it in Notion's trash (recoverable f
 | Tags | multi_select | `task_tags` | Free tags |
 | Parent Task | relation | `task_parent` | Self-relation (hierarchy) |
 | Assignee | people | `task_assignee` | Human executor assignment |
+| Attachments | files | `task_attachments` | Files attached as task data. Notion hosts uploads via the File Upload API (`supportsFileHosting=true`). Set with `attach-file.sh` (CLI) / `notion-set-files-property` (Desktop/Cowork) — `notion-update-page` cannot set it. v2.13.0+ |
 | Branch | rich_text | `task_branch` | Git branch name (e.g. feature/task-slug). Leave blank to work on the current branch |
 | Source Message ID | rich_text | `task_source_message_id` | Messaging tool message unique ID (e.g. Slack `channel_id:ts`). Used for cross-member dedup |
 | Acknowledged At | date | `task_acknowledged_at` | Auto-set when assignee sees the task. Reset on delegation. |
@@ -395,6 +447,14 @@ If `Created At` is missing, repair with:
 ```
 ADD COLUMN "Created At" CREATED_TIME
 ```
+
+If `Attachments` is missing and needed, repair with:
+```
+ADD COLUMN "Attachments" FILES
+```
+Being an Extended field, this is best-effort: if the DDL is rejected, instruct the user to add a
+"Files & media" property named `Attachments` manually, and continue with graceful degradation (an absent
+property reads back as no attachments). The `FILES` type maps to a Notion "Files & media" property.
 
 ## Intake Log Database
 
@@ -635,6 +695,7 @@ curl -s http://localhost:3456/api/health -o /dev/null 2>/dev/null && \
 | Tags | `tags` |
 | Parent Task | `parentTaskId` |
 | Assignee | `assignee` |
+| Attachments | `attachments` (normalize each `files[]` entry to `{url, name}`: `url` from `file.url`/`external.url`, `name` from the entry name. Provider-hosted URLs may already be expired in a pushed snapshot.) |
 | Issuer | `issuer` |
 | Acknowledged At | `acknowledgedAt` |
 | Created At | `createdAt` |
