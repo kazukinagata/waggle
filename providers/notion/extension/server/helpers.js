@@ -91,9 +91,17 @@ export function validateSetFilesInput({ page_id, property_name, mode, files } = 
 }
 
 // Convert a Notion files property's READ representation into the WRITE shape so
-// existing entries can be round-tripped in append mode. file-type (Notion-hosted)
-// entries are re-sent with their still-valid signed url (the round-trip happens
-// within the ~1h validity window); external by url; file_upload by id.
+// existing entries can be round-tripped in append mode. external by url;
+// file_upload by id; file-type (Notion-hosted) entries re-sent with their
+// signed url.
+//
+// NOTE: Notion officially documents only the `file_upload` and `external` write
+// shapes for a files property. The `type:"file"` round-trip below is
+// undocumented-but-accepted today (verified live) and works only because the
+// read-modify-write happens immediately, while the signed url is still valid
+// (~1h). If Notion ever tightens write validation to reject the `file` shape,
+// pre-existing hosted attachments would be silently dropped on append — re-fetch
+// and diff after an append if that ever regresses.
 export function toWritableFiles(entries) {
   return (entries || [])
     .map((e) => {

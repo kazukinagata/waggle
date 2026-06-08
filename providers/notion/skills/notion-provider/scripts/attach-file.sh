@@ -74,22 +74,25 @@ MAX_UPLOAD_BYTES=$((20 * 1024 * 1024))
 # When form_file is set, sends multipart/form-data (File Upload send endpoint).
 notion_api() {
   local method="$1" url="$2" body="${3:-}" form_file="${4:-}" form_mime="${5:-}"
-  local attempt=0 response http_code response_body retry_after
+  local attempt=0 response http_code response_body retry_after hdr_file
 
   while [ $attempt -lt $MAX_RETRIES ]; do
+    # Dump response headers so the 429 handler can read Retry-After (Notion
+    # sends the wait duration as a header, not in the JSON body).
+    hdr_file=$(mktemp)
     if [ -n "$form_file" ]; then
-      response=$(curl -s -w "\n%{http_code}" -X "$method" "$url" \
+      response=$(curl -s -D "$hdr_file" -w "\n%{http_code}" -X "$method" "$url" \
         -H "Authorization: Bearer ${NOTION_TOKEN}" \
         -H "Notion-Version: ${API_VERSION}" \
         -F "file=@${form_file};type=${form_mime}")
     elif [ -n "$body" ]; then
-      response=$(curl -s -w "\n%{http_code}" -X "$method" "$url" \
+      response=$(curl -s -D "$hdr_file" -w "\n%{http_code}" -X "$method" "$url" \
         -H "Authorization: Bearer ${NOTION_TOKEN}" \
         -H "Notion-Version: ${API_VERSION}" \
         -H "Content-Type: application/json" \
         -d "$body")
     else
-      response=$(curl -s -w "\n%{http_code}" -X "$method" "$url" \
+      response=$(curl -s -D "$hdr_file" -w "\n%{http_code}" -X "$method" "$url" \
         -H "Authorization: Bearer ${NOTION_TOKEN}" \
         -H "Notion-Version: ${API_VERSION}")
     fi
@@ -98,19 +101,27 @@ notion_api() {
     response_body=$(echo "$response" | sed '$d')
 
     if [ "$http_code" -eq 200 ]; then
+      rm -f "$hdr_file"
       echo "$response_body"
       return 0
     elif [ "$http_code" -eq 429 ]; then
-      retry_after=$(echo "$response_body" | jq -r '.retry_after // 1' 2>/dev/null || echo 1)
+      # Prefer the Retry-After header (seconds); fall back to the body, then 1s.
+      retry_after=$(grep -i '^Retry-After:' "$hdr_file" | tail -1 | tr -d '\r' | sed 's/^[^:]*:[[:space:]]*//')
+      rm -f "$hdr_file"
+      if ! [[ "$retry_after" =~ ^[0-9]+$ ]]; then
+        retry_after=$(echo "$response_body" | jq -r '.retry_after // 1' 2>/dev/null || echo 1)
+      fi
       echo "Rate limited. Retrying after ${retry_after}s..." >&2
       sleep "$retry_after"
       attempt=$((attempt + 1))
     elif [ "$http_code" -eq 500 ] && [ $attempt -lt $((MAX_RETRIES - 1)) ]; then
+      rm -f "$hdr_file"
       local wait=$((1 << attempt))
       echo "Server error (500). Retrying after ${wait}s..." >&2
       sleep "$wait"
       attempt=$((attempt + 1))
     else
+      rm -f "$hdr_file"
       echo "Error: Notion API returned HTTP ${http_code}" >&2
       echo "$response_body" | jq -r '.message // .code // .' >&2 2>/dev/null || echo "$response_body" >&2
       if [ "$http_code" -eq 403 ]; then
@@ -183,8 +194,9 @@ upload_file() {
 # Build the array of new file entries in Notion's write shape.
 new_entries="[]"
 
-for path in "${LOCAL_FILES[@]:-}"; do
-  [ -n "$path" ] || continue
+# Empty-safe expansion (`${arr[@]+...}` yields zero iterations on an empty array,
+# unlike `${arr[@]:-}` which yields one empty string).
+for path in ${LOCAL_FILES[@]+"${LOCAL_FILES[@]}"}; do
   uid=$(upload_file "$path")
   entry=$(jq -n --arg id "$uid" --arg name "$(basename "$path")" \
     '{type: "file_upload", name: $name, file_upload: {id: $id}}')
@@ -192,8 +204,7 @@ for path in "${LOCAL_FILES[@]:-}"; do
 done
 
 i=0
-for name in "${URL_NAMES[@]:-}"; do
-  [ -n "$name" ] || continue
+for name in ${URL_NAMES[@]+"${URL_NAMES[@]}"}; do
   url="${URL_URLS[$i]}"
   entry=$(jq -n --arg name "$name" --arg url "$url" \
     '{type: "external", name: $name, external: {url: $url}}')
@@ -202,7 +213,15 @@ for name in "${URL_NAMES[@]:-}"; do
 done
 
 # Append mode: read existing entries and prepend them (normalized to write shape).
-# Done immediately, so signed "file"-type URLs are still valid for the round-trip.
+#
+# NOTE on the type:"file" branch: Notion officially documents only the
+# `file_upload` (by upload id) and `external` (by url) write shapes for a files
+# property. Re-sending a Notion-hosted entry as `{type:"file", file:{url}}` is
+# undocumented-but-accepted today (verified live), and works only because this
+# read-modify-write happens immediately, while the signed url is still valid
+# (~1h). If Notion ever tightens write validation to reject the `file` shape,
+# existing hosted attachments would be silently dropped on append — re-fetch and
+# diff after an append if that ever regresses.
 files_array="$new_entries"
 if [ "$MODE" = "append" ]; then
   existing_json=$(notion_api GET "https://api.notion.com/v1/pages/${PAGE_ID}")
