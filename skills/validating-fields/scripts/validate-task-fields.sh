@@ -64,6 +64,7 @@ RESULT=$(jq --arg target "$TARGET_STATUS" --arg code_keywords "$CODE_KEYWORDS_PA
   (.hasChildren // false) as $has_children |
   (.createdAt // null) as $created_at |
   (.repository // "") as $repository |
+  (.qualityVerdict // "") as $verdict |
 
   # Agent Output on Done becomes a hard error for tasks created on or after
   # this date. Tasks created before this date are grandfathered: empty Agent
@@ -106,6 +107,18 @@ RESULT=$(jq --arg target "$TARGET_STATUS" --arg code_keywords "$CODE_KEYWORDS_PA
     (if ($plan | length) == 0
      then $errors + [{"field":"Execution Plan","rule":"required_non_empty","message":"Execution Plan is required for \($target) status."}]
      else $errors end) as $errors |
+    # Quality Verdict integrity (format-level). A promotion to Ready / In Progress must
+    # carry a verdict produced by a real reviewing-quality run. We reject a hand-authored
+    # or fabricated verdict deterministically: the verdict string must match the cache
+    # format, and a non-hex / mnemonic hash (e.g. "line0612a") or a non-PASS verdict at
+    # Ready+ is invalid. The content-hash match (hash == sha256("Title|Description|AC|EP"))
+    # is verified by the org-layer hook; here we enforce the shape and PASS requirement so
+    # every backing provider gets the same baseline guarantee.
+    (if ($verdict | length) > 0 and (($verdict | test("^(PASS|NEEDS_REFINEMENT|REJECT)\\s+hash=[0-9a-f]{8}\\s+@\\S+\\s+v[0-9]+(\\s+suppressed-until=\\S+)?\\s*$")) | not)
+     then $errors + [{"field":"Quality Verdict","rule":"verdict_format","message":"Quality Verdict is malformed. Expected \"<PASS|NEEDS_REFINEMENT|REJECT> hash=<8 hex> @<iso8601> v1\", where hash is the first 8 hex chars of sha256(\"Title|Description|AC|EP\"). A hand-authored / fabricated verdict (non-hex mnemonic hash, placeholder timestamp) is rejected — run reviewing-quality to produce it."}]
+     elif ($verdict | length) > 0 and (($verdict | test("^PASS\\b")) | not)
+     then $errors + [{"field":"Quality Verdict","rule":"verdict_not_pass","message":"\($target) requires a PASS Quality Verdict, but a non-PASS verdict was supplied. Refine the task and re-run reviewing-quality until it passes, or keep the task at Backlog."}]
+     else $errors end) as $errors |
     # In Progress: Executor required
     (if $target == "In Progress" then
       (if $executor == null
@@ -126,6 +139,12 @@ RESULT=$(jq --arg target "$TARGET_STATUS" --arg code_keywords "$CODE_KEYWORDS_PA
      else $warnings end) as $warnings |
     (if $priority == null
      then $warnings + [{"field":"Priority","rule":"recommended","message":"Priority is not set."}]
+     else $warnings end) as $warnings |
+    # No verdict supplied: not a hard error here (the verdict may be written in a
+    # separate update, or enforced by the org-layer hook), but Ready+ should carry a
+    # fresh reviewing-quality PASS produced in this session.
+    (if ($verdict | length) == 0
+     then $warnings + [{"field":"Quality Verdict","rule":"verdict_recommended","message":"No Quality Verdict supplied for \($target). A fresh reviewing-quality PASS should be produced and written in the same update as the Status change."}]
      else $warnings end) as $warnings |
     (if $target == "In Progress" and $executor == "cli" and ($branch | length) == 0
      then $warnings + [{"field":"Branch","rule":"recommended","message":"Branch is not set. Task will run on current branch."}]
