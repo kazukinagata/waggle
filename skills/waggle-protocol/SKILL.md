@@ -50,6 +50,7 @@ Providers MAY support these additional fields. Skills degrade gracefully if abse
 | Context | rich_text | Background info, constraints, delegation history. May carry a managed Quality Review Findings block (see Quality Spec § Findings Persistence) |
 | Artifacts | rich_text | PR URLs, file paths (newline-separated) |
 | Repository | url | GitHub repository URL |
+| Start Date | date | ISO 8601 format. Planned work start |
 | Due Date | date | ISO 8601 format |
 | Tags | multi_select | Free-form tags |
 | Parent Task | relation | Parent task ID (subtask relationship) |

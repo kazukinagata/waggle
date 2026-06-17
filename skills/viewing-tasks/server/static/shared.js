@@ -76,6 +76,7 @@
     executors: [],
     assigneeIds: [],
     tags: [],
+    startDate: '',
     dueDate: '',
     blockedOnly: false
   };
@@ -94,6 +95,12 @@
       if (filters.tags.length) {
         var taskTags = t.tags || [];
         if (!filters.tags.some(function (tag) { return taskTags.indexOf(tag) !== -1; })) return false;
+      }
+      if (filters.startDate) {
+        switch (filters.startDate) {
+          case 'has': if (!t.startDate) return false; break;
+          case 'none': if (t.startDate) return false; break;
+        }
       }
       if (filters.dueDate) {
         switch (filters.dueDate) {
@@ -132,6 +139,7 @@
     if (filters.executors.length) params.set('executor', filters.executors.join(','));
     if (filters.assigneeIds.length) params.set('assignee', filters.assigneeIds.join(','));
     if (filters.tags.length) params.set('tag', filters.tags.join(','));
+    if (filters.startDate) params.set('start', filters.startDate);
     if (filters.dueDate) params.set('due', filters.dueDate);
     if (filters.blockedOnly) params.set('blocked', '1');
     if (extraParams) {
@@ -153,12 +161,13 @@
     if (params.get('executor')) filters.executors = params.get('executor').split(',');
     if (params.get('assignee')) filters.assigneeIds = params.get('assignee').split(',');
     if (params.get('tag')) filters.tags = params.get('tag').split(',');
+    if (params.get('start')) filters.startDate = params.get('start');
     if (params.get('due')) filters.dueDate = params.get('due');
     if (params.get('blocked')) filters.blockedOnly = true;
     // Return extra params for view-specific state
     var extra = {};
     params.forEach(function (v, k) {
-      if (['search', 'status', 'priority', 'executor', 'assignee', 'tag', 'due', 'blocked'].indexOf(k) === -1) {
+      if (['search', 'status', 'priority', 'executor', 'assignee', 'tag', 'start', 'due', 'blocked'].indexOf(k) === -1) {
         extra[k] = v;
       }
     });

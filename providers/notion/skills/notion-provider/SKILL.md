@@ -421,6 +421,7 @@ This removes the page from views but retains it in Notion's trash (recoverable f
 | Context | rich_text | `task_context` | Background info, constraints |
 | Artifacts | rich_text | `task_artifacts` | PR URLs, file paths (newline-separated) |
 | Repository | url | `task_repository` | GitHub repository URL |
+| Start Date | date | `task_start_date` | ISO format |
 | Due Date | date | `task_due_date` | ISO format |
 | Tags | multi_select | `task_tags` | Free tags |
 | Parent Task | relation | `task_parent` | Self-relation (hierarchy) |
@@ -432,6 +433,11 @@ This removes the page from views but retains it in Notion's trash (recoverable f
 | Created At | created_time | `task_created_at` | Auto-populated by Notion on page creation. Read-only. |
 
 ### Auto-Repair DDL for Extended Fields
+
+If `Start Date` is missing and needed, repair with:
+```
+ADD COLUMN "Start Date" DATE
+```
 
 If `Source Message ID` is missing and needed, repair with:
 ```
@@ -597,6 +603,7 @@ When displaying queried tasks to the user in list or table format, reduce each r
   priority: (.properties.Priority.select.name // ""),
   executor: (.properties.Executor.select.name // ""),
   assignee: ([.properties.Assignee.people[]?.name] | join(", ")),
+  start_date: (.properties["Start Date"].date.start // ""),
   due_date: (.properties["Due Date"].date.start // ""),
   blocked_by: (([.properties["Blocked By"].relation[]?.id] | length | tostring) + " deps")
 }]
@@ -691,6 +698,7 @@ curl -s http://localhost:3456/api/health -o /dev/null 2>/dev/null && \
 | Context | `context` |
 | Artifacts | `artifacts` |
 | Repository | `repository` |
+| Start Date | `startDate` |
 | Due Date | `dueDate` |
 | Tags | `tags` |
 | Parent Task | `parentTaskId` |

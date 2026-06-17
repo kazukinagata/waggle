@@ -78,6 +78,14 @@ describe("Task type — Extended fields", () => {
     expectTypeOf<Task["repository"]>().toEqualTypeOf<string | null>();
   });
 
+  it("startDate is nullable string", () => {
+    expectTypeOf<Task["startDate"]>().toEqualTypeOf<string | null>();
+  });
+
+  it("dueDate is nullable string", () => {
+    expectTypeOf<Task["dueDate"]>().toEqualTypeOf<string | null>();
+  });
+
   it("attachments is an array of file descriptors", () => {
     expectTypeOf<Task["attachments"]>().toEqualTypeOf<
       { url: string; name: string; mime_type?: string; size?: number }[]

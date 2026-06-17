@@ -133,6 +133,8 @@
 
     .task-pill:hover { filter: brightness(1.2); }
 
+    .start-marker { color: var(--blue, #0a84ff); font-size: 9px; flex-shrink: 0; }
+
     .task-pill.s-backlog  { background: rgba(152,152,157,0.2); }
     .task-pill.s-ready    { background: rgba(94,92,230,0.2); }
     .task-pill.s-progress { background: rgba(255,159,10,0.2); }
@@ -272,13 +274,18 @@
     var scheduled = {};
     var unscheduled = [];
 
+    function addEntry(dateStr, t, kind) {
+      if (!scheduled[dateStr]) scheduled[dateStr] = [];
+      var existing = scheduled[dateStr].find(function (e) { return e.t.id === t.id; });
+      if (existing) { existing.kinds[kind] = true; }
+      else { var k = {}; k[kind] = true; scheduled[dateStr].push({ t: t, kinds: k }); }
+    }
+
     filtered.forEach(function (t) {
-      if (t.dueDate) {
-        if (!scheduled[t.dueDate]) scheduled[t.dueDate] = [];
-        scheduled[t.dueDate].push(t);
-      } else {
-        unscheduled.push(t);
-      }
+      var placed = false;
+      if (t.startDate) { addEntry(t.startDate, t, 'start'); placed = true; }
+      if (t.dueDate) { addEntry(t.dueDate, t, 'due'); placed = true; }
+      if (!placed) unscheduled.push(t);
     });
 
     document.getElementById('task-count').textContent = filtered.length + ' tasks';
@@ -332,11 +339,16 @@
       var shown = dayTasks.slice(0, MAX_PILLS);
       var remaining = dayTasks.length - MAX_PILLS;
 
-      shown.forEach(function (t) {
+      shown.forEach(function (e) {
+        var t = e.t;
         var pDot = t.priority ? '<span class="priority-dot ' + W.priorityClass(t.priority) + '"></span>' : '';
         var parent = hierarchy.parentOf[t.id];
         var pillLabel = parent ? W.esc(parent.title) + ' > ' + W.esc(t.title) : W.esc(t.title);
-        html += '<div class="task-pill ' + W.statusClass(t.status) + '" onclick="onTaskClick(event,\'' + t.id + '\')" data-task-id="' + t.id + '" title="' + W.esc(t.title) + '">' + pDot + '<span>' + pillLabel + '</span></div>';
+        // Mark start-date occurrences (▶) so they read differently from due dates,
+        // which keep their original appearance.
+        var marker = e.kinds.start ? '<span class="start-marker" title="Start date">▶</span> ' : '';
+        var titleAttr = e.kinds.start ? (e.kinds.due ? 'Starts & due' : 'Starts') : 'Due';
+        html += '<div class="task-pill ' + W.statusClass(t.status) + '" onclick="onTaskClick(event,\'' + t.id + '\')" data-task-id="' + t.id + '" title="' + titleAttr + ': ' + W.esc(t.title) + '">' + pDot + marker + '<span>' + pillLabel + '</span></div>';
       });
 
       if (remaining > 0) {
@@ -369,14 +381,15 @@
 
   function showDayTasks(event, dateStr) {
     event.stopPropagation();
-    var filtered = W.getFiltered().filter(function (t) { return t.dueDate === dateStr; });
+    var filtered = W.getFiltered().filter(function (t) { return t.dueDate === dateStr || t.startDate === dateStr; });
     var popover = document.getElementById('popover');
     var overlay = document.getElementById('popover-overlay');
 
     var html = '<div class="popover-title">' + dateStr + '</div>';
     filtered.forEach(function (t) {
       var pDot = t.priority ? '<span class="priority-dot ' + W.priorityClass(t.priority) + '"></span>' : '';
-      html += '<div class="task-pill ' + W.statusClass(t.status) + '" onclick="onTaskClick(event,\'' + t.id + '\')" style="margin-bottom:4px">' + pDot + '<span>' + W.esc(t.title) + '</span></div>';
+      var marker = t.startDate === dateStr ? '<span class="start-marker" title="Start date">▶</span> ' : '';
+      html += '<div class="task-pill ' + W.statusClass(t.status) + '" onclick="onTaskClick(event,\'' + t.id + '\')" style="margin-bottom:4px">' + pDot + marker + '<span>' + W.esc(t.title) + '</span></div>';
     });
 
     popover.innerHTML = html;
@@ -423,7 +436,7 @@
 
   W.initKeyboard({
     getNavigableTasks: function () {
-      return W.getFiltered().filter(function (t) { return t.dueDate; }).map(function (t) { return t.id; });
+      return W.getFiltered().filter(function (t) { return t.dueDate || t.startDate; }).map(function (t) { return t.id; });
     },
     getTaskElement: function (taskId) {
       return document.querySelector('[data-task-id="' + taskId + '"]');

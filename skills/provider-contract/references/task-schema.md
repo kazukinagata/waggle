@@ -36,7 +36,7 @@ Every waggle-compatible task board MUST support these fields. Providers MUST aut
 - **No circular references**: A task cannot be its own parent.
 - **Status cascading**: When all subtasks reach Done, the parent auto-transitions to Done. Adding or re-opening a subtask on a Done parent reverts it to In Progress. See managing-tasks for details.
 
-## Extended Fields (11 fields — optional)
+## Extended Fields (12 fields — optional)
 
 Providers MAY support these additional fields. Skills degrade gracefully if absent. Providers MUST NOT fail if these fields do not exist.
 
@@ -45,6 +45,7 @@ Providers MAY support these additional fields. Skills degrade gracefully if abse
 | Context | rich_text | `context` | Background info, constraints, delegation history |
 | Artifacts | rich_text | `artifacts` | PR URLs, file paths (newline-separated) |
 | Repository | url | `repository` | GitHub repository URL |
+| Start Date | date | `startDate` | ISO 8601 format. Planned work start |
 | Due Date | date | `dueDate` | ISO 8601 format |
 | Tags | multi_select | `tags` | Free-form tags (array of strings) |
 | Project | text | `project` | Project grouping |
@@ -97,6 +98,7 @@ The following fields are used in query results but are NOT pushed to the view se
   "context": "Part of the auth epic. Design mockups in Figma.",
   "artifacts": "",
   "repository": "https://github.com/org/repo",
+  "startDate": "2026-03-20",
   "dueDate": "2026-03-25",
   "tags": ["auth", "frontend"],
   "parentTask": null,

@@ -40,6 +40,7 @@ Each Task object in the `results` array contains:
       "dispatchedAt": null,
       "agentOutput": "",
       "errorMessage": "",
+      "startDate": "2026-03-24",
       "dueDate": "2026-03-28",
       "assignee": [{ "id": "user-456", "name": "Bob" }],
       "tags": ["auth", "backend"]
