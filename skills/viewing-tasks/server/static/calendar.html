@@ -388,8 +388,11 @@
     var html = '<div class="popover-title">' + dateStr + '</div>';
     filtered.forEach(function (t) {
       var pDot = t.priority ? '<span class="priority-dot ' + W.priorityClass(t.priority) + '"></span>' : '';
-      var marker = t.startDate === dateStr ? '<span class="start-marker" title="Start date">▶</span> ' : '';
-      html += '<div class="task-pill ' + W.statusClass(t.status) + '" onclick="onTaskClick(event,\'' + t.id + '\')" style="margin-bottom:4px">' + pDot + marker + '<span>' + W.esc(t.title) + '</span></div>';
+      var isStart = t.startDate === dateStr;
+      var isDue = t.dueDate === dateStr;
+      var marker = isStart ? '<span class="start-marker" title="Start date">▶</span> ' : '';
+      var titleAttr = isStart ? (isDue ? 'Starts & due' : 'Starts') : 'Due';
+      html += '<div class="task-pill ' + W.statusClass(t.status) + '" onclick="onTaskClick(event,\'' + t.id + '\')" style="margin-bottom:4px" title="' + titleAttr + ': ' + W.esc(t.title) + '">' + pDot + marker + '<span>' + W.esc(t.title) + '</span></div>';
     });
 
     popover.innerHTML = html;

@@ -210,7 +210,7 @@
         '<td>' + (t.priority ? '<span class="badge ' + W.priorityClass(t.priority) + '">' + W.esc(t.priority) + '</span>' : '<span style="color:var(--label-tertiary)">\u2014</span>') + '</td>' +
         '<td>' + (t.executor ? '<span class="badge" style="background:var(--surface-tertiary);color:var(--label-secondary)">' + W.esc(t.executor) + '</span>' : '<span style="color:var(--label-tertiary)">\u2014</span>') + '</td>' +
         '<td><div class="assignee">' + (t.assignee || []).map(function (a) { return '<div class="avatar" title="' + W.esc(a.name) + '">' + W.initials(a.name) + '</div>'; }).join('') + (!t.acknowledgedAt && t.assignee && t.assignee.length ? ' <span class="badge unack" title="Not yet seen by assignee">unseen</span>' : '') + '</div></td>' +
-        '<td>' + W.formatDate(t.startDate) + '</td>' +
+        '<td>' + W.formatStartDate(t.startDate) + '</td>' +
         '<td>' + W.formatDate(t.dueDate) + '</td>' +
         '<td><div class="tags">' + (t.tags || []).map(function (g) { return '<span class="tag">' + W.esc(g) + '</span>'; }).join('') + '</div></td>' +
       '</tr>';

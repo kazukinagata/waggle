@@ -98,7 +98,7 @@
     if (t.startDate) {
       html += '<div class="detail-prop">';
       html += '<span class="detail-prop-label">Start Date</span>';
-      html += '<span class="detail-prop-value">' + W.formatDate(t.startDate) + '</span>';
+      html += '<span class="detail-prop-value">' + W.formatStartDate(t.startDate) + '</span>';
       html += '</div>';
     }
 

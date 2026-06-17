@@ -29,6 +29,13 @@
     return '<span class="due-date' + (overdue ? ' overdue' : '') + '">' + d + (overdue ? ' \u26A0' : '') + '</span>';
   }
 
+  // Start dates never carry the "overdue" treatment: a past start date just
+  // means the task has already begun, not that it is late.
+  function formatStartDate(d) {
+    if (!d) return '';
+    return '<span class="due-date">' + d + '</span>';
+  }
+
   // ── Hierarchy ──
 
   function buildHierarchy(tasks) {
@@ -373,6 +380,7 @@
     statusClass: statusClass,
     priorityClass: priorityClass,
     formatDate: formatDate,
+    formatStartDate: formatStartDate,
     buildHierarchy: buildHierarchy,
     today: today,
 
