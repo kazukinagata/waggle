@@ -348,6 +348,7 @@ interface Task {
   context: string;
   artifacts: string;
   repository: string | null;
+  startDate: string | null;
   dueDate: string | null;
   tags: string[];
   parentTaskId: string | null;

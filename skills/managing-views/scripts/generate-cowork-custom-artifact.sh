@@ -180,6 +180,7 @@ cat >> "$BOOT_FILE" <<'COWORK_BOOT'
       context: rtText(pick('Context').rich_text),
       artifacts: rtText(pick('Artifacts').rich_text),
       repository: pick('Repository').url || null,
+      startDate: (pick('Start Date').date && pick('Start Date').date.start) || null,
       dueDate: (pick('Due Date').date && pick('Due Date').date.start) || null,
       tags: (pick('Tags').multi_select || []).map(function (t) { return t.name; }),
       parentTaskId: ((pick('Parent Task').relation || [])[0] || {}).id || null,

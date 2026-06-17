@@ -116,6 +116,7 @@ Create with all non-relation fields:
 | Context | rich_text | — |
 | Artifacts | rich_text | — |
 | Repository | url | — |
+| Start Date | date | — |
 | Due Date | date | — |
 | Tags | multi_select | — |
 | Assignee | people | — |

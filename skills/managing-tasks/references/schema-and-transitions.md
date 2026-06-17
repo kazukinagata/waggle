@@ -30,6 +30,7 @@
 | Context | rich_text | Background info, constraints |
 | Artifacts | rich_text | PR URLs, file paths (newline-separated) |
 | Repository | url | GitHub repository URL |
+| Start Date | date | ISO format — planned work start |
 | Due Date | date | ISO format |
 | Tags | multi_select | Free tags |
 | Parent Task | relation | Self-relation (hierarchy) |

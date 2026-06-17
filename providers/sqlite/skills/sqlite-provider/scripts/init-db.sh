@@ -29,6 +29,7 @@ CREATE TABLE IF NOT EXISTS tasks (
   context TEXT DEFAULT '',
   artifacts TEXT DEFAULT '',
   repository TEXT,
+  start_date TEXT,
   due_date TEXT,
   tags TEXT DEFAULT '[]',
   parent_task_id TEXT REFERENCES tasks(id),
@@ -87,6 +88,9 @@ SQL
 # DEFAULT '[]' backfills existing rows.
 if [ "$(sqlite3 "$DB_PATH" "SELECT COUNT(*) FROM pragma_table_info('tasks') WHERE name='attachments';")" = "0" ]; then
   sqlite3 "$DB_PATH" "ALTER TABLE tasks ADD COLUMN attachments TEXT DEFAULT '[]';"
+fi
+if [ "$(sqlite3 "$DB_PATH" "SELECT COUNT(*) FROM pragma_table_info('tasks') WHERE name='start_date';")" = "0" ]; then
+  sqlite3 "$DB_PATH" "ALTER TABLE tasks ADD COLUMN start_date TEXT;"
 fi
 
 echo "Database initialized at $DB_PATH"

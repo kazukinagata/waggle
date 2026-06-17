@@ -94,6 +94,14 @@
       html += '</span></div>';
     }
 
+    // Start Date
+    if (t.startDate) {
+      html += '<div class="detail-prop">';
+      html += '<span class="detail-prop-label">Start Date</span>';
+      html += '<span class="detail-prop-value">' + W.formatStartDate(t.startDate) + '</span>';
+      html += '</div>';
+    }
+
     // Due Date
     if (t.dueDate) {
       html += '<div class="detail-prop">';

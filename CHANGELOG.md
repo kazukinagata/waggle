@@ -4,6 +4,22 @@ All notable changes to the Waggle project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## Start Date extended field — 2026-06-17
+
+A new optional `Start Date` extended field complements the existing `Due Date`, letting a task
+express a planned work window (start → due). Previously the schedule views had to *guess* when work
+began — the Gantt chart derived a bar's start from `dispatchedAt` (falling back to `dueDate`), which
+is a heuristic rather than a plan. `Start Date` is a standard `date` field (ISO 8601), optional with
+graceful degradation exactly like `Due Date`: no validation, no status-transition gating.
+
+- **`waggle` 2.13.0 → 2.14.0** (MINOR — new extended field + view-server data model):
+  - `waggle-protocol` Extended Fields and `provider-contract` task-schema gain `Start Date | date | `startDate``; the canonical JSON shape and query-output example carry `startDate`.
+  - View server `Task` type carries `startDate`, pushed through by every provider. **Full view integration**: detail panel shows it; List view adds a sortable `Start Date` column; the filter bar gains a `Start Date` has/none filter (persisted as `?start=`); the Calendar plots a task on its start day (marked `▶`) in addition to its due day; the Gantt now uses `startDate` for the bar start when present, falling back to the prior `dispatchedAt → dueDate` behavior.
+- **`waggle-notion` 3.6.0 → 3.7.0** (MINOR — new optional property):
+  - `Start Date` maps to a Notion `date` property (`task_start_date`). It is a plain date, settable via `notion-update-page` — **no extension repack required**. Auto-repair DDL `ADD COLUMN "Start Date" DATE`; the setup guide creates it on fresh boards.
+- **`waggle-sqlite` 2.3.0 → 2.4.0** and **`waggle-turso` 2.3.0 → 2.4.0** (MINOR — new column):
+  - `start_date TEXT` column. `init-db.sh` also migrates existing DBs via the same idempotent `pragma_table_info`-guarded `ALTER TABLE ... ADD COLUMN` pattern used for `attachments` (Turso does it as query-then-ALTER over the HTTP API).
+
 ## Attachments extended field (`file[]`) — 2026-06-08
 
 A new optional `Attachments` extended field lets tasks carry files **as task data** (a property), portable across providers. This closes the gap where `rich_text` fields (Description / Acceptance Criteria) cannot hold images and PR #69 only covered page-**body** images. The abstract type is `file[]` — an array of file descriptors `{url, name, mime_type?, size?}` that **reference** hosted bytes rather than holding them, because file hosting is a per-provider capability (`supportsFileHosting`), not just a column type.

@@ -26,6 +26,7 @@ function makeTask(overrides: Partial<Task> = {}): Task {
     context: "",
     artifacts: "",
     repository: null,
+    startDate: null,
     dueDate: null,
     tags: [],
     parentTaskId: null,

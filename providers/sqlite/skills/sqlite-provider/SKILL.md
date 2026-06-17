@@ -229,7 +229,7 @@ TASKS_JSON=$(bash ${CLAUDE_PLUGIN_ROOT}/skills/sqlite-provider/scripts/query-tas
   priority, executor, requiresReview: .requires_review, executionPlan: .execution_plan,
   workingDirectory: .working_directory, sessionReference: .session_reference,
   dispatchedAt: .dispatched_at, agentOutput: .agent_output, errorMessage: .error_message,
-  context, artifacts, repository, dueDate: .due_date, tags, parentTaskId: .parent_task_id,
+  context, artifacts, repository, startDate: .start_date, dueDate: .due_date, tags, parentTaskId: .parent_task_id,
   project, team, assignee, attachments, issuer, url: "", sprintId: .sprint_id, sprintName: null,
   complexityScore: .complexity_score, backlogOrder: .backlog_order
 }], updatedAt: (now | strftime("%Y-%m-%dT%H:%M:%SZ"))}')
@@ -261,6 +261,7 @@ curl -s http://localhost:3456/api/health -o /dev/null 2>/dev/null && \
 | context | `context` |
 | artifacts | `artifacts` |
 | repository | `repository` |
+| start_date | `startDate` |
 | due_date | `dueDate` |
 | tags | `tags` (JSON array) |
 | parent_task_id | `parentTaskId` |

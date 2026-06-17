@@ -26,6 +26,12 @@
     { value: 'this-month', label: 'Due this month' }
   ];
 
+  var START_OPTIONS = [
+    { value: '', label: 'Any' },
+    { value: 'has', label: 'Has start date' },
+    { value: 'none', label: 'No start date' }
+  ];
+
   var openDropdown = null;
 
   function collectDynamicOptions() {
@@ -114,6 +120,26 @@
       html += '</div>';
     });
 
+    // Start date filter
+    var startActive = !!W.filters.startDate;
+    html += '<div class="filter-pill' + (startActive ? ' active' : '') + '" data-filter-key="startDate" onclick="window._filterBarToggleStart(event)">';
+    html += 'Start Date';
+    if (startActive) {
+      html += ' <span class="count-badge">1</span>';
+    }
+    html += ' <span class="chevron-down">&#9662;</span>';
+
+    html += '<div class="filter-dropdown" id="filter-dd-start">';
+    html += '<div class="filter-dropdown-list">';
+    START_OPTIONS.forEach(function (o) {
+      var selected = W.filters.startDate === o.value;
+      html += '<div class="filter-dropdown-item" onclick="window._filterBarSetStart(\'' + o.value + '\', event)" style="' + (selected ? 'color:var(--blue);font-weight:600' : '') + '">';
+      html += (selected ? '&#10003; ' : '&nbsp;&nbsp;&nbsp; ') + W.esc(o.label);
+      html += '</div>';
+    });
+    html += '</div></div>';
+    html += '</div>';
+
     // Due date filter
     var dueActive = !!W.filters.dueDate;
     html += '<div class="filter-pill' + (dueActive ? ' active' : '') + '" data-filter-key="dueDate" onclick="window._filterBarToggleDue(event)">';
@@ -187,6 +213,11 @@
       });
     });
 
+    if (W.filters.startDate) {
+      var startLabel = START_OPTIONS.find(function (o) { return o.value === W.filters.startDate; });
+      pills.push({ key: 'startDate', value: W.filters.startDate, display: 'Start: ' + (startLabel ? startLabel.label : W.filters.startDate) });
+    }
+
     if (W.filters.dueDate) {
       var dueLabel = DUE_OPTIONS.find(function (o) { return o.value === W.filters.dueDate; });
       pills.push({ key: 'dueDate', value: W.filters.dueDate, display: 'Due: ' + (dueLabel ? dueLabel.label : W.filters.dueDate) });
@@ -247,6 +278,18 @@
     }
   };
 
+  window._filterBarToggleStart = function (event) {
+    event.stopPropagation();
+    var dd = document.getElementById('filter-dd-start');
+    if (!dd) return;
+    var wasOpen = dd.classList.contains('open');
+    closeAllDropdowns();
+    if (!wasOpen) {
+      dd.classList.add('open');
+      openDropdown = dd;
+    }
+  };
+
   window._filterBarToggleItem = function (key, value, event) {
     event.stopPropagation();
     var values = getFilterValues(key).slice();
@@ -269,6 +312,14 @@
     onFilterChange();
   };
 
+  window._filterBarSetStart = function (value, event) {
+    event.stopPropagation();
+    W.filters.startDate = value;
+    closeAllDropdowns();
+    renderBar();
+    onFilterChange();
+  };
+
   window._filterBarClear = function (idx, event) {
     event.stopPropagation();
     var f = STATIC_FILTERS[idx];
@@ -281,6 +332,8 @@
   window._filterBarRemovePill = function (key, value) {
     if (key === 'dueDate') {
       W.filters.dueDate = '';
+    } else if (key === 'startDate') {
+      W.filters.startDate = '';
     } else {
       W.filters[key] = getFilterValues(key).filter(function (v) { return v !== value; });
     }
@@ -295,6 +348,7 @@
     W.filters.executors = [];
     W.filters.assigneeIds = [];
     W.filters.tags = [];
+    W.filters.startDate = '';
     W.filters.dueDate = '';
     W.filters.blockedOnly = false;
     renderBar();

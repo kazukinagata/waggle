@@ -28,6 +28,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
     context TEXT DEFAULT '',
     artifacts TEXT DEFAULT '',
     repository TEXT,
+    start_date TEXT,
     due_date TEXT,
     tags TEXT DEFAULT '[]',
     parent_task_id TEXT REFERENCES tasks(id),
@@ -84,6 +85,13 @@ has_attachments=$("$SCRIPT_DIR/turso-exec.sh" \
   | jq -r '.results[0].response.result.rows[0][0].value')
 if [ "$has_attachments" = "0" ]; then
   "$SCRIPT_DIR/turso-exec.sh" "ALTER TABLE tasks ADD COLUMN attachments TEXT DEFAULT '[]'" > /dev/null
+fi
+
+has_start_date=$("$SCRIPT_DIR/turso-exec.sh" \
+  "SELECT COUNT(*) AS c FROM pragma_table_info('tasks') WHERE name='start_date'" \
+  | jq -r '.results[0].response.result.rows[0][0].value')
+if [ "$has_start_date" = "0" ]; then
+  "$SCRIPT_DIR/turso-exec.sh" "ALTER TABLE tasks ADD COLUMN start_date TEXT" > /dev/null
 fi
 
 echo "Turso database initialized."

@@ -296,7 +296,9 @@
     if (!t.dueDate) return null;
     var endDate = t.dueDate;
     var startDate;
-    if (t.dispatchedAt) {
+    if (t.startDate) {
+      startDate = t.startDate;
+    } else if (t.dispatchedAt) {
       startDate = t.dispatchedAt.split('T')[0];
     } else {
       startDate = endDate;
