@@ -56,6 +56,22 @@ run "In Progress + fabricated hash -> invalid" "In Progress" 'PASS hash=menu0001
 run "Backlog + fabricated hash -> valid (not checked)" Backlog 'PASS hash=line0612a @x v1' true
 # suppressed-until suffix is accepted by the format.
 run "Ready + PASS w/ suppressed-until -> valid" Ready 'PASS hash=abc12345 @2026-06-10T10:42:00Z v1 suppressed-until=2026-06-17T10:42:00Z' true
+# Forward-compat: a future v2 with unknown trailing key=value pairs must NOT be rejected
+# (cache-format.md "Forward compatibility").
+run "Ready + PASS v2 w/ unknown trailing key -> valid" Ready 'PASS hash=abc12345 @2026-06-10T10:42:00Z v2 newkey=foo' true
+# Whitespace-only verdict is treated as absent (warning, not a hard format error).
+run "Ready + whitespace-only verdict -> valid (treated absent)" Ready '   ' true
+# A fabricated verdict that adds a trailing key is still caught (hash is the signal).
+run "Ready + fabricated hash w/ trailing key -> invalid" Ready 'PASS hash=line0612a @2026-06-10T00:00:00Z v1 extra=1' false verdict_format
+
+# Absent verdict raises the verdict_recommended warning.
+WARN_F="$(mktemp)"; task '' >"$WARN_F"
+if bash "$SCRIPT" Ready "$WARN_F" | jq -e '.warnings[]|select(.rule=="verdict_recommended")' >/dev/null; then
+  ok "Ready + no verdict -> verdict_recommended warning present"
+else
+  no "Ready + no verdict -> verdict_recommended warning present" "warning missing"
+fi
+rm -f "$WARN_F"
 
 echo "---- $PASS passed, $FAIL failed ----"
 [ "$FAIL" -eq 0 ]
