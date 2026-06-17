@@ -73,11 +73,12 @@ The validation script is **provider-agnostic**. Before calling it, construct a f
   "agentOutput": "Execution result",
   "errorMessage": "Error details",
   "createdAt": "2026-04-15T10:00:00.000Z",
-  "repository": "https://github.com/org/repo"
+  "repository": "https://github.com/org/repo",
+  "qualityVerdict": "PASS hash=abc12345 @2026-04-15T10:00:00Z v1"
 }
 ```
 
-`createdAt` is used for legacy grandfathering of the Agent Output rule on Done transitions. `repository` is optional and enables repository-aware warnings when code tasks reach Ready without a working directory.
+`createdAt` is used for legacy grandfathering of the Agent Output rule on Done transitions. `repository` is optional and enables repository-aware warnings when code tasks reach Ready without a working directory. `qualityVerdict` is the task's `Quality Verdict` cache string; when present, Ready / In Progress transitions reject a malformed verdict (a hand-authored or fabricated string whose `hash` is not a real 8-hex `sha256("Title|Description|AC|EP")`) or a non-PASS verdict. Pass it whenever it is set so a fabricated verdict cannot promote a task past the gate; an absent verdict is a warning, not a hard error (the content-hash match is verified separately by the org-layer hook).
 
 ### Construction Guide
 
@@ -96,6 +97,7 @@ agentOutput      <- .properties["Agent Output"].rich_text | map(.plain_text) | j
 errorMessage     <- .properties["Error Message"].rich_text | map(.plain_text) | join("")
 createdAt        <- .created_time
 repository       <- .properties.Repository.url // ""
+qualityVerdict   <- .properties["Quality Verdict"].rich_text | map(.plain_text) | join("")
 ```
 
 **From SQLite/Turso row:**
@@ -113,6 +115,7 @@ agentOutput      <- .agent_output
 errorMessage     <- .error_message
 createdAt        <- .created_at
 repository       <- .repository
+qualityVerdict   <- .quality_verdict
 ```
 
 ## Output
@@ -136,7 +139,7 @@ repository       <- .repository
 
 | Target Status | Required (errors) | Recommended (warnings) |
 |---|---|---|
-| **Ready** | Description (non-empty, >=50 chars), AC (non-empty + semantic check), Execution Plan (non-empty) | Issuer (non-empty), Assignee (non-empty), Priority (set), Working Directory & Repository (for AI code tasks — detected via keyword match) |
+| **Ready** | Description (non-empty, >=50 chars), AC (non-empty + semantic check), Execution Plan (non-empty), Quality Verdict (well-formed + PASS *when supplied*) | Issuer (non-empty), Assignee (non-empty), Priority (set), Quality Verdict (fresh PASS present), Working Directory & Repository (for AI code tasks — detected via keyword match) |
 | **In Progress** | All Ready requirements + Executor (set), Working Directory (non-empty for AI executors) | Issuer, Branch (for cli executor) |
 | **Blocked** | Description (non-empty), AC (non-empty) | Issuer, Error Message |
 | **Done** | Description (non-empty), Agent Output (non-empty for AI executors on new tasks) | Agent Output (legacy tasks — created before the enforcement date — keep warning-only) |

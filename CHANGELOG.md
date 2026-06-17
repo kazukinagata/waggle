@@ -4,6 +4,31 @@ All notable changes to the Waggle project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## Quality Verdict integrity check at Ready / In Progress — 2026-06-17
+
+Telemetry surfaced a quality-gate bypass where a batch flow (a manually-invoked
+`running-daily-tasks` run) promoted tasks to `Ready` by writing a self-authored
+`PASS` Quality Verdict instead of running `reviewing-quality` — the "hash" was a
+human-readable mnemonic (e.g. `line0612a`) rather than a real `sha256("Title|Description|AC|EP")`
+prefix, and the timestamp was a placeholder. Because the Ready gate was advisory
+(SessionStart guidance, no verification), a fabricated verdict satisfied it.
+
+- **`waggle` 2.14.0 → 2.15.0** (MINOR — new validation; no schema change):
+  - `validating-fields` now accepts an optional `qualityVerdict` canonical field and, on
+    `Ready` / `In Progress` transitions, **deterministically rejects a malformed verdict**
+    (a string whose `hash` is not a real `[0-9a-f]{8}`, e.g. a mnemonic) and a **non-PASS**
+    verdict. A fabricated, hand-authored verdict can no longer pass the field validator.
+  - An absent verdict stays a warning (not a hard error): it may be written in a separate
+    update, and the content-hash match (`hash == sha256("Title|Description|AC|EP")[:8]`) is
+    verified by the org-layer hook, out of scope for this provider-agnostic check.
+  - `validating-fields/SKILL.md` documents the new `qualityVerdict` field, its construction
+    from Notion (`Quality Verdict` rich_text) and SQLite/Turso (`quality_verdict`), and the
+    Ready/In Progress requirement. New `skills/validating-fields/tests/run.sh` covers the cases.
+  - Known limitation: a mnemonic hash that is coincidentally all-hex (e.g. `fac0618a`) passes
+    the format check; catching it requires the content-hash recompute, deferred to the
+    org-layer hook (which can fetch the task content).
+  - Providers unchanged.
+
 ## Start Date extended field — 2026-06-17
 
 A new optional `Start Date` extended field complements the existing `Due Date`, letting a task
