@@ -107,7 +107,7 @@ When creating a task, optionally set a Parent Task to create a subtask:
 
 > **Important (Notion provider)**: `notion-create-pages` cannot set relation properties. After creating the task, set the Parent Task relation using `update-relations.sh` as a second step. See notion-provider SKILL.md "Updating Relation Fields".
 
-**During normal creation flow:** After gathering Context (step 4 below), if the user has not already specified a parent, ask:
+**During normal creation flow:** After gathering Context, if the user has not already specified a parent, ask:
 "Is this a subtask of an existing task? [No / Search for parent task]"
 - If "No" or skipped: proceed as normal
 - If searching: use provider query to find and set the parent, with hierarchy validation
@@ -128,49 +128,29 @@ When the user says "decompose task X", "break down X into subtasks", or similar:
    - **`Acceptance Criteria` / `Execution Plan`: do NOT inherit (v2.8.0+)** — parent AC/EP describes the parent's outcome; copying it into a subtask creates a misleading spec. Initialize the child with `[DRAFT-AC]` and `[DRAFT-EP]` placeholders instead, and recommend running `/planning-tasks` on each new subtask before promotion.
 4. Create each subtask with `parentTask = X.id`
 5. After all subtasks are created, run status cascading check (if parent was Done, revert to In Progress)
-6. **Suggest planning (v2.8.0+)**: surface a one-line note "Run `/planning-tasks` on the new subtasks before promoting them to Ready" so the user knows the placeholders are awaiting refinement.
+6. **Suggest planning**: surface a one-line note "Run `/planning-tasks` on the new subtasks to refine their AC/EP before promoting them to Ready" so the user knows the placeholders are awaiting refinement.
 
-## Task Creation Questioning Flow
+## Seed Collection (Task Creation Questioning Flow)
 
-When creating a task, proactively gather the following through AskUserQuestion.
-Do not skip fields — ask for each one unless the user has already explicitly provided it.
+The human provides the **seed** — intent, context, and optionally rough completion criteria. The planning agent refines it into agent-executable AC/EP. Do not pressure the user to write detailed AC or EP; that is the planning agent's job.
 
-**Required questioning (in order):**
+Proactively gather the following through AskUserQuestion. Do not skip required fields — ask for each one unless the user has already explicitly provided it.
 
-1. **Description**: Ask the user to describe the task in enough detail that an agent can execute
-   without additional questions. If the description is vague (under ~50 tokens), ask follow-up
-   questions: "What specifically needs to happen?", "What is the current state vs desired state?"
+**Required (in order):**
 
-2. **Acceptance Criteria**: Ask "What are the completion conditions? How will we verify this task
-   is done?" Guide toward machine-verifiable criteria:
-   - Good: "command `npm test` passes", "file `src/auth.ts` exports `validateToken` function",
-     "API returns 200 for `GET /health`"
-   - Bad: "works correctly", "is implemented", "looks good"
-   If criteria are vague, propose concrete alternatives and confirm.
+1. **Description**: Ask the user to describe the task in enough detail that a planning agent can research and draft a spec. If the description is vague (under ~50 tokens), ask follow-up questions: "What specifically needs to happen?", "What is the current state vs desired state?"
 
-3. **Execution Plan**: Ask "Do you have a plan for how to accomplish this, or would you like to
-   build one together?" If the user provides a plan, confirm it. If not, propose a numbered
-   plan based on the Description and Acceptance Criteria. Each step should specify:
-   - What to do (action verb)
-   - Which files/modules/areas to touch (if known)
-   - Expected outcome of the step
-   If the plan has >7 major steps or touches >5 distinct areas, suggest splitting into
-   multiple smaller tasks.
+2. **Context**: Ask "Is there any background information, constraints, or related context the executor should know?" (e.g., existing PRs, design docs, prior decisions, Slack threads). May be empty if user says "none".
 
-4. **Context**: Ask "Is there any background information, constraints, or related context the
-   executor should know?" (e.g., existing PRs, design docs, prior decisions)
+**Optional (offer, don't require):**
 
-**Multi-round questioning**: For AC and Execution Plan, if the user's response lacks verifiable conditions (no commands, file paths, metrics, or observable outcomes), propose 3 concrete options and brainstorm together. If the user disengages, accept with `[NEEDS-REFINE]` prefix (v2.8.0+: aligned with the protocol's 2 reserved prefixes).
+3. **Acceptance Criteria (seed)**: Ask "Do you have any completion conditions in mind, or should the planning agent draft them?" If the user provides criteria — even rough ones — record them. If the user declines or says "later", insert `[DRAFT-AC] {one-line summary of the user's intent}` (the Title or the user's verbatim deferral note).
 
-**Auto-planning shortcut**: If the user says "auto" or "generate" for AC or Execution Plan, propose AC and Execution Plan based on the Description. If Description is too vague (no nouns, no context), ask the user to elaborate first.
+4. **Execution Plan (seed)**: Ask "Do you have a plan in mind, or should the planning agent draft one?" Same rule: record if provided, otherwise insert `[DRAFT-EP] 1. Refine with planning-agent`.
 
-**Planning-assisted creation**: If the user asks for the AC / Execution Plan to be drafted by a planning agent during creation (e.g. "have the planning agent draft it"), follow "Planning-Assisted Creation & Creation-Time Quality Gate" below instead of drafting inline.
+When the user provides AC or EP seed text, it becomes input to the planning agent — the agent uses it as a starting point for refinement, not as a finished spec. The user's seed is never discarded.
 
-**"Defer" shortcut (v2.8.0+)**: If the user says "later" or "defer" for AC or Execution Plan, do NOT save the field empty. Insert the appropriate placeholder:
-- AC empty → `[DRAFT-AC] {one-line summary of the user's intent}` (intent summary can be the Title or the user's verbatim deferral note)
-- EP empty → `[DRAFT-EP] 1. Refine this plan with /planning-tasks 2. ...`
-
-These placeholders trip the Rubric's R-AC4 check so the task can never be promoted to Ready until they are resolved.
+**Do NOT create the task with literally empty AC or EP fields.** The `[DRAFT-*]` placeholders must always be inserted when the user does not provide seed text. These placeholders trip the Rubric's R-AC4 check so the task can never be promoted to Ready until they are resolved by a planning agent.
 
 ## Pre-Creation Checklist (hard gate)
 
@@ -178,33 +158,43 @@ Before calling the provider's create API, verify ALL of the following have been 
 
 | # | Field | Confirmed? |
 |---|---|---|
-| 1 | Description (≥50 tokens, specific enough for agent execution) | |
-| 2 | Acceptance Criteria (verifiable conditions, or `[DRAFT-AC]` placeholder) | |
-| 3 | Execution Plan (numbered steps with actions and expected outcomes, or `[DRAFT-EP]` placeholder) | |
+| 1 | Description (≥50 tokens, specific enough for a planning agent to research) | |
+| 2 | Acceptance Criteria (user-provided seed, or `[DRAFT-AC]` placeholder) | |
+| 3 | Execution Plan (user-provided seed, or `[DRAFT-EP]` placeholder) | |
 | 4 | Context (asked — may be empty if user says "none") | |
 
-**Do NOT create the task with literally empty AC or EP fields.** If the user wants to defer, insert the appropriate `[DRAFT-*]` placeholder (see "Defer shortcut" above).
+**Do NOT create the task with literally empty AC or EP fields.** If the user did not provide seed text, insert the appropriate `[DRAFT-*]` placeholder.
 
-## Status Auto-Determination at Creation
+## Status Determination at Creation
 
-Do NOT hardcode Status to Backlog. Determine it dynamically:
+After collecting the seed, ask the user via AskUserQuestion:
 
-1. After gathering all fields, construct the canonical validation JSON from the gathered values
-2. Run `validate-task-fields.sh "Ready"` against the gathered fields
-3. If `valid: true` → create with **Status = Ready**
-4. If `valid: false` → create with **Status = Backlog**, inform the user which fields need refinement before the task can be promoted to Ready
+> **`[Create at Ready]`** — the planning agent will refine the AC/EP and the quality reviewer will validate before creation. Takes ~90 seconds.
+>
+> **`[Create at Backlog]`** — create now with the seed as-is. Refine later with `/planning-tasks` before promoting to Ready.
 
-When a creation-time Reviewer verdict exists (planning-assisted creation below), Ready additionally requires that verdict to be `PASS`, and the create payload must carry the `Quality Verdict` string — the Rubric-only rule above applies only when no Reviewer verdict was computed.
+The user's explicit choice determines the path. Do NOT auto-determine Status from field completeness alone — a task reaching Ready requires a planning agent refinement and a PASS quality verdict, regardless of how complete the seed looks.
 
-## Planning-Assisted Creation & Creation-Time Quality Gate
+### Backlog Path
 
-When the user requests agent-drafted AC / Execution Plan during creation, the draft gets a live quality review **before** the task is created. The verdict decides the status — but on a non-PASS verdict, **the user decides what happens next; never silently create the task**. The Reviewer's gaps are typically requester-side information (who approves, what the brief is) that only the user can supply, so the choice between fixing now and parking the task is theirs.
+Create the task immediately with:
+- **Status = Backlog**
+- AC/EP = user-provided seed text or `[DRAFT-*]` placeholders
+- No Quality Verdict (field left empty)
 
-1. **Draft**: spawn the appropriate planning agent — `code-planning-agent` when the task has a Working Directory / repository target, `knowledge-planning-agent` otherwise — with the gathered Title, Description, Context, and Executor. It returns AC + Execution Plan.
-2. **Review**: invoke the `reviewing-quality` skill in `live` mode on the drafted spec. The task does not exist yet, so the deferred-write contract applies: hold the returned `verdict_string` and findings block in memory for the create payload.
+The task can be promoted to Ready later via two routes:
+1. Run `/planning-tasks` on the task (planning agent refines AC/EP → `reviewing-quality` produces a verdict) → then promote to Ready via `managing-tasks` (the Backlog→Ready Quality Gate verifies the cached verdict).
+2. Promote directly via `managing-tasks` → the Backlog→Ready Quality Gate encounters UNREVIEWED → falls back to `reviewing-quality` live mode, which evaluates the current AC/EP as-is. If the AC/EP are still `[DRAFT-*]` placeholders, the Rubric rejects before the Reviewer even runs.
+
+### Ready Path (Planning Agent Refinement + Quality Gate)
+
+When the user chooses Ready, the planning agent refines the seed and the quality reviewer validates — all before the task is created. On a non-PASS verdict, **the user decides what happens next; never silently create the task.**
+
+1. **Refine**: spawn the appropriate planning agent — `code-planning-agent` when the task has a Working Directory / repository target, `knowledge-planning-agent` otherwise — with the gathered Title, Description, Context, Executor, and any AC/EP seed text the user provided. The planning agent uses domain knowledge skills available in the session to research and draft agent-quality AC + Execution Plan. When the user provided seed AC/EP, the agent treats it as a starting point — incorporating the user's intent while enriching with specifics the agent discovers.
+2. **Review**: invoke the `reviewing-quality` skill in `live` mode on the refined spec. The task does not exist yet, so the deferred-write contract applies: hold the returned `verdict_string` and findings block in memory for the create payload.
 3. **Branch on the verdict**:
-   - **PASS** → show the drafted AC/EP and proceed with Status Auto-Determination above (Rubric `valid: true` → create at **Ready** with the `Quality Verdict` property set to `verdict_string` in the same create payload).
-   - **NEEDS_REFINEMENT / REJECT** → show the drafted AC/EP together with the Reviewer's per-axis findings, gaps, and suggested fixes, then ask via AskUserQuestion:
+   - **PASS** → show the refined AC/EP to the user for confirmation, then create with **Status = Ready**, the refined AC/EP, and the `Quality Verdict` property set to `verdict_string` in the same create payload. Run `validate-task-fields.sh "Ready"` as a final Rubric check before the create call.
+   - **NEEDS_REFINEMENT / REJECT** → show the refined AC/EP together with the Reviewer's per-axis findings, gaps, and suggested fixes, then ask via AskUserQuestion:
      - **`[Refine now]`** — resolve the gaps interactively, see the refine loop below.
      - **`[Create at Backlog as-is]`** — create with **Status = Backlog**, `Quality Verdict` = `verdict_string`, and `Context` containing the findings block returned by `reviewing-quality` (appended after any user-provided context). For `REJECT`, apply the `[NEEDS-REFINE]` prefix to AC and EP per the protocol's reserved prefixes. The final summary must state what needs fixing before the task can be promoted to Ready.
 
