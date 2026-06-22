@@ -130,6 +130,8 @@ When the user says "decompose task X", "break down X into subtasks", or similar:
 5. After all subtasks are created, run status cascading check (if parent was Done, revert to In Progress)
 6. **Suggest planning**: surface a one-line note "Run `/planning-tasks` on the new subtasks to refine their AC/EP before promoting them to Ready" so the user knows the placeholders are awaiting refinement.
 
+> **Note**: subtasks created via decompose are always Status = Backlog — they skip the "Status Determination at Creation" section entirely.
+
 ## Seed Collection (Task Creation Questioning Flow)
 
 The human provides the **seed** — intent, context, and optionally rough completion criteria. The planning agent refines it into agent-executable AC/EP. Do not pressure the user to write detailed AC or EP; that is the planning agent's job.
@@ -193,7 +195,9 @@ When the user chooses Ready, the planning agent refines the seed and the quality
 1. **Refine**: spawn the appropriate planning agent — `code-planning-agent` when the task has a Working Directory / repository target, `knowledge-planning-agent` otherwise — with the gathered Title, Description, Context, Executor, and any AC/EP seed text the user provided. The planning agent uses domain knowledge skills available in the session to research and draft agent-quality AC + Execution Plan. When the user provided seed AC/EP, the agent treats it as a starting point — incorporating the user's intent while enriching with specifics the agent discovers.
 2. **Review**: invoke the `reviewing-quality` skill in `live` mode on the refined spec. The task does not exist yet, so the deferred-write contract applies: hold the returned `verdict_string` and findings block in memory for the create payload.
 3. **Branch on the verdict**:
-   - **PASS** → show the refined AC/EP to the user for confirmation, then create with **Status = Ready**, the refined AC/EP, and the `Quality Verdict` property set to `verdict_string` in the same create payload. Run `validate-task-fields.sh "Ready"` as a final Rubric check before the create call.
+   - **PASS** → show the refined AC/EP to the user for confirmation.
+     - If the user **approves** → create with **Status = Ready**, the refined AC/EP, and the `Quality Verdict` property set to `verdict_string` in the same create payload. Run `validate-task-fields.sh "Ready"` as a final Rubric check before the create call.
+     - If the user **rejects** (e.g. "this doesn't match my intent") → treat identically to NEEDS_REFINEMENT: present the `[Refine now]` / `[Create at Backlog as-is]` options described below.
    - **NEEDS_REFINEMENT / REJECT** → show the refined AC/EP together with the Reviewer's per-axis findings, gaps, and suggested fixes, then ask via AskUserQuestion:
      - **`[Refine now]`** — resolve the gaps interactively, see the refine loop below.
      - **`[Create at Backlog as-is]`** — create with **Status = Backlog**, `Quality Verdict` = `verdict_string`, and `Context` containing the findings block returned by `reviewing-quality` (appended after any user-provided context). For `REJECT`, apply the `[NEEDS-REFINE]` prefix to AC and EP per the protocol's reserved prefixes. The final summary must state what needs fixing before the task can be promoted to Ready.
