@@ -148,7 +148,7 @@ Proactively gather the following through AskUserQuestion. Do not skip required f
 
 3. **Acceptance Criteria (seed)**: Ask "Do you have any completion conditions in mind, or should the planning agent draft them?" If the user provides criteria — even rough ones — record them. If the user declines or says "later", insert `[DRAFT-AC] {one-line summary of the user's intent}` (the Title or the user's verbatim deferral note).
 
-4. **Execution Plan (seed)**: Ask "Do you have a plan in mind, or should the planning agent draft one?" Same rule: record if provided, otherwise insert `[DRAFT-EP] 1. Refine with planning-agent`.
+4. **Execution Plan (seed)**: Ask "Do you have a plan in mind, or should the planning agent draft one?" Same rule: record if provided, otherwise insert `[DRAFT-EP] 1. (to be refined by planning agent) 2. …`.
 
 When the user provides AC or EP seed text, it becomes input to the planning agent — the agent uses it as a starting point for refinement, not as a finished spec. The user's seed is never discarded.
 
