@@ -1,7 +1,7 @@
 {
   "manifest_version": "0.3",
   "name": "notion-extension",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Notion database querying with people property filters, relation property updates, page-body image upload/read, and files-property attachment management. Designed for Waggle plugin.",
   "author": {
     "name": "Kazuki Nagata"

@@ -4,6 +4,30 @@ All notable changes to the Waggle project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## notion-extension query "Premature close" fix — 2026-07-01
+
+`notion-query` (and other tools going through `@notionhq/client`) intermittently
+failed with a Node `Premature close` error against the Notion API, even though
+direct REST calls with the same `NOTION_TOKEN` succeeded reliably (verified via
+curl: metadata fetch, paginated queries up to 100 rows/1.15MB, cursor-based
+continuation — all 200 OK). Root cause: `@notionhq/client` falls back to its
+bundled `node-fetch` v2 unless an explicit `fetch` is passed to its constructor,
+and node-fetch v2 has a long-standing bug in its chunked-response termination
+detection ([node-fetch/node-fetch#1576](https://github.com/node-fetch/node-fetch/issues/1576))
+that misfires depending on how the response body is split across TCP packets —
+intermittent by nature, and not reproducible via curl or Node's built-in fetch.
+
+- **`notion-extension` 1.2.0 → 1.2.1** (PATCH — bug fix): `new Client({ auth, fetch })`
+  now passes the built-in Node 18+ `fetch` (already required elsewhere in the file
+  for the File Upload API) into the Notion SDK client, routing
+  `notion.databases.query()` / `notion.pages.update()` / `notion.pages.retrieve()`
+  through the same undici-based client as the rest of the extension instead of
+  through `node-fetch`. Extension repack required (`npx @anthropic-ai/mcpb pack .`);
+  reinstall for Desktop/Cowork.
+- **`waggle-notion` 3.7.0 → 3.7.1** (PATCH — companion bump). The bundled extension's
+  HTTP client changes, but the provider plugin's external skill behavior is
+  unchanged.
+
 ## Quality Verdict integrity check at Ready / In Progress — 2026-06-17
 
 Telemetry surfaced a quality-gate bypass where a batch flow (a manually-invoked

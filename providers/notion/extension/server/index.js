@@ -38,10 +38,16 @@ if (typeof fetch !== "function" || typeof FormData !== "function") {
 
 const NOTION_API_VERSION = "2022-06-28";
 
-const notion = new Client({ auth: NOTION_TOKEN });
+// Without an explicit fetch, @notionhq/client falls back to its bundled
+// node-fetch v2, which has a long-standing "Premature close" bug in its
+// chunked-response termination detection (node-fetch/node-fetch#1576) that
+// surfaces intermittently depending on TCP packet framing. Passing the
+// built-in fetch (already required above) routes notion.databases.query()
+// through the same undici-based client as the rest of this file.
+const notion = new Client({ auth: NOTION_TOKEN, fetch });
 
 const server = new Server(
-  { name: "notion-extension", version: "1.2.0" },
+  { name: "notion-extension", version: "1.2.1" },
   { capabilities: { tools: {} } }
 );
 

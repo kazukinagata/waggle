@@ -1,6 +1,6 @@
 {
   "name": "notion-extension",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Notion MCP server for Waggle — database queries, relation updates, page-body image upload/read, and files-property attachments",
   "type": "module",
   "main": "server/index.js",
