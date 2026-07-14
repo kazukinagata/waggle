@@ -5,6 +5,7 @@ import {
   MAX_READ_IMAGE_BYTES,
   MAX_UPLOAD_BYTES,
   READABLE_MIME_TYPES,
+  apiErrorDetail,
   collectImageBlocks,
   filterByBlockIds,
   mimeForAttachment,
@@ -150,6 +151,13 @@ check("file strips expiry_time", written[1].type === "file" && written[1].file.u
 check("file_upload keeps id", written[2].type === "file_upload" && written[2].file_upload.id === "u-1");
 check("empty input -> empty array", toWritableFiles([]).length === 0);
 check("undefined input -> empty array", toWritableFiles(undefined).length === 0);
+
+console.log("== apiErrorDetail ==");
+check("json message wins", apiErrorDetail(400, { message: "Date type must be expanded", code: "validation_error" }) === "Date type must be expanded");
+check("json code as fallback", apiErrorDetail(403, { code: "restricted_resource" }) === "restricted_resource");
+check("403 without json -> WAF hint", /WAF/.test(apiErrorDetail(403, null)) && /\.zip/.test(apiErrorDetail(403, null)));
+check("non-403 without json -> plain status", apiErrorDetail(502, null) === "HTTP 502");
+check("json without message/code -> plain status", apiErrorDetail(500, { object: "error" }) === "HTTP 500");
 
 console.log("== constants ==");
 check("readable: png/jpeg/gif/webp", ["image/png", "image/jpeg", "image/gif", "image/webp"].every((m) => READABLE_MIME_TYPES.has(m)));

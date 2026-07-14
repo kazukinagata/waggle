@@ -13,6 +13,7 @@ import {
   MAX_READ_IMAGE_BYTES,
   MAX_UPLOAD_BYTES,
   READABLE_MIME_TYPES,
+  apiErrorDetail,
   collectImageBlocks,
   filterByBlockIds,
   mimeForAttachment,
@@ -47,7 +48,7 @@ const NOTION_API_VERSION = "2022-06-28";
 const notion = new Client({ auth: NOTION_TOKEN, fetch });
 
 const server = new Server(
-  { name: "notion-extension", version: "1.2.1" },
+  { name: "notion-extension", version: "1.2.2" },
   { capabilities: { tools: {} } }
 );
 
@@ -367,8 +368,9 @@ async function notionApi(method, path, body) {
   });
   const json = await response.json().catch(() => null);
   if (!response.ok) {
-    const detail = json?.message || json?.code || `HTTP ${response.status}`;
-    throw new Error(`Notion API ${method} ${path} failed: ${detail}`);
+    throw new Error(
+      `Notion API ${method} ${path} failed: ${apiErrorDetail(response.status, json)}`
+    );
   }
   return json;
 }
@@ -439,7 +441,9 @@ async function handleUploadImage(args) {
   });
 
   const form = new FormData();
-  form.append("file", new Blob([data], { type: mimeType }), filename);
+  // The send must declare the content type Notion inferred from the filename
+  // at create time; any other type is rejected with a 400 mismatch.
+  form.append("file", new Blob([data], { type: upload.content_type || mimeType }), filename);
   await notionApi("POST", `/v1/file_uploads/${upload.id}/send`, form);
 
   const block_id = await appendImageBlock(page_id, {
@@ -466,7 +470,10 @@ async function uploadLocalFile(file_path) {
     filename,
   });
   const form = new FormData();
-  form.append("file", new Blob([data], { type: mimeType }), filename);
+  // The send must declare the content type Notion inferred from the filename
+  // at create time; any other type is rejected with a 400 mismatch. The local
+  // extension map is only the fallback for filenames Notion cannot classify.
+  form.append("file", new Blob([data], { type: upload.content_type || mimeType }), filename);
   await notionApi("POST", `/v1/file_uploads/${upload.id}/send`, form);
   return { id: upload.id, name: filename };
 }
