@@ -1,7 +1,7 @@
 {
   "manifest_version": "0.3",
   "name": "notion-extension",
-  "version": "1.2.2",
+  "version": "1.2.3",
   "description": "Notion database querying with people property filters, relation property updates, page-body image upload/read, and files-property attachment management. Designed for Waggle plugin.",
   "author": {
     "name": "Kazuki Nagata"
@@ -20,23 +20,23 @@
   "tools": [
     {
       "name": "notion-query",
-      "description": "Query a Notion database with server-side filtering, sorting, and pagination. Supports people property filters (Assignee) that the Notion hosted MCP cannot handle. Accepts page_size / start_cursor / filter_properties so the caller can drive pagination and projection on large databases."
+      "description": "Preferred over the hosted Notion MCP for filtered/sorted database queries: runs raw Notion API filters server-side, including people-property filters (Assignee) the hosted tools cannot express. Accepts page_size / start_cursor / filter_properties so the caller can drive pagination and projection on large databases."
     },
     {
       "name": "notion-update-relation",
-      "description": "Update a relation property on a Notion page. Supports replace (set exact list) and append (merge with existing, dedup) modes."
+      "description": "Use instead of the hosted notion-update-page for relation properties: writes relation page IDs directly, with replace (set exact list) and append (merge with existing, dedup) modes."
     },
     {
       "name": "notion-upload-image",
-      "description": "Append an image block to a Notion page body from a local file (Notion File Upload API, max 20MB) or an external URL. Requires the integration's 'Insert content' capability."
+      "description": "The only tool that can upload a local image file into a Notion page body (hosted Notion MCP tools cannot upload local files). Appends an image block from a local file (Notion File Upload API, max 20MB) or an external URL. Requires the integration's 'Insert content' capability."
     },
     {
       "name": "notion-read-images",
-      "description": "Read images from a Notion page body and return them as inline image content the model can see, with a JSON summary mapping block IDs to images."
+      "description": "The only tool that returns a Notion page's images as inline image content the model can see (the hosted notion-fetch returns text only), with a JSON summary mapping block IDs to images."
     },
     {
       "name": "notion-set-files-property",
-      "description": "Set or append files on a Notion files-type page property (e.g. Attachments) from local files (Notion File Upload API, max 20MB) and/or external URLs. Supports replace and append modes. Requires the integration's 'Insert content' capability for uploads."
+      "description": "The only way to write a files-type page property (e.g. Attachments) — the hosted notion-update-page cannot set files properties. Uploads local files (Notion File Upload API, max 20MB) and/or stores external URLs, with replace and append modes. Requires the integration's 'Insert content' capability for uploads."
     }
   ],
   "user_config": {
