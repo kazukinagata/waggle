@@ -368,18 +368,26 @@ async function notionApi(method, path, body) {
   });
   const json = await response.json().catch(() => null);
   if (!response.ok) {
-    throw new Error(
+    const error = new Error(
       `Notion API ${method} ${path} failed: ${apiErrorDetail(response.status, json)}`
     );
+    // Genuine Notion errors carry a JSON code (e.g. restricted_resource);
+    // expose it so callers can classify without string-matching the message.
+    // A WAF block has no JSON body, so its error never gets a code.
+    error.code = json?.code;
+    throw error;
   }
   return json;
 }
 
 // Appending body blocks needs the integration's "Insert content" capability;
 // without it Notion returns 403 restricted_resource. Re-throw with the fix.
+// Classify by error code only — both the SDK's APIResponseError and notionApi
+// errors carry .code, and message text can legitimately mention the code name
+// (the WAF diagnostic does) without being a permissions error.
 function rethrowWithCapabilityHint(error) {
-  const message = String(error?.message ?? error);
-  if (error?.code === "restricted_resource" || message.includes("restricted_resource")) {
+  if (error?.code === "restricted_resource") {
+    const message = String(error?.message ?? error);
     throw new Error(
       `${message} — the integration token likely lacks the "Insert content" capability. Enable it at https://www.notion.so/profile/integrations (integration → Capabilities → Insert content), then retry.`
     );
