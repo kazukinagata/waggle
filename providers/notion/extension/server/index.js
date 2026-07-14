@@ -48,7 +48,7 @@ const NOTION_API_VERSION = "2022-06-28";
 const notion = new Client({ auth: NOTION_TOKEN, fetch });
 
 const server = new Server(
-  { name: "notion-extension", version: "1.2.2" },
+  { name: "notion-extension", version: "1.2.3" },
   { capabilities: { tools: {} } }
 );
 
@@ -57,7 +57,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
     {
       name: "notion-query",
       description:
-        "Query a Notion database with server-side filtering, sorting, and pagination. Supports people property filters (Assignee) that the Notion hosted MCP cannot handle. Pass page_size to fetch one page at a time and avoid MCP token-cap errors on large databases; the response will then include has_more and next_cursor for the caller to drive pagination. When page_size is omitted, all pages are aggregated server-side (legacy behavior).",
+        "Prefer this over the hosted Notion MCP's notion-search / notion-query-data-sources for any filtered or sorted database query: it runs raw Notion API filter/sorts objects server-side, including people-property filters (e.g. Assignee) that the hosted tools cannot express. Pass page_size to fetch one page at a time and avoid MCP token-cap errors on large databases; the response will then include has_more and next_cursor for the caller to drive pagination. When page_size is omitted, all pages are aggregated server-side (legacy behavior). Not for free-text search across a workspace — use the hosted notion-search for that.",
       inputSchema: {
         type: "object",
         properties: {
@@ -100,7 +100,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
     {
       name: "notion-update-relation",
       description:
-        "Update a relation property on a Notion page. Supports replace (set exact list) and append (merge with existing, dedup) modes.",
+        "Use this instead of the hosted notion-update-page for relation properties: it writes relation page IDs directly with an explicit mode — replace sets the exact list (empty array clears) and append merges with existing entries and deduplicates, a read-modify-write the hosted tool cannot do safely. Only touches the single relation property named; not for other property types.",
       inputSchema: {
         type: "object",
         properties: {
@@ -132,7 +132,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
     {
       name: "notion-upload-image",
       description:
-        "Append an image block to a Notion page body. Provide exactly one of file_path (a local image file, uploaded via the Notion File Upload API; max 20MB single-part) or external_url (a publicly reachable image URL, embedded as an external image block). Requires the integration token to have the 'Insert content' capability.",
+        "The only tool that can put a local image file into a Notion page body — the hosted Notion MCP tools cannot upload local files at all. Appends an image block; provide exactly one of file_path (a local image file, uploaded via the Notion File Upload API; max 20MB single-part) or external_url (a publicly reachable image URL, embedded as an external image block). Requires the integration token to have the 'Insert content' capability. For non-image file attachments on a files-type property, use notion-set-files-property instead.",
       inputSchema: {
         type: "object",
         properties: {
@@ -162,7 +162,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
     {
       name: "notion-read-images",
       description:
-        "Read images from a Notion page body and return them as inline image content the model can see, preceded by a text part with a JSON summary ({count, total_found, images:[{index, block_id, mime_type, size_bytes, caption, source_type}], skipped}) whose images array is in the same order as the image parts. total_found counts all images discovered on the page before any filtering. Recurses into nested blocks (toggles, columns, callouts; depth 3) but never into child pages/databases. Images over 5MB, non-raster types (svg, tiff, heic), and requested block_ids that match no image are listed in skipped with a reason instead of returned.",
+        "The only tool that returns a Notion page's images as actual inline image content the model can see — the hosted notion-fetch returns text/markdown only. Returns the images preceded by a text part with a JSON summary ({count, total_found, images:[{index, block_id, mime_type, size_bytes, caption, source_type}], skipped}) whose images array is in the same order as the image parts. total_found counts all images discovered on the page before any filtering. Recurses into nested blocks (toggles, columns, callouts; depth 3) but never into child pages/databases. Images over 5MB, non-raster types (svg, tiff, heic), and requested block_ids that match no image are listed in skipped with a reason instead of returned.",
       inputSchema: {
         type: "object",
         properties: {
@@ -195,7 +195,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
     {
       name: "notion-set-files-property",
       description:
-        "Set or append files on a Notion files-type page property (e.g. \"Attachments\"). Each files entry is either { file_path } (a local file uploaded via the Notion File Upload API; max 20MB single-part; requires the 'Insert content' capability) or { name, url } (an external file stored as-is). Mode replace sets the exact list (empty array clears); append merges with existing entries (read-modify-write). Uploaded files read back as signed URLs that expire ~1h. notion-update-page cannot set files properties — use this tool.",
+        "The only way to write a files-type page property (e.g. \"Attachments\") — the hosted notion-update-page cannot set files properties, and no hosted tool can upload a local file. Each files entry is either { file_path } (a local file uploaded via the Notion File Upload API; max 20MB single-part; requires the 'Insert content' capability) or { name, url } (an external file stored as-is). Mode replace sets the exact list (empty array clears); append merges with existing entries (read-modify-write). Uploaded files read back as signed URLs that expire ~1h.",
       inputSchema: {
         type: "object",
         properties: {

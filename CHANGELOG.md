@@ -4,6 +4,30 @@ All notable changes to the Waggle project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## notion-extension tool descriptions: state hosted-MCP boundaries up front — 2026-07-14
+
+In real sessions the model tended to route Notion operations to the hosted
+Notion MCP tools first: only 2 of the extension's 5 tool descriptions said
+what the hosted tools cannot do, and neither said it in the first sentence.
+Tool selection weighs the opening of a description heavily, so the neutral
+descriptions read as interchangeable with the hosted equivalents.
+
+- **`notion-extension` 1.2.2 → 1.2.3** (PATCH — description-only; no behavior
+  change): every tool description now opens with the factual boundary versus
+  the hosted Notion MCP — `notion-query` ("prefer this over notion-search /
+  notion-query-data-sources for filtered/sorted queries", plus an explicit
+  not-for free-text-search deferral), `notion-update-relation` ("use instead
+  of notion-update-page for relation properties"), `notion-upload-image` /
+  `notion-set-files-property` ("the only tool that can upload a local
+  file..."), `notion-read-images` ("the only tool that returns images the
+  model can see — notion-fetch returns text only"). Claims are limited to
+  verifiable capability gaps to avoid over-selection; when-not-to-use notes
+  added where misuse was plausible. `manifest.json` tool listings updated to
+  match. Extension repack required (`npx @anthropic-ai/mcpb pack .`);
+  reinstall for Desktop/Cowork.
+- **`waggle-notion` 3.7.2 → 3.7.3** (PATCH — companion bump). Bundled
+  extension metadata changes only; skill behavior unchanged.
+
 ## notion-extension file-upload fixes: MIME mismatch + WAF-block diagnosis — 2026-07-14
 
 A field report (Cowork session, `notion-set-files-property` attaching an HTML
