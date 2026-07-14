@@ -33,6 +33,25 @@ export const MAX_READ_IMAGE_BYTES = 5 * 1024 * 1024;
 // Notion File Upload API single-part cap.
 export const MAX_UPLOAD_BYTES = 20 * 1024 * 1024;
 
+// Failure detail for a non-OK Notion API response. Notion's own errors carry
+// a JSON body with message/code. A 403 without one never reached Notion: the
+// WAF in front of api.notion.com serves an HTML block page when the request
+// body matches an attack signature (e.g. "javascript:" URIs inside an
+// uploaded HTML file trigger this on /send).
+export function apiErrorDetail(status, json) {
+  const detail = json?.message || json?.code;
+  if (detail) return detail;
+  if (status === 403) {
+    return (
+      "HTTP 403 with a non-JSON body — the request was blocked by the WAF in front of the Notion API, " +
+      "not rejected by Notion itself (a permissions error would carry a restricted_resource JSON body). " +
+      'File contents matching attack signatures (e.g. "javascript:" URIs in HTML) trigger this on upload. ' +
+      "Compress the file to .zip and retry."
+    );
+  }
+  return `HTTP ${status}`;
+}
+
 export function mimeFromFilename(filename) {
   const match = /\.([A-Za-z0-9]+)$/.exec(filename || "");
   if (!match) return null;

@@ -4,6 +4,36 @@ All notable changes to the Waggle project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## notion-extension file-upload fixes: MIME mismatch + WAF-block diagnosis — 2026-07-14
+
+A field report (Cowork session, `notion-set-files-property` attaching an HTML
+mock) failed with a bare `HTTP 403` on `POST /v1/file_uploads/{id}/send`, which
+the session's Claude misdiagnosed as a missing "Insert content" capability.
+Investigation with the same integration token showed two independent defects:
+
+1. **WAF block (the reported 403)**: the WAF in front of `api.notion.com`
+   serves an HTML block page (non-JSON, so `notionApi` degraded it to a bare
+   `HTTP 403`) when the multipart body matches an attack signature — reproduced
+   with `javascript:` URIs (`javascript:void(0)`) inside an uploaded HTML file.
+   Not fixable client-side; compressing the file to `.zip` is the workaround.
+2. **MIME mismatch (latent 400)**: the send declared the type from the local
+   extension→MIME map (`.html` and anything else unmapped fell back to
+   `application/octet-stream`), but Notion validates the send type against the
+   `content_type` it inferred from the filename at create time — so even
+   WAF-clean `.html` uploads failed with a 400 mismatch.
+
+- **`notion-extension` 1.2.1 → 1.2.2** (PATCH — bug fixes): the send now echoes
+  the create response's `content_type` (falling back to the local map only when
+  Notion infers none), making the declared type match by construction for any
+  extension; and a 403 with a non-JSON body now raises a diagnostic error
+  naming the WAF block and the `.zip` workaround (new pure helper
+  `apiErrorDetail`, unit-tested) instead of a bare `HTTP 403`. Verified against
+  the live API: benign `.html` uploads now succeed, WAF-blocked uploads surface
+  the hint, images unaffected. Extension repack required
+  (`npx @anthropic-ai/mcpb pack .`); reinstall for Desktop/Cowork.
+- **`waggle-notion` 3.7.1 → 3.7.2** (PATCH — companion bump). The bundled
+  extension's upload behavior changes; skill behavior is unchanged.
+
 ## notion-extension query "Premature close" fix — 2026-07-01
 
 `notion-query` (and other tools going through `@notionhq/client`) intermittently
