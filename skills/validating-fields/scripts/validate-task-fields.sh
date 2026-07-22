@@ -37,16 +37,13 @@ else
 fi
 
 RESULT=$(jq --arg target "$TARGET_STATUS" --arg code_keywords "$CODE_KEYWORDS_PATTERN" '
-  # Helper: check semantic AC quality (contains verifiable conditions)
-  def has_verifiable_conditions:
-    # Command patterns
-    (test("\\b(npm|curl|git|python|bash|test|run|build|deploy|make|cargo|go)\\b"; "i")) or
-    # File path patterns
-    (test("/|\\.(ts|js|py|md|html|css|json|yaml|yml|sh|rs|go|java|rb)\\b")) or
-    # Numeric thresholds
-    (test("\\d+\\s*(%|ms|s|count|times|items)")) or
-    # Explicit state verbs
-    (test("\\b(returns|displays|creates|exists|passes|fails|contains|shows|generates|sends|receives|confirms|records|updates|produces|outputs|renders|exports|imports|validates|verifies|checks|completes|delivers|publishes|shares|submits|approves)\\b"; "i"));
+  # Helper: reserved placeholder detection (protocol reserved prefixes).
+  # Layer 1 is structural-only (v3.0.0): language-independent checks a script can
+  # decide exactly. Semantic quality (verifiability, groundedness) is owned entirely
+  # by Layer 2 (task-quality-reviewer-agent) — a keyword heuristic cannot judge it
+  # and demonstrably rejects well-specified non-English ACs.
+  def has_reserved_placeholder:
+    test("\\[(DRAFT-AC|DRAFT-EP|NEEDS-REFINE)\\]");
 
   # Read canonical flat fields
   (.description // "") as $desc |
@@ -97,15 +94,17 @@ RESULT=$(jq --arg target "$TARGET_STATUS" --arg code_keywords "$CODE_KEYWORDS_PA
     (if ($desc | length) > 0 and ($desc | length) < 50
      then $errors + [{"field":"Description","rule":"min_length","message":"Description is too short (< 50 chars). Elaborate on what needs to be done."}]
      else $errors end) as $errors |
-    # AC required + semantic check
+    # AC required + no reserved placeholder
     (if ($ac | length) == 0
      then $errors + [{"field":"Acceptance Criteria","rule":"required_non_empty","message":"Acceptance Criteria is required for \($target) status."}]
-     elif ($ac | has_verifiable_conditions | not)
-     then $errors + [{"field":"Acceptance Criteria","rule":"semantic_quality","message":"AC lacks verifiable conditions. Include commands, file paths, metrics, or observable outcomes."}]
+     elif ($ac | has_reserved_placeholder)
+     then $errors + [{"field":"Acceptance Criteria","rule":"placeholder_present","message":"Acceptance Criteria still contains a reserved placeholder ([DRAFT-AC] / [DRAFT-EP] / [NEEDS-REFINE]). Resolve it (e.g. via planning-tasks) before promoting to \($target)."}]
      else $errors end) as $errors |
-    # Execution Plan required
+    # Execution Plan required + no reserved placeholder
     (if ($plan | length) == 0
      then $errors + [{"field":"Execution Plan","rule":"required_non_empty","message":"Execution Plan is required for \($target) status."}]
+     elif ($plan | has_reserved_placeholder)
+     then $errors + [{"field":"Execution Plan","rule":"placeholder_present","message":"Execution Plan still contains a reserved placeholder ([DRAFT-AC] / [DRAFT-EP] / [NEEDS-REFINE]). Resolve it (e.g. via planning-tasks) before promoting to \($target)."}]
      else $errors end) as $errors |
     # Quality Verdict integrity (format-level). A promotion to Ready / In Progress must
     # carry a verdict produced by a real reviewing-quality run. We reject a hand-authored
@@ -114,10 +113,11 @@ RESULT=$(jq --arg target "$TARGET_STATUS" --arg code_keywords "$CODE_KEYWORDS_PA
     # Ready+ is invalid. The content-hash match (hash == sha256("Title|Description|AC|EP"))
     # is verified by the org-layer hook; here we enforce the shape and PASS requirement so
     # every backing provider gets the same baseline guarantee.
-    # Forward-compat: a future v2 may add trailing key=value pairs (including
-    # suppressed-until); per cache-format.md a parser MUST NOT reject a line solely for
-    # unknown trailing keys, so the format allows zero or more "<key>=<value>" tokens
-    # after the version literal. The hash class stays lowercase 8-hex per spec (the
+    # Forward/backward-compat: the format allows zero or more trailing "<key>=<value>"
+    # tokens after the version literal — per cache-format.md a parser MUST NOT reject a
+    # line solely for unknown trailing keys. This also keeps legacy v2.x lines parseable:
+    # the retired suppressed-until key (suppression removed in v3.0.0) parses as an
+    # unknown trailing key and carries no semantics. The hash class stays lowercase 8-hex per spec (the
     # producer is sha256sum | cut, always lowercase), which is what rejects mnemonics.
     (if ($verdict | test("\\S")) and (($verdict | test("^(PASS|NEEDS_REFINEMENT|REJECT)\\s+hash=[0-9a-f]{8}\\s+@\\S+\\s+v[0-9]+(\\s+\\S+=\\S+)*\\s*$")) | not)
      then $errors + [{"field":"Quality Verdict","rule":"verdict_format","message":"Quality Verdict is malformed. Expected \"<PASS|NEEDS_REFINEMENT|REJECT> hash=<8 lowercase hex> @<iso8601> v1\", where hash is the first 8 hex chars of sha256(\"Title|Description|AC|EP\"). A hand-authored / fabricated verdict (e.g. a non-hex mnemonic hash like \"line0612a\") is rejected — run reviewing-quality to produce it."}]

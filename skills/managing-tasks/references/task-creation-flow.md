@@ -152,7 +152,7 @@ Proactively gather the following through AskUserQuestion. Do not skip required f
 
 When the user provides AC or EP seed text, it becomes input to the planning agent — the agent uses it as a starting point for refinement, not as a finished spec. The user's seed is never discarded.
 
-**Do NOT create the task with literally empty AC or EP fields.** The `[DRAFT-*]` placeholders must always be inserted when the user does not provide seed text. These placeholders trip the Rubric's R-AC4 check so the task can never be promoted to Ready until they are resolved by a planning agent.
+**Do NOT create the task with literally empty AC or EP fields.** The `[DRAFT-*]` placeholders must always be inserted when the user does not provide seed text. These placeholders trip Layer 1's reserved-placeholder check (`placeholder_present`) so the task can never be promoted to Ready until they are resolved by a planning agent.
 
 ## Pre-Creation Checklist (hard gate)
 
@@ -186,17 +186,17 @@ Create the task immediately with:
 
 The task can be promoted to Ready later via two routes:
 1. Run `/planning-tasks` on the task (planning agent refines AC/EP → `reviewing-quality` produces a verdict) → then promote to Ready via `managing-tasks` (the Backlog→Ready Quality Gate verifies the cached verdict).
-2. Promote directly via `managing-tasks` → the Backlog→Ready Quality Gate encounters UNREVIEWED → falls back to `reviewing-quality` live mode, which evaluates the current AC/EP as-is. If the AC/EP are still `[DRAFT-*]` placeholders, the Rubric rejects before the Reviewer even runs.
+2. Promote directly via `managing-tasks` → the Backlog→Ready Quality Gate encounters UNREVIEWED → falls back to `reviewing-quality` live mode, which evaluates the current AC/EP as-is. If the AC/EP are still `[DRAFT-*]` placeholders, the Layer 1 structural check rejects before the Reviewer even runs.
 
 ### Ready Path (Planning Agent Refinement + Quality Gate)
 
 When the user chooses Ready, the planning agent refines the seed and the quality reviewer validates — all before the task is created. On a non-PASS verdict, **the user decides what happens next; never silently create the task.**
 
-1. **Refine**: spawn the appropriate planning agent — `code-planning-agent` when the task has a Working Directory / repository target, `knowledge-planning-agent` otherwise — with the gathered Title, Description, Context, Executor, and any AC/EP seed text the user provided. The planning agent uses domain knowledge skills available in the session to research and draft agent-quality AC + Execution Plan. When the user provided seed AC/EP, the agent treats it as a starting point — incorporating the user's intent while enriching with specifics the agent discovers.
+1. **Refine**: spawn the `task-planning-agent` with the gathered Title, Description, Context, Executor, and any AC/EP seed text the user provided. The agent judges its own investigation mode (codebase exploration, domain planning, or both) from the task content — a Working Directory / Repository value is an investigation resource for it, not a routing key. The planning agent uses domain knowledge skills available in the session to research and draft agent-quality AC + Execution Plan. When the user provided seed AC/EP, the agent treats it as a starting point — incorporating the user's intent while enriching with specifics the agent discovers.
 2. **Review**: invoke the `reviewing-quality` skill in `live` mode on the refined spec. The task does not exist yet, so the deferred-write contract applies: hold the returned `verdict_string` and findings block in memory for the create payload.
 3. **Branch on the verdict**:
    - **PASS** → show the refined AC/EP to the user for confirmation.
-     - If the user **approves** → create with **Status = Ready**, the refined AC/EP, and the `Quality Verdict` property set to `verdict_string` in the same create payload. Run `validate-task-fields.sh "Ready"` as a final Rubric check before the create call.
+     - If the user **approves** → create with **Status = Ready**, the refined AC/EP, and the `Quality Verdict` property set to `verdict_string` in the same create payload. Invoke the `validating-fields` skill with target `"Ready"` as a final structural check before the create call.
      - If the user **rejects** (e.g. "this doesn't match my intent") → treat identically to NEEDS_REFINEMENT: present the `[Refine now]` / `[Create at Backlog as-is]` options described below.
    - **NEEDS_REFINEMENT / REJECT** → show the refined AC/EP together with the Reviewer's per-axis findings, gaps, and suggested fixes, then ask via AskUserQuestion:
      - **`[Refine now]`** — resolve the gaps interactively, see the refine loop below.
@@ -205,11 +205,10 @@ When the user chooses Ready, the planning agent refines the seed and the quality
 **Refine loop (user-driven, runs until PASS):**
 
 1. Derive one concrete question per requester-side gap (e.g. "Who approves the In Review step, and via what channel?") and ask the user via AskUserQuestion. Gaps an agent can resolve alone (internal inconsistencies the Reviewer already named a fix for) need no question — carry the fix forward directly.
-2. Re-spawn the planning agent with the user's answers and the Reviewer's suggested fixes attached as additional context.
-3. Re-invoke `reviewing-quality` in `live` mode on the revised draft, passing the previous round's `verdict_string` and failing axes as the `prior_verdict` hint — the task does not exist yet, so this hint is the only way its suppression check can count consecutive same-axis failures.
+2. Re-spawn the `task-planning-agent` with the user's answers, the user's own wording marked as authoritative intent, and the Reviewer's suggested fixes attached as additional context.
+3. Re-invoke `reviewing-quality` in `live` mode on the revised draft.
 4. Branch again as in step 3 above. The loop ends when:
    - the verdict is **PASS** (create at Ready), or
-   - the user picks **`[Create at Backlog as-is]`** (create at Backlog with the latest verdict + findings block; for `REJECT`, apply the `[NEEDS-REFINE]` prefix to AC and EP as in step 3), or
-   - **suppression triggers** (two consecutive failures on the same axis) — create at Backlog with the suppressed verdict + findings block (same `[NEEDS-REFINE]` rule for `REJECT`) and tell the user re-review is frozen for 7 days unless they substantively rewrite the spec.
+   - the user picks **`[Create at Backlog as-is]`** (create at Backlog with the latest verdict + findings block; for `REJECT`, apply the `[NEEDS-REFINE]` prefix to AC and EP as in step 3).
 
 Each round costs one planning-agent and one Reviewer call but is gated on the user's explicit choice to continue, so the loop cannot run away on its own.

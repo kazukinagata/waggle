@@ -143,8 +143,8 @@ Before transitioning a task from Ready → In Progress, the orchestrator MUST ve
 | Field | Check |
 |---|---|
 | Description | Non-empty, at least ~50 tokens |
-| Acceptance Criteria | Non-empty, contains testable conditions |
-| Execution Plan | Non-empty |
+| Acceptance Criteria | Non-empty, no reserved placeholder remaining |
+| Execution Plan | Non-empty, no reserved placeholder remaining |
 | Working Directory | Non-empty AND the directory exists on the filesystem |
 | Quality Verdict (v2.8.0+) | Cache PASS preferred; cache miss / fail surfaces 2-choice prompt. Live Reviewer invocation is forbidden at dispatch (hot path) |
 
@@ -166,27 +166,19 @@ Applied at intake (`ingesting-messages` Phase A) only. Classifies whether an inc
 
 **Waggle never silently discards user-created items.** Layer 0 surfaces a suggestion in the intake confirmation table; the user always has the final say via `[Create as task] / [Convert to note] / [Discard]`. Items chosen as `[Create as task]` are tagged `worthiness:calendar-like` or `worthiness:info-only` and skip Layer 1/2 for the rest of their lifecycle.
 
-### Layer 1: Rubric (deterministic)
+### Layer 1: Structural checks (deterministic)
 
-Applied at every status transition into Ready or beyond. No LLM involvement.
+Applied at every status transition into Ready or beyond. No LLM involvement. Layer 1 checks only what a script can decide exactly and language-independently; it makes **no judgment about the meaning** of AC/EP text — semantic quality belongs entirely to Layer 2.
 
-**AC rules** (each failing rule contributes to verdict):
-
-| Rule | Check |
+| Check | Rule |
 |---|---|
-| R-AC1 | Each criterion contains ≥1 verifiable indicator (command, file path, numeric threshold + unit, observable verb, URL, code token) |
-| R-AC2 | Criteria are not just a verb-form restatement of the Title (no "echo-of-title") |
-| R-AC3 | Criteria are grounded in the original task description or are explicitly prefixed `[INFERRED]` |
-| R-AC4 | No reserved placeholder remains (`[DRAFT-AC]`, `[NEEDS-REFINE]`) |
+| Description | Non-empty; ≥50 characters at Ready+ |
+| Acceptance Criteria | Non-empty; no reserved placeholder (`[DRAFT-AC]` / `[DRAFT-EP]` / `[NEEDS-REFINE]`) remaining |
+| Execution Plan | Non-empty; no reserved placeholder remaining |
+| Quality Verdict | When supplied, well-formed per the cache format below; must be `PASS` for Ready+ |
+| Executor / Working Directory | Executor set at In Progress; Working Directory set for AI executors (cli / claude-code / claude-desktop / cowork) |
 
-**EP rules**:
-
-| Rule | Check |
-|---|---|
-| R-EP1 | 3–7 numbered steps. <3 too thin; >7 → suggest split |
-| R-EP2 | Each step averages ≥30 characters and contains an action verb + target + outcome |
-| R-EP3 | EP overall contains ≥1 concrete artifact (file path, command, branch, URL, PR number, etc.) |
-| R-EP4 | When `Executor` is AI (cli / claude-code / claude-desktop / cowork), `Working Directory` is set and the EP references paths consistent with it |
+> **v3.0.0 breaking change**: v2.8.x defined semantic rules at this layer (R-AC1–R-AC3, R-EP1–R-EP4: verifiable-indicator keyword lists, echo-of-title detection, step-count/step-richness thresholds, concrete-artifact detection). They were removed. Keyword heuristics cannot judge semantics language-independently — the shipped check hard-rejected well-specified non-English ACs while passing vague English prose — and every axis those rules approximated is evaluated by Layer 2. Implementations MUST NOT gate status transitions on semantic keyword heuristics.
 
 ### Layer 2: Intent Reproducibility Check (LLM)
 
@@ -221,13 +213,13 @@ Skills MUST NOT introduce additional reserved prefixes. Other tags (e.g., `worth
 The `Quality Verdict` core field stores at most one line in the format:
 
 ```
-{verdict} hash=<sha256(Title|Description|AC|EP)[:8]> @<iso8601> v1 [suppressed-until=<iso8601>]
+{verdict} hash=<sha256(Title|Description|AC|EP)[:8]> @<iso8601> v1
 ```
 
 - `verdict` ∈ `PASS`, `NEEDS_REFINEMENT`, `REJECT`
 - `hash` is a content fingerprint over the first 8 hex chars of SHA-256 of `Title|Description|AC|EP` (pipe-delimited). Any edit to those fields invalidates the cache automatically.
-- `suppressed-until` (optional) freezes re-review for 7 days after 2 consecutive same-axis failures (anti-grinding guard).
 - `v1` is the format version. Future versions remain parse-compatible.
+- Parsers MUST ignore unknown trailing `key=value` tokens after the version literal. This covers forward compatibility and the retired v2.x `suppressed-until` key: the 7-day re-review suppression was removed in v3.0.0 (it kept returning frozen verdicts even after the user substantively fixed the spec; the content hash plus user-gated refine loops already bound re-review cost). Legacy lines carrying the key parse normally and the key carries no semantics.
 
 Live Reviewer invocation is allowed at: `planning-tasks`, `managing-tasks` planning-assisted creation, `ingesting-messages` Phase A.5, `running-daily-tasks` Step 2.6, `delegating-tasks` (cache miss), `monitoring-tasks --deep`.
 

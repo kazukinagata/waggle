@@ -56,19 +56,17 @@ Promote the current user's Backlog tasks to Ready by filling quality gates.
 1. Query the provider for tasks where **Status = Backlog** AND **Assignee includes `current_user`**.
    - **Auto-Acknowledge**: After fetching, for each task where `Acknowledged At` exists in the schema and is null, update it to the current ISO 8601 timestamp (silent, no user prompt).
 2. If no tasks are found, set `refinement_result = "skipped (no Backlog tasks)"` and proceed to Step 2.5.
-3. Classify tasks into code tasks (have Working Directory) vs non-code tasks.
-4. Present all tasks with options:
+3. Present all tasks with options:
    ```
    Backlog tasks to refine:
-   [Auto-plan N code tasks] [Quick-review M non-code tasks] [Review all one by one] [Skip]
+   [Auto-plan all N tasks] [Review all one by one] [Skip]
    ```
    User chooses how to proceed — no artificial threshold on count.
-   - **Auto-plan code tasks**: Invoke the `planning-tasks` skill in pipeline mode with the task IDs. The `code-planning-agent` explores each codebase and generates AC/Plan. On completion, present summary: "Auto-planned N/M. K need more context."
-   - **Quick-review non-code tasks**: Invoke the `planning-tasks` skill in pipeline mode. The `knowledge-planning-agent` proposes AC/Plan using domain templates, brainstorms with user.
-   - **Review all one by one**: For each task, use the multi-round brainstorming protocol (see `planning-tasks` SKILL.md). Run `validate-task-fields.sh` for Ready before promoting.
+   - **Auto-plan all**: Invoke the `planning-tasks` skill in pipeline mode with the task IDs. The `task-planning-agent` plans each task, choosing per task between codebase exploration and domain-template planning based on the task content. On completion, present summary: "Auto-planned N/M. K need more context."
+   - **Review all one by one**: For each task, use the multi-round brainstorming protocol (see `planning-tasks` SKILL.md). Invoke the `validating-fields` skill for Ready before promoting.
    - **Skip**: Defer to next daily run.
-5. For each task where planning completes successfully, run validation and promote to Ready if valid.
-6. Record `refinement_result` — e.g., `"3 auto-planned, 2 reviewed, 1 deferred"`.
+4. For each task where planning completes successfully, run validation and promote to Ready if valid.
+5. Record `refinement_result` — e.g., `"3 auto-planned, 2 reviewed, 1 deferred"`.
 
 ---
 

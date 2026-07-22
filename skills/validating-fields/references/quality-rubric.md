@@ -1,104 +1,72 @@
-# Quality Rubric (Layer 1, v2.8.0+)
+# Layer 1 Structural Checks (v3.0.0+)
 
-Deterministic rules applied at every status transition into Ready or beyond. No LLM involvement; this is a fast pre-filter that catches obvious failures before any expensive Reviewer call.
+Deterministic rules applied at every status transition into Ready or beyond. No LLM involvement; this is a fast, free pre-filter that catches structurally broken specs before any expensive Reviewer call.
 
-This document is the canonical rubric definition. The `task-quality-reviewer-agent` (Layer 2) is the canonical owner of the 5 IRC axes; both layers are referenced by `reviewing-quality`, `monitoring-tasks`, `planning-tasks`, `running-daily-tasks`, and the protocol spec.
+This document is the canonical Layer 1 definition. The `task-quality-reviewer-agent` (Layer 2) is the canonical owner of the 5 IRC axes; both layers are referenced by `reviewing-quality`, `monitoring-tasks`, `planning-tasks`, `running-daily-tasks`, and the protocol spec.
 
-## AC Rubric
+## Design Boundary: Structural Only
 
-Each AC criterion (bullet or numbered item) is scored against four rules.
+Layer 1 checks only properties a script can decide **exactly and language-independently**: emptiness, length, reserved placeholder strings, and verdict-line integrity. It makes no judgment about the *meaning* of AC/EP text.
 
-### R-AC1 — Verifiable indicator
+Semantic quality — verifiability, groundedness, echo-of-title, step richness, concrete artifacts — is owned entirely by Layer 2 (the `task-quality-reviewer-agent`'s 5 axes: goal clarity, boundary clarity, verifiability, reproducibility, hidden context).
 
-The criterion text MUST contain ≥1 of:
+> **History (v3.0.0)**: earlier versions defined semantic heuristics at Layer 1 (rules R-AC1–R-AC3, R-EP1–R-EP4: verifiable-indicator keyword lists, echo-of-title token overlap, step-count/step-length thresholds, concrete-artifact detection). They were removed because keyword heuristics cannot judge semantics: the implemented `semantic_quality` check hard-rejected well-specified Japanese ACs (its command/verb/unit vocabularies were English-only) while passing vague English prose that happened to contain a `/` or the word "test". Every semantic axis those rules approximated is evaluated better by Layer 2. Do not reintroduce semantic keyword rules at this layer.
 
-- **Command**: `npm`, `git`, `curl`, `bash`, `python`, `node`, `gh`, `shopify`, `bq`, `make`, `cargo`, `go`, `mvn`, `gradle`, `pytest`, `vitest`, `jest`, `playwright`, `cypress`, `kubectl`, `docker`
-- **File path / extension**: contains `/` or matches `\.(ts|tsx|js|jsx|md|sql|json|yaml|yml|sh|py|liquid|css|html|svg|png|jpe?g|pdf|xlsx?|csv|toml|env|lock|dockerfile)\b`
-- **Numeric threshold + unit**: digits followed by `%`, `ms`, `s`, `分`, `時間`, `日`, `週間`, `月`, `年`, `件`, `個`, `回`, `本`, `KB`, `MB`, `GB`, `count`, `items`, `times`, `lines`
-- **Observable verb**: returns / displays / contains / generates / sends / receives / confirms / records / updates / passes / fails / exists / matches / equals / shows
-- **URL**: starts with `http://` or `https://`
-- **Code token**: backtick-quoted identifier, `CONST_NAME` ALL_CAPS_WITH_UNDERSCORE, or namespaced symbol like `module.function`
+## Checks
 
-If ≥2 criteria fail this rule → **error**. If 1 criterion fails → **warning**.
+All rules are enforced by `scripts/validate-task-fields.sh` (see SKILL.md for the canonical flat input format). `tests/run.sh` pins each rule with fixtures — any change to the script or to this document must update both together; CI runs the tests on every PR touching this skill.
 
-### R-AC2 — Not an echo-of-title
+### Common (all target statuses)
 
-A criterion is an "echo-of-title" if it merely restates the Title with a verb-form suffix like "〜が完成している" / "〜できている" / "is implemented" / "is done", without adding new specifics.
+| Rule | Field | Check | Severity |
+|---|---|---|---|
+| `required_non_empty` | Description | Non-empty | error |
+| `hierarchy_2level` | Parent Task | A task with subtasks cannot itself be a subtask | error |
+| `single_assignee` | Assignee | More than one assignee | warning |
 
-Heuristic: lowercase the Title and the criterion; drop common verb-form suffixes; if the remainder of the criterion ⊆ Title (≥80% token overlap), flag.
+### Ready / In Progress
 
-If **all** criteria are echo-of-title → **error**. If half are echo-of-title → **warning**.
+| Rule | Field | Check | Severity |
+|---|---|---|---|
+| `min_length` | Description | ≥50 characters | error |
+| `required_non_empty` | Acceptance Criteria | Non-empty | error |
+| `placeholder_present` | Acceptance Criteria | No reserved placeholder (`[DRAFT-AC]` / `[DRAFT-EP]` / `[NEEDS-REFINE]`) remains | error |
+| `required_non_empty` | Execution Plan | Non-empty | error |
+| `placeholder_present` | Execution Plan | No reserved placeholder remains | error |
+| `verdict_format` | Quality Verdict | When supplied, matches the cache format (lowercase 8-hex hash; fabricated/mnemonic hashes rejected) | error |
+| `verdict_not_pass` | Quality Verdict | When supplied, must be `PASS` for Ready+ | error |
+| `verdict_recommended` | Quality Verdict | Absent verdict — a fresh `reviewing-quality` PASS should travel in the same update as the Status change | warning |
+| `required_set` | Executor | In Progress only: Executor must be set | error |
+| `required_for_ai` | Working Directory | In Progress only: required for AI executors | error |
+| `recommended` / `recommended_code_task` | Issuer, Assignee, Priority, Branch, Working Directory, Repository | Advisory field hygiene (code-task detection via `config/code-task-keywords.txt`) | warning |
 
-### R-AC3 — Grounding
+### Blocked
 
-Each criterion SHOULD either:
-- Reference a keyword, entity, file path, or value present in the Description / Context / source message, OR
-- Be explicitly prefixed `[INFERRED]` (preserves audit trail that this is a speculative addition).
+| Rule | Field | Check | Severity |
+|---|---|---|---|
+| `required_non_empty` | Acceptance Criteria | Required even for Blocked — define what completion looks like | error |
+| `recommended` | Error Message | Document why the task is blocked | warning |
 
-Ungrounded, non-`[INFERRED]` criteria → **warning** (not error — sometimes legitimate).
+### Done
 
-### R-AC4 — No reserved placeholder remaining
+| Rule | Field | Check | Severity |
+|---|---|---|---|
+| `required_for_ai_done` | Agent Output | Required for AI executor tasks (tasks created before the cutoff date are grandfathered to a warning) | error |
 
-The criterion text MUST NOT contain `[DRAFT-AC]` or `[NEEDS-REFINE]` if the target status is Ready or beyond. These placeholders signal incomplete work.
+## Reserved Placeholders
 
-Presence at Ready transition → **error**.
+The protocol reserves exactly two prefixes (three strings): `[DRAFT-AC]` / `[DRAFT-EP]` (field is an intentional stub) and `[NEEDS-REFINE]` (Reviewer flagged the field). Any of the three appearing in AC **or** EP blocks Ready+ — a `[DRAFT-EP]` string sitting in the AC field is just as much unresolved work as one in EP.
 
-## EP Rubric
+## Verdict Composition
 
-The EP is scored holistically against five rules (R-EP1..R-EP5).
-
-### R-EP1 — Step count
-
-Count numbered steps (lines matching `^\s*\d+\.`). MUST be in `[3, 7]`.
-
-- `<3`: too thin → **error**
-- `4..7`: ok
-- `>7`: suggest split → **warning** + recommend `managing-tasks` subtask decomposition
-
-### R-EP2 — Step richness
-
-For each step:
-- Average line length ≥30 characters (excluding leading number)
-- Contains an action verb + target (heuristic: matches one of `[実装|作成|追加|修正|更新|削除|確認|検証|テスト|デプロイ|run|build|test|verify|implement|update|add|fix|create|deploy|migrate]` AND at least one noun-like token)
-
-If average step length <25 chars OR no step contains a target → **error**. If average is 25..30 → **warning**.
-
-### R-EP3 — Concrete artifact
-
-The EP overall MUST contain ≥1:
-- File path or directory
-- Shell command (in backticks or with recognizable prefix)
-- Branch name (`feature/...`, `fix/...`, etc.)
-- URL
-- PR number (`#123`)
-- DB query keyword (`SELECT`, `INSERT`, `UPDATE`, `DELETE`)
-
-Missing → **warning** (some non-code tasks legitimately have no concrete artifact).
-
-### R-EP4 — Working Directory alignment
-
-When `Executor` ∈ {cli, claude-code, claude-desktop, cowork} (the AI executor set — `cli / claude-desktop / cowork` are the canonical protocol enum values; `claude-code` is a known extension value present in production provider schemas):
-- `Working Directory` MUST be non-empty
-- If the EP references file paths, at least one should be consistent with `Working Directory` (heuristic: path starts with `Working Directory` or is a relative path)
-
-Mismatch with AI executor → **error**.
-
-### R-EP5 — No EP placeholder remaining (v2.8.0)
-
-The EP text MUST NOT contain `[DRAFT-EP]` or `[NEEDS-REFINE]` if the target status is Ready or beyond. Mirror of R-AC4 for the EP field. A task with `[DRAFT-EP]` followed by 3 real-looking steps would otherwise pass R-EP1..R-EP3 and slip through.
-
-Presence at Ready transition → **error**.
-
-## Verdict composition
-
-`validate_for_ready(task)` returns:
+`validate-task-fields.sh <target> <task.json>` returns:
 
 ```json
 {
   "valid": true|false,
   "target_status": "Ready",
-  "errors": [{ "rule": "R-AC1", "message": "..." }, ...],
-  "warnings": [{ "rule": "R-AC3", "message": "..." }, ...]
+  "errors": [{ "field": "...", "rule": "placeholder_present", "message": "..." }, ...],
+  "warnings": [{ "field": "...", "rule": "recommended", "message": "..." }, ...]
 }
 ```
 
@@ -107,23 +75,20 @@ Presence at Ready transition → **error**.
 
 ## `find_quality_debt(tasks)`
 
-Given a list of Ready+ tasks, returns each task that fails the Rubric, categorized by which rule(s) failed. Used by `monitoring-tasks` and `running-daily-tasks` Step 2.6.
+Given a list of Ready+ tasks, returns each task that fails a structural check, categorized. Used by `monitoring-tasks` and `running-daily-tasks` Step 2.6.
 
 ```json
 {
   "EMPTY_AC_READY_PLUS": ["task_id_1", ...],
   "EMPTY_EP_READY_PLUS": [...],
-  "SHALLOW_AC": [...],            // R-AC1 + R-AC2 fail
-  "SHALLOW_EP_STEPS": [...],      // R-EP1 + R-EP2 fail
-  "MISSING_CONCRETE_ARTIFACT_EP": [...],  // R-EP3 fail
-  "DRAFT_AC_PRESENT": [...],      // R-AC4 fail
-  "DRAFT_EP_PRESENT": [...],      // R-EP5 fail
+  "DRAFT_AC_PRESENT": [...],      // placeholder_present on AC
+  "DRAFT_EP_PRESENT": [...],      // placeholder_present on EP
   "LIKELY_NON_TASK": [...]        // title regex match + 1-line desc + empty AC/EP
 }
 ```
 
-## Worthiness tag skip
+Semantic quality debt (vague but non-empty ACs) is no longer enumerated here — it surfaces through Layer 2 verdicts instead: `monitoring-tasks`' Ready Health Score counts Ready tasks whose cached Reviewer verdict is PASS.
 
-Tasks with `Tags` containing `worthiness:calendar-like` or `worthiness:info-only` are exempt from Rubric R-AC1..R-AC3 and R-EP1..R-EP4 at Ready transitions — they have explicitly been classified by the user as non-task or non-actionable, and the Reviewer (Layer 2) is also skipped for them per the protocol Quality Spec.
+## Worthiness Tag Skip
 
-**R-AC4 and R-EP5 still apply** to worthiness-tagged tasks: a worthiness-tagged task with `[DRAFT-AC]` / `[DRAFT-EP]` / `[NEEDS-REFINE]` placeholder in either field cannot be promoted to Ready until the user removes the placeholder. This prevents accidentally promoting a never-refined worthiness-tagged stub.
+Tasks with `Tags` containing `worthiness:calendar-like` or `worthiness:info-only` skip Layer 2 entirely per the protocol Quality Spec. Layer 1 structural checks (including `placeholder_present`) apply to them like any other task: a worthiness-tagged task with `[DRAFT-AC]` / `[DRAFT-EP]` / `[NEEDS-REFINE]` remaining cannot be promoted to Ready until the user removes the placeholder. This prevents accidentally promoting a never-refined worthiness-tagged stub.

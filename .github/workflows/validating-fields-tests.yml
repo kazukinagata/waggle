@@ -1,0 +1,21 @@
+name: validating-fields-tests
+
+on:
+  pull_request:
+    paths:
+      - "skills/validating-fields/**"
+      - ".github/workflows/validating-fields-tests.yml"
+  push:
+    branches: [main]
+    paths:
+      - "skills/validating-fields/**"
+
+jobs:
+  validation-script-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Ensure jq is available
+        run: jq --version
+      - name: Run validate-task-fields.sh behavior-pinning tests
+        run: bash skills/validating-fields/tests/run.sh
