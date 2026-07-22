@@ -2,9 +2,9 @@
 name: reviewing-quality
 description: >
   Shared skill that owns the Quality Verdict pipeline for waggle tasks.
-  Combines the deterministic Rubric (Layer 1) and the task-quality-reviewer-agent
-  (Layer 2 IRC) behind a single contract. Manages the content-hash cache,
-  7-day suppression, batch fan-out, and worthiness-tag skip path.
+  Combines the deterministic structural checks (Layer 1) and the
+  task-quality-reviewer-agent (Layer 2 IRC) behind a single contract.
+  Manages the content-hash cache, batch fan-out, and worthiness-tag skip path.
   Invoked by planning-tasks, ingesting-messages, managing-tasks, executing-tasks,
   delegating-tasks (via assigning-to-others), running-daily-tasks, and
   monitoring-tasks. Not invoked directly by users.
@@ -13,7 +13,7 @@ user-invocable: false
 
 # Reviewing Quality
 
-This skill is the single integration point for the v2.8.0 quality gates. All Reviewer-related logic lives here so that the 7 caller skills do not duplicate cache handling, spawn orchestration, or rubric evaluation.
+This skill is the single integration point for the protocol quality gates. All Reviewer-related logic lives here so that the 7 caller skills do not duplicate cache handling, spawn orchestration, or Layer 1 evaluation.
 
 **Silent operation:** This skill runs as an internal step of an invoking skill. Return
 results to the invoking flow without user-facing narration — the caller owns all user
@@ -24,7 +24,7 @@ communication. Only errors, warnings, and prompts required to proceed may surfac
 Without a shared owner:
 - Cache format would drift across 7 callers.
 - Each caller would re-implement the 5-parallel batch fan-out.
-- The "Rubric pre-filter → Reviewer agent" boundary would be repeated and inconsistent.
+- The "Layer 1 pre-filter → Reviewer agent" boundary would be repeated and inconsistent.
 - The worthiness-tag skip path would have to be duplicated.
 
 This skill consolidates all that. See `references/cache-format.md` for the on-disk verdict format (also documented in the protocol spec, kept in sync).
@@ -43,16 +43,15 @@ The invoking skill describes the task and the mode in natural language; this ski
 
 | Mode | Behavior |
 |---|---|
-| `live` | Always compute fresh: Rubric → if pass, spawn the Reviewer agent. Write verdict to cache. Used by `planning-tasks` after AC/EP generation, by `managing-tasks` planning-assisted creation, and by `ingesting-messages` Phase A.5. The latter two run **before the task exists** — see "Deferred-write contract (creation-time callers)" below. |
+| `live` | Always compute fresh: Layer 1 structural check → if pass, spawn the Reviewer agent. Write verdict to cache. Used by `planning-tasks` after AC/EP generation, by `managing-tasks` planning-assisted creation, and by `ingesting-messages` Phase A.5. The latter two run **before the task exists** — see "Deferred-write contract (creation-time callers)" below. |
 | `cache-only` | Read the cached verdict. If hash matches and is non-empty, return it. If cache miss or hash mismatch, return verdict=`UNREVIEWED` to the caller; **do not** spawn the Reviewer. Used by `executing-tasks` dispatch and `managing-tasks` pre-Ready (hot paths). |
-| `live, cache-aware` | First check cache (hash + suppression). If cache hit and PASS, return it. Otherwise fall through to `live`. Used by `delegating-tasks` (via `assigning-to-others`), `running-daily-tasks` Step 2.6, and `monitoring-tasks --deep`. |
+| `live, cache-aware` | First check cache (content hash). If cache hit and PASS, return it. Otherwise fall through to `live`. Used by `delegating-tasks` (via `assigning-to-others`), `running-daily-tasks` Step 2.6, and `monitoring-tasks --deep`. |
 
 ### Deferred-write contract (creation-time callers)
 
 When `live` mode is invoked for a task that has not been created yet (`managing-tasks` planning-assisted creation, `ingesting-messages` Phase A.5), Steps 6's provider writes are impossible. Instead:
 
 - Return the `verdict_string` **and** the rendered findings block (see `references/cache-format.md` § Findings Block Format) to the caller, which holds both in memory and includes them in the eventual create payload (`Quality Verdict` property + `Context` field respectively).
-- During a creation-time refine loop (the caller re-plans and re-invokes `live` on revised content), the caller passes the previous round's `verdict_string` and failing axes back as a **`prior_verdict` hint** in the invocation (natural language is fine: "the previous verdict for this draft was `<verdict_string>` with failing axes `<axes>`"). Step 5 uses this hint as the "existing cached verdict" whenever the provider has no record (task not yet created) — same-axis failure counting, and the resulting 7-day suppression, work identically to the persisted path. Without the hint, suppression cannot fire at creation time.
 
 ## Pipeline
 
@@ -61,18 +60,18 @@ For every invocation:
 ### Step 1 — Skip-path checks
 
 If the task's `Tags` contain `worthiness:calendar-like` or `worthiness:info-only`:
-- Apply **R-AC4 + R-EP5** (no `[DRAFT-AC]` / `[DRAFT-EP]` / `[NEEDS-REFINE]` placeholder in either field) only. All other Rubric rules (R-AC1..R-AC3, R-EP1..R-EP4) are exempt for worthiness-tagged tasks per the protocol Quality Spec.
-- If either placeholder rule fails → return verdict = `REJECT` with the failing rule as the gap. The user must remove the placeholder before promoting.
+- Apply the **reserved-placeholder check** only (no `[DRAFT-AC]` / `[DRAFT-EP]` / `[NEEDS-REFINE]` placeholder in either field). The Reviewer (Layer 2) is skipped for worthiness-tagged tasks per the protocol Quality Spec.
+- If a placeholder remains → return verdict = `REJECT` with the placeholder as the gap. The user must remove the placeholder before promoting.
 - Otherwise → return verdict = `PASS` (worthiness skip). Do not write a new cache entry; preserve any pre-existing one.
 
 If the task's `Executor` is `human` and the call site is `managing-tasks` pre-Ready: continue to Step 2 normally. (Human tasks must still go through the cache check because they may be delegated later — see plan.)
 
-### Step 2 — Rubric (Layer 1)
+### Step 2 — Structural checks (Layer 1)
 
-Invoke the `validating-fields` skill to evaluate the Rubric on the current `Title|Description|AC|EP`.
+Invoke the `validating-fields` skill to run the Layer 1 structural checks on the current task fields. These are language-independent, exactly decidable rules (empty fields, description length, reserved placeholders, verdict-line integrity) — Layer 1 makes no judgment about the meaning of AC/EP text; semantic quality belongs to the Reviewer below.
 
-- Rubric `REJECT` (`valid: false`): return verdict = `REJECT` with the Rubric errors. **Do not** spawn the Reviewer. Cache the verdict so `monitoring-tasks` can list it.
-- Rubric `PASS` with warnings: continue.
+- Layer 1 fail (`valid: false`): return verdict = `REJECT` with the structural errors. **Do not** spawn the Reviewer. Cache the verdict so `monitoring-tasks` can list it. The errors name exactly what is missing (a field, a placeholder), so the caller can present a mechanical fix.
+- Layer 1 pass (warnings allowed): continue.
 
 ### Step 3 — Cache lookup (when mode ≠ `live`)
 
@@ -80,13 +79,12 @@ Compute the content hash: first 8 hex chars of `sha256("${Title}|${Description}|
 
 Read the task's `Quality Verdict` field. Parse using `references/cache-format.md`.
 
-Evaluate in this exact order:
+Evaluate:
 
-1. **Active suppression takes precedence** — if `suppressed-until` is in the future, return cache hit regardless of hash. The verdict is intentionally frozen for 7 days after two consecutive same-axis failures so the user is not forced into a grinding loop on an inherently vague task.
-2. Hash matches AND no active suppression → cache hit, return the cached verdict.
-3. Hash mismatch with no active suppression → cache stale, fall through to live evaluation.
+1. Hash matches → cache hit, return the cached verdict.
+2. Hash mismatch → cache stale, fall through to live evaluation.
 
-When returning a suppressed cache hit on a content-hash mismatch, the response payload sets `suppressed_until` to the cached value so the caller's UI can surface "this verdict is frozen until <date>; rerun manually after that to recompute". Users who want to break out of suppression can clear the `Quality Verdict` field manually in Notion — the next call will see a cache miss and run a fresh Reviewer.
+There is no re-review throttle (the 7-day suppression mechanism was removed in v3.0.0): identical content is already deduplicated by the content hash, and every refine loop is gated on an explicit user choice at the caller, so re-reviews only happen when the user changed the spec and asked for one.
 
 In `cache-only` mode, a cache miss returns verdict = `UNREVIEWED` to the caller. The caller decides how to surface this to the user (typically a 2-choice `[Refine first] [Proceed anyway]` prompt).
 
@@ -106,34 +104,27 @@ Wait for its return. Parse the structured output to extract:
 
 Treat `INSUFFICIENT_CONTEXT` as `NEEDS_REFINEMENT` for cache/return purposes; surface the verification gap to the user via the caller.
 
-### Step 5 — Suppression
-
-Before writing the cache entry, check the existing cached verdict. If the previous verdict was also `NEEDS_REFINEMENT` or `REJECT` AND its failing axes overlap with the new failing axes by ≥1 axis, set `suppressed-until` = now + 7 days. This stops the grinding loop on inherently vague tasks.
-
-When the provider has no record (creation-time caller, task not yet created), use the `prior_verdict` hint supplied by the caller as the existing cached verdict — see "Deferred-write contract" above. No hint + no record = first review, no suppression.
-
-### Step 6 — Cache write
+### Step 5 — Cache write
 
 Write the verdict to the task's `Quality Verdict` field in the format documented in `references/cache-format.md`. Single line, overwrites the previous entry.
 
 **Findings persistence (same write step):** keep the gaps and suggested fixes on the task, not just in chat — they are what the user (or a later session) needs to act on a non-PASS verdict.
 
-- Verdict is `NEEDS_REFINEMENT` or `REJECT` → render a Quality Review Findings block (format in `references/cache-format.md`) from the Reviewer's gaps and fixes (or the Rubric errors when the Reviewer was not spawned) and upsert it into the task's `Context` field: replace any existing findings block, leave the rest of `Context` untouched. At most one block per task.
+- Verdict is `NEEDS_REFINEMENT` or `REJECT` → render a Quality Review Findings block (format in `references/cache-format.md`) from the Reviewer's gaps and fixes (or the Layer 1 structural errors when the Reviewer was not spawned) and upsert it into the task's `Context` field: replace any existing findings block, leave the rest of `Context` untouched. At most one block per task.
 - Verdict is `PASS` → remove any existing findings block from `Context` (the issues are resolved; stale findings would mislead executors).
 - The block carries the same `hash` as the verdict line, so staleness is detectable without extra writes. `Context` is not part of the content hash, so writing the block never invalidates the verdict cache.
 - Graceful degradation: if the provider/task has no `Context` field, skip findings persistence — the verdict line still caches; gaps/fixes surface in chat only.
 - Creation-time callers: see "Deferred-write contract" above — the block is returned to the caller instead of written.
 
-### Step 7 — Return to caller
+### Step 6 — Return to caller
 
 Return a structured payload:
 
 ```
 verdict: PASS | NEEDS_REFINEMENT | REJECT | UNREVIEWED
-verdict_string: "<verdict> hash=<8hex> @<iso8601> v1 [suppressed-until=<iso8601>]" | ""
+verdict_string: "<verdict> hash=<8hex> @<iso8601> v1" | ""
 hash: <8-hex>
 cached_at: <iso8601>
-suppressed_until: <iso8601 | null>
 per_axis: { goal: ◯|△|✗, boundary: ◯|△|✗, ... }   # only on live verdicts
 gaps: [...]                                          # only on non-PASS verdicts
 fixes: [...]                                         # only on non-PASS verdicts
@@ -157,7 +148,7 @@ For batch invocations (`monitoring-tasks --deep`, `running-daily-tasks` Step 2.6
 
 - **Reviewer returns malformed output**: treat as `INSUFFICIENT_CONTEXT`. Do not write cache. Surface to user.
 - **Cache write fails (provider error)**: return the verdict to the caller anyway; log the cache write failure and retry on next invocation. Do not block.
-- **Task lacks Tags field (provider doesn't support)**: skip the worthiness check; proceed with Rubric.
+- **Task lacks Tags field (provider doesn't support)**: skip the worthiness check; proceed with the Layer 1 structural checks.
 - **Notion 429 rate limit on cache write**: respect Retry-After, then retry once.
 
 ## Self-references

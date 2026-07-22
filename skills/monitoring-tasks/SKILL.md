@@ -106,21 +106,16 @@ If the analysis script is not available (no bash, no jq), compute the metrics ma
 
 5. **Acknowledgment Status**: Find tasks where `Acknowledged At` is null AND `Assignee` is non-empty AND `Issuer` person IDs do not overlap with `Assignee` person IDs (i.e., assigned by someone else and not yet seen). List with title, assignee name, issuer name, and days since task creation.
 
-6. **Quality Debt** (v2.8.0+: expanded categories): All categories are deterministic — no LLM call in default monitoring. The optional `--deep` flag (see Step 5) escalates to a live Reviewer batch.
+6. **Quality Debt**: All categories are deterministic and structural — no LLM call and no semantic judgment in default monitoring (v3.0.0: the keyword-heuristic categories SHALLOW_AC / SHALLOW_EP_STEPS / MISSING_CONCRETE_ARTIFACT_EP were removed with Layer 1's semantic rules; semantic quality debt surfaces through the Ready Health Score and the `--deep` Reviewer batch instead). The optional `--deep` flag (see Step 5) escalates to a live Reviewer batch.
 
-   **Always evaluated (Rubric / deterministic):**
-   - **DRAFT AC**: Tasks whose Acceptance Criteria contains `[DRAFT-AC]` or whose EP contains `[DRAFT-EP]` AND status is not Blocked / Done / Cancelled. (Recognized prefixes: `[DRAFT-AC]`, `[DRAFT-EP]`, `[NEEDS-REFINE]`.)
+   **Always evaluated (structural / deterministic):**
+   - **DRAFT placeholders**: Tasks whose AC or EP contains a reserved placeholder AND status is not Blocked / Done / Cancelled. (Recognized placeholders: `[DRAFT-AC]`, `[DRAFT-EP]`, `[NEEDS-REFINE]`.)
    - **EMPTY_AC_READY_PLUS**: Status ∈ {Ready, In Progress, In Review} AND Acceptance Criteria is empty.
    - **EMPTY_EP_READY_PLUS**: Status ∈ {Ready, In Progress, In Review} AND Execution Plan is empty.
-   - **SHALLOW_AC**: AC fails Rubric R-AC1 (no verifiable indicators) AND R-AC2 (echo-of-title) per `validating-fields/references/quality-rubric.md`.
-   - **SHALLOW_EP_STEPS**: EP fails R-EP1 (3-7 steps) OR R-EP2 (average step length ≥30 chars).
-   - **MISSING_CONCRETE_ARTIFACT_EP**: EP fails R-EP3 (no file path / command / branch / URL / PR# / DB query keyword).
    - **STUB_INGEST_AGED**: Tasks tagged `ingesting-messages` or `stub-import` that have been Backlog for ≥3 days.
    - **LIKELY_NON_TASK**: Title regex matches `(MTG|定例|参加|meetup|meeting)` AND Description is <100 characters AND AC is empty AND EP is empty. These look like calendar reminders that escaped Layer 0 (e.g., manually created via Notion UI before v2.8.0 or by a user who skipped the worthiness prompt). Surface for batch archival.
    - **Priority missing**: Non-Done / non-Cancelled tasks without a Priority set.
    - **Test tasks**: Titles matching placeholder patterns (`test task — delete me`, `delete me`, `wip delete`, bare `test task`). These should be cleaned up.
-
-   Worthiness:* tagged tasks are excluded from SHALLOW_AC / SHALLOW_EP_STEPS / MISSING_CONCRETE_ARTIFACT_EP categories (they have been classified by the user as non-task at intake).
 
    **Ready Health Score**: `(Ready tasks with cached Reviewer verdict = PASS) / (total Ready tasks)`. Displayed at the top of Section 6 as a single percentage. <70% indicates broad quality debt.
 
@@ -171,18 +166,6 @@ Table: Title | Status | Age (days)
 ### EMPTY_EP_READY_PLUS ({count})
 Table: Title | Status | Age (days)
   (Status in {Ready, In Progress, In Review} with empty Execution Plan)
-
-### SHALLOW_AC ({count})
-Table: Title | Status | AC Preview
-  (Rubric R-AC1 + R-AC2 fail: no verifiable indicators AND echo-of-title)
-
-### SHALLOW_EP_STEPS ({count})
-Table: Title | Status | Step count / Avg step length
-  (Rubric R-EP1 / R-EP2 fail)
-
-### MISSING_CONCRETE_ARTIFACT_EP ({count})
-Table: Title | Status
-  (Rubric R-EP3 fail)
 
 ### STUB_INGEST_AGED ({count})
 Table: Title | Tags | Age in Backlog (days)

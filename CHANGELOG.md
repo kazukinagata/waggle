@@ -4,6 +4,75 @@ All notable changes to the Waggle project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## Quality gates restructured: structural-only Layer 1, suppression removed, unified planning agent — 2026-07-22
+
+A field report (Cowork session, 2026-07-21) exposed three compounding failures
+while a user tried to promote a coordination task to Ready. (1) The Layer 1
+`semantic_quality` check hard-rejected two well-specified Japanese ACs because
+its verifiable-indicator vocabularies (command names, numeric units, state
+verbs) were English-only — while vague English prose containing a `/` or the
+word "test" passed. (2) The task had been routed to `code-planning-agent`
+solely because its Repository property was set (the URL was reference
+metadata on a human coordination task), producing a git-heavy draft that
+mismatched the requester's intent and prompted the hand-rewrite that then
+failed (1). (3) Two consecutive same-axis REJECTs triggered the 7-day
+re-review suppression — freezing the verdict against further edits — even
+though the Reviewer had never run and the failing check was a free local
+script. Each mechanism amplified the others; all three are addressed here.
+
+- **`waggle` 2.15.0 → 3.0.0** (MAJOR — protocol spec breaking changes):
+  - **Layer 1 is structural-only.** The `semantic_quality` keyword heuristic is
+    removed from `validate-task-fields.sh`, and the semantic rules
+    R-AC1–R-AC3 / R-EP1–R-EP4 are deleted from the protocol spec and the
+    `validating-fields` rubric reference. Layer 1 now enforces only
+    language-independent structure: non-empty Description/AC/EP, Description
+    ≥50 chars, no reserved placeholder (`[DRAFT-AC]` / `[DRAFT-EP]` /
+    `[NEEDS-REFINE]` — newly enforced by the script, closing a
+    documented-but-unimplemented gap), verdict-line integrity, and
+    executor/working-directory invariants. Semantic quality (verifiability,
+    groundedness, step richness) is owned entirely by Layer 2's
+    `task-quality-reviewer-agent`. Well-specified non-English ACs can now
+    reach Ready. The spec adds an explicit prohibition on reintroducing
+    semantic keyword gates at Layer 1.
+  - **7-day re-review suppression removed.** The `suppressed-until` key is
+    retired from the Quality Verdict cache format, together with its
+    hash-bypass special case and the creation-time `prior_verdict` hint
+    plumbing that existed only to count same-axis failures. Rationale: the
+    content hash already deduplicates identical content, every refine loop is
+    gated on an explicit user choice, and suppression froze verdicts even
+    after users substantively fixed their specs. Legacy v2.x verdict lines
+    carrying the key still parse (unknown-trailing-key tolerance); the key
+    carries no semantics.
+  - **Planning agents unified.** `code-planning-agent` and
+    `knowledge-planning-agent` are merged into a single
+    **`task-planning-agent`** that judges its investigation mode (codebase
+    exploration, domain-template planning, or both) from task content and
+    plans to the executor (human-verifiable outcomes for `Executor=human`;
+    commands/paths for AI executors). Property-based routing ("Repository set
+    → code agent") is removed from `planning-tasks`, the `managing-tasks`
+    creation flow, and `running-daily-tasks`. Breaking for anything spawning
+    the old agent names.
+  - **REJECT recovery is regenerate-first.** On a REJECT verdict,
+    `planning-tasks` now offers `[Regenerate with fixes]` (re-spawn the
+    planning agent with the reviewer's findings and the user's own wording
+    marked as authoritative intent) instead of dead-ending at Backlog. Users
+    are never asked to reword their spec to satisfy a gate.
+  - **Drift guard.** `skills/validating-fields/tests/run.sh` expands from
+    verdict-only coverage to full rule coverage (38 cases, including a
+    pure-Japanese-AC regression test and legacy `suppressed-until`
+    tolerance), and a new `validating-fields-tests.yml` workflow runs it in
+    CI. SKILL.md documents the sync requirement: script, rule docs, and tests
+    must change together, with the tests as arbiter.
+  - `monitoring-tasks`: the keyword-heuristic debt categories `SHALLOW_AC`,
+    `SHALLOW_EP_STEPS`, and `MISSING_CONCRETE_ARTIFACT_EP` are removed with
+    the Layer 1 semantic rules; semantic quality debt surfaces through the
+    Ready Health Score and the `--deep` Reviewer batch.
+  - Unchanged by design: `Executor=human` tasks keep full gate parity
+    (deliberate decision — human tasks still deserve reviewed specs).
+- **`waggle-notion` 3.7.3 → 3.7.4** (PATCH — companion doc bump): Quality
+  Verdict format documentation updated for the retired `suppressed-until`
+  key. No behavior change.
+
 ## notion-extension tool descriptions: state hosted-MCP boundaries up front — 2026-07-14
 
 In real sessions the model tended to route Notion operations to the hosted

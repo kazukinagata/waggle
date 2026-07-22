@@ -518,7 +518,7 @@ For each Category B message, the orchestrating LLM generates a draft task inline
 
 Generate the following draft fields:
 
-1. **Acceptance Criteria** — 2 to 5 verifiable criteria. Each criterion must include at least one of: a specific command (e.g. `npm test`, `curl ...`), a file path, a numeric threshold with unit (`<2s`, `200 OK`), or an observable state verb (returns, displays, creates, passes, fails, contains, ...). The list of valid state verbs matches the semantic check that `validating-fields` applies in Phase A.5 below — produce AC that will pass that check.
+1. **Acceptance Criteria** — 2 to 5 verifiable criteria. Each criterion should name a concrete verification signal: a specific command (e.g. `npm test`, `curl ...`), a file path, a numeric threshold with unit (`<2s`, `200 OK`), an observable state change, or a named confirmation — in whatever language the task is written. Verifiability is judged by the Layer 2 Reviewer (its verifiability axis); Layer 1 only checks structure (non-empty, no reserved placeholder).
 
 2. **Hallucination guard (grounding)**: Every criterion must reference a specific keyword, entity, file path, URL, or metric that appears in the original message text or thread context. If the LLM is inclined to add a criterion that is not grounded in the source text, it must prefix that criterion with `[INFERRED] ` in the AC text. This prefix is persisted in the Notion task (not stripped before save) so that:
    - The user sees it during the Phase B review and can confirm or remove it.
@@ -543,15 +543,15 @@ Before showing the auto-generated draft to the user:
 
 1. **Skip-path check** — if the message was classified `worthiness=calendar-like` or `worthiness=info-only`, skip this entire phase. The Phase B confirmation table will default the row to `[Skip]` and the user decides whether to `[Create as task]`, `[Convert to note]`, or `[Discard]` (see "Phase B" below). No Reviewer cost is incurred for non-task items.
 
-2. **Rubric (Layer 1)** — invoke the `validating-fields` skill with the generated task data and target status `"Ready"`. It returns `{valid, errors, warnings}`.
+2. **Structural checks (Layer 1)** — invoke the `validating-fields` skill with the generated task data and target status `"Ready"`. It returns `{valid, errors, warnings}`.
 
-3. **Reviewer (Layer 2, v2.8.0+)** — if Rubric passes, invoke the `reviewing-quality` skill in `live` mode. **Important**: at this stage the task does not exist yet (Step 3 creates it). Pass the generated draft fields directly to `reviewing-quality`; receive the verdict — and, on non-PASS, the rendered findings block — **in memory** for use in Phase B's display, and persist both **as part of Step 3's task creation** (one `create_task` call carrying Title / Description / AC / EP / Status / Quality Verdict — plus the findings block appended to `Context` when the verdict is non-PASS — in a single payload), not as separate writes.
+3. **Reviewer (Layer 2)** — if Layer 1 passes, invoke the `reviewing-quality` skill in `live` mode. **Important**: at this stage the task does not exist yet (Step 3 creates it). Pass the generated draft fields directly to `reviewing-quality`; receive the verdict — and, on non-PASS, the rendered findings block — **in memory** for use in Phase B's display, and persist both **as part of Step 3's task creation** (one `create_task` call carrying Title / Description / AC / EP / Status / Quality Verdict — plus the findings block appended to `Context` when the verdict is non-PASS — in a single payload), not as separate writes.
 
    Branch on the verdict:
    - `PASS` → display the draft normally in Phase B.
    - `NEEDS_REFINEMENT` or `REJECT` → mark the draft `[NEEDS-REFINE]` in the Phase B display, surface the Reviewer's specific gaps and suggested fixes inline, and let the user decide what to do in Phase B. Keep the returned findings block with the draft — if the task is created, the block travels in the create payload's `Context` so the gaps survive the session (a later `/planning-tasks` run or Ready-transition gate reads them from there).
 
-If Rubric fails (`valid: false`), do NOT spawn the Reviewer — the draft is marked `[NEEDS-REFINE]` and the Rubric errors are surfaced. (Rubric is the cheap pre-filter; the protocol forbids spending Reviewer dollars on tasks that already fail the deterministic check.)
+If the structural check fails (`valid: false`), do NOT spawn the Reviewer — the draft is marked `[NEEDS-REFINE]` and the structural errors are surfaced. (Layer 1 is the free pre-filter; the protocol forbids spending Reviewer dollars on tasks that already fail the deterministic check.)
 
 If the user edits the draft in Phase B, the in-memory verdict — and any findings block that came with it — is invalidated: neither matches the actual content anymore (the block's hash would disagree with a fresh verdict's hash anyway). A Category B task is created at `Status: Ready`, which requires a valid verdict in the same create payload (see the Ready+ rule in `references/task-creation-templates.md`), so an edited draft cannot be created at Ready with an empty verdict. Resolve it one of two ways at task-creation time in Step 3:
 - **Re-review** — invoke `reviewing-quality` in `live` mode on the edited content, and persist the returned `verdict_string` as `Quality Verdict` in the Ready create payload (on non-PASS, carry the freshly returned findings block into `Context` — never the stale one); or
@@ -567,7 +567,7 @@ Present Category B messages in pages of up to **5 messages per `AskUserQuestion`
 
 Within each page, **rank messages** so the ones most likely to need the user's attention appear first:
 1. Drafts marked `worthiness:calendar-like` / `worthiness:info-only` (Layer 0 flagged)
-2. Drafts marked `[NEEDS-REFINE]` (Phase A.5 Rubric or Reviewer flagged)
+2. Drafts marked `[NEEDS-REFINE]` (Phase A.5 structural check or Reviewer flagged)
 3. Drafts whose AC contains any `[INFERRED]` prefixes
 4. Longer / more complex messages (more entities referenced)
 5. Higher inferred priority (Urgent → High → Medium → Low → unset)
@@ -587,7 +587,7 @@ When the user chooses "Review individually", **worthiness-flagged** messages (`c
 For normal (worthiness=task) messages, each gets these per-message options:
 
 - **[Accept]** — use the auto-generated draft exactly as shown. `[INFERRED]` prefixes remain in the saved AC as an audit trail.
-- **[Edit]** — user rewrites the AC/EP/Priority inline. The edited result is treated as authoritative (user-edits are NOT re-run through Reviewer — only the Rubric check applies on the next Ready transition).
+- **[Edit]** — user rewrites the AC/EP/Priority inline. The edited result is treated as authoritative (user-edits are NOT re-run through Reviewer — only the Layer 1 structural check applies on the next Ready transition).
 - **[Manual]** — discard the auto-generated draft and capture manual AC/EP/Priority from scratch via `AskUserQuestion` sub-prompts.
 - **[Skip]** — create with message content only (no AC/EP/Priority). Useful when the task is genuinely trivial or the user wants to plan it later via `planning-tasks`.
 
@@ -596,7 +596,7 @@ For normal (worthiness=task) messages, each gets these per-message options:
 - AC empty → `[DRAFT-AC] Original message: "{message_text_snippet}"`
 - EP empty → `[DRAFT-EP] 1. Refine this plan with /planning-tasks 2. ...`
 
-These placeholders ensure the task appears in `monitoring-tasks`'s `DRAFT placeholders` debt list and in `running-daily-tasks` Step 2 refinement, so worthiness-tagged tasks that exempt from the `SHALLOW_AC` / `EMPTY_AC_READY_PLUS` monitoring categories are still visible to at least one safety net. Worthiness-tagged tasks remain exempt from the Rubric R-AC1..R-AC3 / R-EP1..R-EP3 checks at Ready transitions, but R-AC4 + R-EP5 (no `[DRAFT-*]` placeholder remaining) still applies, so the user MUST remove the placeholder before promoting the task — they cannot accidentally promote an empty worthiness-tagged task to Ready.
+These placeholders ensure the task appears in `monitoring-tasks`'s `DRAFT placeholders` debt list and in `running-daily-tasks` Step 2 refinement, so worthiness-tagged tasks are still visible to at least one safety net. Worthiness-tagged tasks skip the Layer 2 Reviewer, but the Layer 1 reserved-placeholder check applies to every task, so the user MUST remove the placeholder before promoting the task — they cannot accidentally promote an empty worthiness-tagged task to Ready.
 
 ### Phase C: Category C — Manual Ask Only
 

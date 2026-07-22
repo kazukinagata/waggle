@@ -21,7 +21,7 @@
 | Agent Output | rich_text | Execution result |
 | Error Message | rich_text | Written on failure only. Query with "Error Message is not empty" |
 | Issuer | people | Who created/initiated this task. Auto-populated with current_user. Write-once. |
-| Quality Verdict | rich_text | v2.8.0+. Cached Reviewer verdict. Format: `<verdict> hash=<8hex> @<iso> v1 [suppressed-until=<iso>]`. Auto-managed by `reviewing-quality` skill; users do not edit directly. |
+| Quality Verdict | rich_text | v2.8.0+. Cached Reviewer verdict. Format: `<verdict> hash=<8hex> @<iso> v1` (legacy v2.x lines may carry a retired `suppressed-until` trailing key — ignored). Auto-managed by `reviewing-quality` skill; users do not edit directly. |
 
 ### Extended Fields (optional — graceful degradation if absent)
 
@@ -88,9 +88,9 @@ Any transition **into** a Ready+ status (`Ready` / `In Progress` / `In Review` /
 
 ### Quality Gate (Backlog → Ready, v2.8.0+)
 
-In addition to the Rubric gate above, the Backlog → Ready transition consults the Reviewer verdict via the `reviewing-quality` skill in **cache-only** mode. (Pre-Ready is a hot path — `managing-tasks` must not block on a live LLM call.)
+In addition to the Layer 1 structural gate above, the Backlog → Ready transition consults the Reviewer verdict via the `reviewing-quality` skill in **cache-only** mode. (Pre-Ready is a hot path — `managing-tasks` must not block on a live LLM call.)
 
-1. Skip-path: if the task's `Tags` contain `worthiness:calendar-like` or `worthiness:info-only`, the Reviewer is skipped entirely. Only the Rubric R-AC4 (no `[DRAFT-*]` placeholder) applies. `reviewing-quality` still returns a `verdict_string` (a worthiness-skip `PASS`) — carry it into the promotion write per the atomic rule below.
+1. Skip-path: if the task's `Tags` contain `worthiness:calendar-like` or `worthiness:info-only`, the Reviewer is skipped entirely. Only the reserved-placeholder check (no `[DRAFT-*]` / `[NEEDS-REFINE]` remaining) applies. `reviewing-quality` still returns a `verdict_string` (a worthiness-skip `PASS`) — carry it into the promotion write per the atomic rule below.
 2. Otherwise, invoke `reviewing-quality` in `cache-only` mode. The skill reads the `Quality Verdict` cache and returns one of:
    - `PASS` → proceed with the Ready transition.
    - `NEEDS_REFINEMENT` / `REJECT` → present the cached gaps + suggested fixes (returned in the payload's `gaps` / `fixes`, sourced from the persisted findings block on the task's `Context` field; if absent or stale, fall back to showing the verdict alone and note that the detailed findings were not persisted); ask the user `[Refine via /planning-tasks] [Save anyway]`. On "Save anyway", the task is marked `[NEEDS-REFINE]` and the transition proceeds at the user's risk (the cached `NEEDS_REFINEMENT` / `REJECT` `verdict_string` is a valid verdict and travels into the promotion write).

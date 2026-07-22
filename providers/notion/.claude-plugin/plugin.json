@@ -1,6 +1,6 @@
 {
   "name": "waggle-notion",
-  "version": "3.7.3",
+  "version": "3.7.4",
   "description": "Notion provider for waggle. Enables team task management via Notion workspace.",
   "author": { "name": "Kazuki Nagata" },
   "license": "MIT"

@@ -68,60 +68,57 @@ If the task title starts with `[Hearing]`:
 
 ### Path B — All Other Tasks (agent-delegated)
 
-1. **Classify the task**:
-   - Has Working Directory or Repository set → dispatch to `code-planning-agent`
-   - Otherwise → dispatch to `knowledge-planning-agent`
-
-2. **Check minimum input threshold**:
+1. **Check minimum input threshold**:
    - If Description has no nouns or meaningful context (e.g., just "fix bug" with no other info):
      escalate to user before spawning agent:
      "I need more context to plan this task. What specifically needs to happen?"
    - If user provides more context: update Description, then proceed
    - If user declines: skip this task
 
-3. **Spawn the appropriate planning agent** via the Agent tool:
-   - Provide: Title, Description, Context, AC (if partial), Working Directory, Repository
+2. **Spawn the `task-planning-agent`** via the Agent tool:
+   - Provide: Title, Description, Context, AC (if partial), Working Directory, Repository, **Executor**
+   - The agent judges the investigation mode (codebase exploration, domain planning, or both) from the task content itself — there is no property-based routing; a populated Repository/Working Directory is an investigation resource for the agent, not a classifier
    - Also forward `custom_task_creation_instructions` (if non-null) so the agent can honor project-specific rules for AC / Execution Plan style and Priority defaults
    - The agent follows the Multi-round Brainstorming Protocol (see below)
    - The agent returns: generated AC + Execution Plan as structured text
 
-4. **Present agent output to user** for final confirmation:
+3. **Present agent output to user** for final confirmation:
    - Show the generated AC and Execution Plan
    - Options: `[Accept] [Edit] [Skip]`
    - If Accept: update the task via provider
-   - If Edit: let user modify, then update
+   - If Edit: let user modify, then update. The user's wording is authoritative **intent** — if the quality gate below then returns non-PASS, the recovery is a regeneration that restates their wording as verifiable criteria (step 4), never a request that they rephrase it themselves
    - If Skip: leave task unchanged
 
-5. **Quality gate (v2.8.0+)**: After the user accepts the AC/EP, invoke the `reviewing-quality` skill in `live` mode for the updated task. It returns a verdict (`PASS` / `NEEDS_REFINEMENT` / `REJECT`) plus per-axis findings and concrete suggested fixes. Branch on the verdict:
+4. **Quality gate**: After the user accepts the AC/EP, invoke the `reviewing-quality` skill in `live` mode for the updated task. It returns a verdict (`PASS` / `NEEDS_REFINEMENT` / `REJECT`) plus per-axis findings and concrete suggested fixes. Branch on the verdict:
    - **PASS** → invoke the `validating-fields` skill with target `"Ready"`; on `valid: true`, the task is Ready-eligible. **When you write the Status=Ready promotion, include the `Quality Verdict` property set to the `verdict_string` returned by `reviewing-quality` in the *same* provider update** — the verdict must travel in the same payload as the status change, not in a separate write. A direct write that sets Status=Ready without a valid verdict is rejected before it reaches the provider.
    - **NEEDS_REFINEMENT** → surface the Reviewer's gaps and suggested fixes and ask the user `[Refine now] [Save anyway]`. The gaps are usually requester-side information (who approves, what the brief is) that a re-plan cannot invent, so refining starts with the user:
      1. Derive one concrete question per requester-side gap and ask via AskUserQuestion (gaps the Reviewer already named a self-contained fix for need no question — carry the fix forward directly).
-     2. Re-spawn the planning agent with the user's answers and the Reviewer's fixes attached as additional context, then invoke `reviewing-quality` in `live` mode again.
-     3. Repeat until the verdict is `PASS`, the user picks `[Save anyway]`, or suppression triggers (two consecutive same-axis failures — `reviewing-quality` freezes re-review for 7 days). On `[Save anyway]` or suppression, save with `[NEEDS-REFINE]` prefix and keep Status=Backlog; the gaps/fixes are persisted on the task's `Context` field as a findings block by `reviewing-quality`, so a later session can pick up where this one left off.
-     Each round is gated on the user's explicit choice to continue, so the loop cannot run away on its own.
-   - **REJECT** → save with `[NEEDS-REFINE]` prefix and keep Status=Backlog. The verdict (with the same `[NEEDS-REFINE]` rationale) is written to the `Quality Verdict` Notion column by `reviewing-quality`, and the gaps/fixes are persisted as a findings block on `Context`.
+     2. Re-spawn the `task-planning-agent` with the user's answers and the Reviewer's fixes attached as additional context, then invoke `reviewing-quality` in `live` mode again.
+     3. Repeat until the verdict is `PASS` or the user picks `[Save anyway]`. On `[Save anyway]`, save with `[NEEDS-REFINE]` prefix and keep Status=Backlog; the gaps/fixes are persisted on the task's `Context` field as a findings block by `reviewing-quality`, so a later session can pick up where this one left off.
+     Each round is gated on the user's explicit choice to continue, so the loop cannot run away on its own (there is no automatic re-review throttle — user choice is the throttle).
+   - **REJECT** → surface the gaps and suggested fixes and ask the user `[Regenerate with fixes] [Save as-is]`. The primary recovery is regeneration, not asking the user to reword their spec:
+     - `[Regenerate with fixes]` → re-spawn the `task-planning-agent` with the current AC/EP, the user's own wording marked as authoritative intent, and the Reviewer's (or Layer 1's) gaps/fixes attached, then re-invoke `reviewing-quality` in `live` mode — same user-gated loop mechanics as NEEDS_REFINEMENT above.
+     - `[Save as-is]` → save with `[NEEDS-REFINE]` prefix and keep Status=Backlog. The verdict (with the same `[NEEDS-REFINE]` rationale) is written to the `Quality Verdict` Notion column by `reviewing-quality`, and the gaps/fixes are persisted as a findings block on `Context`.
    - **UNREVIEWED** (upstream error only — worthiness-skipped tasks now return `PASS` with a `verdict_string`, not `UNREVIEWED`) → do **not** promote to Ready. `UNREVIEWED` carries an empty `verdict_string`, so a Status=Ready write would be rejected by the provider guard. Keep Status=Backlog, surface the error to the user, and let them retry planning.
 
 ### Batch Execution
 
 When processing multiple tasks (batch mode or pipeline mode):
 
-#### Phase 1: Classify and Group
+#### Phase 1: Order the Queue
 
-- Separate tasks into: code tasks (have Working Directory) vs non-code tasks
-- Within each group, sort by Priority (Urgent > High > Medium > Low)
+- Sort tasks by Priority (Urgent > High > Medium > Low)
 
 #### Phase 2: Parallel Agent Dispatch
 
-- Spawn up to **5 agents in parallel** using a single message with multiple Agent tool calls
-- If >5 tasks in a group, process in chunks of 5 (wait for chunk to complete before next)
-- Each agent receives the full task context (Title, Description, Context, AC, Working Directory, Repository) plus `custom_task_creation_instructions` if non-null
-- Code tasks → `code-planning-agent`
-- Non-code tasks → `knowledge-planning-agent`
+- Spawn up to **5 `task-planning-agent` instances in parallel** using a single message with multiple Agent tool calls
+- If >5 tasks, process in chunks of 5 (wait for chunk to complete before next)
+- Each agent receives the full task context (Title, Description, Context, AC, Working Directory, Repository, Executor) plus `custom_task_creation_instructions` if non-null
+- Each agent judges its own investigation mode (codebase exploration, domain planning, or both) from the task content — no routing decision happens at this layer
 
-Example (3 code tasks + 2 non-code tasks = 5 total, fits in one chunk):
+Example (5 tasks = one chunk):
 ```
-Message 1: [Agent(code-task-1), Agent(code-task-2), Agent(code-task-3), Agent(non-code-task-1), Agent(non-code-task-2)]
+Message 1: [Agent(task-1), Agent(task-2), Agent(task-3), Agent(task-4), Agent(task-5)]
 → All 5 run in parallel
 ```
 
@@ -158,11 +155,11 @@ Planning results (5 tasks):
 - **Review one by one**: Present each task's AC/Plan for individual Accept/Edit/Skip
 - **Skip all**: Leave all tasks unchanged
 
-#### Phase 5: Quality Gate and Promotion (v2.8.0+)
+#### Phase 5: Quality Gate and Promotion
 
-For each accepted task in the chunk, invoke the `reviewing-quality` skill in batch mode (the skill internally fans out 5 Reviewer agents in parallel, reusing the same chunking pattern). Then branch each task on its verdict using the same rules as the single-task flow (Step 5):
+For each accepted task in the chunk, invoke the `reviewing-quality` skill in batch mode (the skill internally fans out 5 Reviewer agents in parallel, reusing the same chunking pattern). Then branch each task on its verdict using the same rules as the single-task flow (step 4):
 
-- **PASS** → run `validating-fields` for `"Ready"`; promote to Ready on `valid: true`. The Status=Ready write **must carry the `Quality Verdict` property set to that task's `verdict_string` (from `reviewing-quality`) in the same provider update** — same atomic-promotion rule as the single-task flow (Step 5).
+- **PASS** → run `validating-fields` for `"Ready"`; promote to Ready on `valid: true`. The Status=Ready write **must carry the `Quality Verdict` property set to that task's `verdict_string` (from `reviewing-quality`) in the same provider update** — same atomic-promotion rule as the single-task flow (step 4).
 - **NEEDS_REFINEMENT** → save with `[NEEDS-REFINE]` prefix and keep Backlog. Do not auto-retry in batch mode — the user can `/planning-tasks` the task individually if they want to apply Reviewer's suggested fixes. The gaps/fixes are persisted on each task's `Context` field as a findings block by `reviewing-quality`, so the individual re-plan has them on record.
 - **REJECT** → save with `[NEEDS-REFINE]` prefix and keep Backlog.
 
@@ -208,8 +205,8 @@ Fallback (user disengages — "that's enough", "just go with it", etc.):
 
 After AC is finalized, generate the Execution Plan:
 
-- **Code tasks**: The code-planning-agent has already explored the codebase and generates steps with specific file paths, test commands, and module references.
-- **Non-code tasks**: The knowledge-planning-agent generates a numbered plan using domain templates (see `references/knowledge-work-patterns.md`).
+- When a codebase was explored, the `task-planning-agent` generates steps with specific file paths, test commands, and module references.
+- For domain planning, it generates a numbered plan using domain templates (see `references/knowledge-work-patterns.md`).
 - Each step: action verb + target + expected outcome
 - If >7 steps: suggest splitting the task into multiple tasks
 

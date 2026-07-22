@@ -12,7 +12,7 @@ user-invocable: false
 This shared skill provides a deterministic bash+jq validation script for task status transitions.
 It enforces required fields as hard-block errors and recommends optional fields as warnings.
 
-In v2.8.0 it also hosts the **Quality Rubric (Layer 1)** — a deterministic AC/EP content check applied at Ready transitions. See `references/quality-rubric.md` for the full rule set. The script itself remains LLM-free; Rubric evaluation is regex/length heuristics only.
+It also hosts the protocol's **Layer 1 structural checks** applied at Ready transitions. Layer 1 is structural-only (v3.0.0+): emptiness, length, reserved placeholders, and verdict-line integrity — properties a script decides exactly and language-independently. Semantic quality (verifiability, groundedness) is owned entirely by Layer 2 (`task-quality-reviewer-agent` via `reviewing-quality`). See `references/quality-rubric.md` for the canonical rule set and the history of why semantic heuristics were removed from this layer.
 
 **Silent operation:** This skill runs as an internal step of an invoking skill. Return
 results to the invoking flow without user-facing narration — the caller owns all user
@@ -139,7 +139,7 @@ qualityVerdict   <- .quality_verdict
 
 | Target Status | Required (errors) | Recommended (warnings) |
 |---|---|---|
-| **Ready** | Description (non-empty, >=50 chars), AC (non-empty + semantic check), Execution Plan (non-empty), Quality Verdict (well-formed + PASS *when supplied*) | Issuer (non-empty), Assignee (non-empty), Priority (set), Quality Verdict (fresh PASS present), Working Directory & Repository (for AI code tasks — detected via keyword match) |
+| **Ready** | Description (non-empty, >=50 chars), AC (non-empty, no reserved placeholder), Execution Plan (non-empty, no reserved placeholder), Quality Verdict (well-formed + PASS *when supplied*) | Issuer (non-empty), Assignee (non-empty), Priority (set), Quality Verdict (fresh PASS present), Working Directory & Repository (for AI code tasks — detected via keyword match) |
 | **In Progress** | All Ready requirements + Executor (set), Working Directory (non-empty for AI executors) | Issuer, Branch (for cli executor) |
 | **Blocked** | Description (non-empty), AC (non-empty) | Issuer, Error Message |
 | **Done** | Description (non-empty), Agent Output (non-empty for AI executors on new tasks) | Agent Output (legacy tasks — created before the enforcement date — keep warning-only) |
@@ -158,31 +158,25 @@ This prevents retroactive invalidation of historical Done tasks while still enfo
 
 The cutoff date is hardcoded in `scripts/validate-task-fields.sh` as `$agent_output_required_from`. Update it only when introducing a similar migration — otherwise keep it stable.
 
-## Quality Rubric (Layer 1, v2.8.0+)
+## Layer 1 Structural Checks (v3.0.0+)
 
-The Rubric formalizes the previous "semantic AC check" into 4 AC rules + 5 EP rules. See `references/quality-rubric.md` for the canonical definitions:
+Layer 1 is the deterministic half of the protocol's quality gates. Everything it enforces is listed in the Validation Rules table above; the canonical definition (including the reserved-placeholder rule and the design boundary against semantic keyword heuristics) lives in `references/quality-rubric.md`.
 
-| Rule | Field | Summary |
-|---|---|---|
-| R-AC1 | AC | each criterion has ≥1 verifiable indicator (command / path / numeric+unit / observable verb / URL / code token) |
-| R-AC2 | AC | criteria are not echo-of-title (token-overlap heuristic) |
-| R-AC3 | AC | criteria are grounded in source material or `[INFERRED]` prefixed |
-| R-AC4 | AC | no `[DRAFT-AC]` / `[NEEDS-REFINE]` placeholder at Ready+ |
-| R-EP1 | EP | 3–7 numbered steps |
-| R-EP2 | EP | average step length ≥30 chars, each step has action verb + target |
-| R-EP3 | EP | ≥1 concrete artifact (file path / command / branch / URL / PR# / DB query) |
-| R-EP4 | EP | when Executor is AI, Working Directory is set and EP paths align with it |
-| R-EP5 | EP | no `[DRAFT-EP]` / `[NEEDS-REFINE]` placeholder at Ready+ |
-
-The validation script applies these rules at every Ready (and beyond) transition.
+Semantic rules formerly defined at this layer (R-AC1–R-AC3, R-EP1–R-EP4: verifiable-indicator keywords, echo-of-title, step-count/richness, concrete-artifact detection) were removed in v3.0.0 — see the history note in `references/quality-rubric.md`. Do not reintroduce semantic keyword checks in the script.
 
 ### Worthiness tag skip
 
-Tasks with `Tags` containing `worthiness:calendar-like` or `worthiness:info-only` are exempt from the AC/EP Rubric (R-AC1..R-AC3, R-EP1..R-EP4). R-AC4 + R-EP5 (no `[DRAFT-*]` / `[NEEDS-REFINE]` placeholder remaining in AC or EP) still apply universally. Worthiness-tagged tasks also skip Layer 2 entirely per the protocol Quality Spec.
+Tasks with `Tags` containing `worthiness:calendar-like` or `worthiness:info-only` skip Layer 2 entirely per the protocol Quality Spec. Layer 1 structural checks — including the reserved-placeholder rule — apply to them like any other task.
+
+### Drift guard (tests + CI)
+
+`tests/run.sh` pins the script's behavior with one or more fixtures per documented rule, including regression cases (a well-specified non-English AC must pass Ready; a legacy verdict line carrying the retired `suppressed-until` key must still parse). CI (`.github/workflows/validating-fields-tests.yml`) runs it on every PR touching this skill.
+
+**Sync requirement:** any change to `scripts/validate-task-fields.sh`, to the Validation Rules table above, or to `references/quality-rubric.md` must land in the same commit as the matching test update. If the docs and the script disagree, the tests are the arbiter — fix whichever side the tests prove wrong.
 
 ## `find_quality_debt` (shared API)
 
-When invoked with a list of Ready+ tasks, `validating-fields` can also return a categorized debt report (used by `monitoring-tasks` and `running-daily-tasks` Step 2.6). See `references/quality-rubric.md` for the output shape.
+When invoked with a list of Ready+ tasks, `validating-fields` can also return a categorized debt report (used by `monitoring-tasks` and `running-daily-tasks` Step 2.6). See `references/quality-rubric.md` for the output shape. Categories are structural-only (empty fields, unresolved placeholders, likely-non-task titles); semantic quality debt surfaces through Layer 2 verdicts instead.
 
 ## Code Task Detection
 

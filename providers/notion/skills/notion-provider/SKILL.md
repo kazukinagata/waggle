@@ -137,7 +137,7 @@ Then run the appropriate DDL (one `ADD COLUMN` per call):
 
 After repair, re-verify and continue. **Never ask the user to manually fix the schema.**
 
-The `Quality Verdict` column stores the v2.8.0 Reviewer verdict cache. It is populated automatically by the `reviewing-quality` skill — users do not edit it directly. Format: `<verdict> hash=<8hex> @<iso8601> v1 [suppressed-until=<iso8601>]`. See `skills/reviewing-quality/references/cache-format.md`.
+The `Quality Verdict` column stores the Reviewer verdict cache. It is populated automatically by the `reviewing-quality` skill — users do not edit it directly. Format: `<verdict> hash=<8hex> @<iso8601> v1` (legacy v2.x lines may carry a retired `suppressed-until` trailing key, ignored by parsers). See `skills/reviewing-quality/references/cache-format.md`.
 
 ## Migration Guide: v2.7.x → v2.8.1 (Issuer column type change)
 

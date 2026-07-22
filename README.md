@@ -129,8 +129,8 @@ providers/
 └── turso/                    # Turso provider
 agents/
 ├── task-agent.md             # Autonomous task execution
-├── code-planning-agent.md    # Code-level planning brainstorm
-└── knowledge-planning-agent.md  # Knowledge-gathering brainstorm
+├── task-planning-agent.md    # AC/EP planning (codebase exploration + domain templates)
+└── task-quality-reviewer-agent.md  # Layer 2 quality review (5-axis IRC)
 ```
 
 ## License

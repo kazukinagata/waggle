@@ -1,6 +1,6 @@
 # Knowledge Work Patterns Reference
 
-Reference framework for the knowledge-planning-agent. Derived from patterns in [knowledge-work-plugins](https://github.com/anthropics/knowledge-work-plugins).
+Reference framework for the task-planning-agent's domain-planning mode. Derived from patterns in [knowledge-work-plugins](https://github.com/anthropics/knowledge-work-plugins).
 
 ## Progressive Clarification Framework
 
