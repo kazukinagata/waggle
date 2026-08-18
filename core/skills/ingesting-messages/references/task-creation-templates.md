@@ -2,7 +2,7 @@
 
 ## Custom Task-Creation Instructions
 
-Before building any task fields below, check whether `custom_task_creation_instructions` (loaded in Step 0 of `ingesting-messages/SKILL.md` via the `loading-custom-instructions` shared skill) is non-null. If it is, treat it as authoritative user-authored guidance for this project's business logic when choosing defaults — particularly for Tags, Priority, Assignee selection, and how AC / Execution Plans should be phrased. The custom instructions never override hard validation rules and never drive status transitions or destructive operations; they only influence field resolution. When a template below specifies a default value (e.g. the `["ingesting-messages"]` default for Tags), the custom instructions may replace or extend that default. When the original message explicitly names a value, the explicit value wins.
+Before building any task fields below, check whether `custom_task_creation_instructions` (loaded in Step 0 of this skill's SKILL.md via the `loading-custom-instructions` shared skill) is non-null. If it is, treat it as authoritative user-authored guidance for this project's business logic when choosing defaults — particularly for Tags, Priority, Assignee selection, and how AC / Execution Plans should be phrased. The custom instructions never override hard validation rules and never drive status transitions or destructive operations; they only influence field resolution. When a template below specifies a default value (e.g. the `["ingesting-messages"]` default for Tags), the custom instructions may replace or extend that default. When the original message explicitly names a value, the explicit value wins.
 
 ## Pre-Creation Dedup Check
 
