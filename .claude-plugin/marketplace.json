@@ -10,7 +10,7 @@
   "plugins": [
     {
       "name": "waggle",
-      "source": "./",
+      "source": "./core",
       "description": "AI-native task management for agents and humans. Natural language CRUD, real-time HTML views (kanban, list), and autonomous task execution. Requires a provider plugin: waggle-notion, waggle-sqlite, or waggle-turso.",
       "license": "MIT",
       "category": "productivity",

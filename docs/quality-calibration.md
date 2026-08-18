@@ -155,14 +155,14 @@ If both <80%:
 
 Re-run the gate (small sample, ~15 tasks) whenever:
 
-- The Reviewer agent prompt is materially changed in `agents/task-quality-reviewer-agent.md`.
-- The classification heuristics in `skills/ingesting-messages/references/classification-guide.md` are updated.
+- The Reviewer agent prompt is materially changed in `core/agents/task-quality-reviewer-agent.md`.
+- The classification heuristics in `core/skills/ingesting-messages/references/classification-guide.md` are updated.
 - A user reports systematic false rejections / false positives in the live system.
 
 Calibration is cheap (an hour of human labeling + the LLM runs). It is much cheaper than rolling back a bad release.
 
 ## Related
 
-- Protocol spec: `skills/waggle-protocol/SKILL.md` § Calibration Requirement
-- Reviewer agent: `agents/task-quality-reviewer-agent.md`
-- Worthiness classifier: `skills/ingesting-messages/references/classification-guide.md`
+- Protocol spec: `core/skills/waggle-protocol/SKILL.md` § Calibration Requirement
+- Reviewer agent: `core/agents/task-quality-reviewer-agent.md`
+- Worthiness classifier: `core/skills/ingesting-messages/references/classification-guide.md`
