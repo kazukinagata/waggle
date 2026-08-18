@@ -27,8 +27,13 @@ listed and updatable. Three validation rules — enforced by Cowork but not by
     `managing-tasks` and `waggle-view-<slug>` in `managing-views` became
     `{store/project}` and `waggle-view-{slug}`. Angle-bracket tags are rejected
     in `description`, backticks around them notwithstanding.
+  - **`CHANGELOG.md` moved into `core/`** so that
+    `${CLAUDE_PLUGIN_ROOT}/CHANGELOG.md`, which the `troubleshooting` skill reads
+    for post-upgrade diagnosis, still resolves now that the plugin root is
+    `core/` rather than the repository root.
   - Repository paths updated to match the move: `CLAUDE.md`, `README.md`,
-    `docs/quality-calibration.md`, and the `validating-fields` workflow.
+    `docs/quality-calibration.md`, `docs/calibration-results.md`, and the
+    `validating-fields` workflow.
 
 Note for future edits: `ingesting-messages` sits at exactly 1024 characters,
 the limit. Any addition to that description will fail validation.

@@ -132,7 +132,7 @@ If Reviewer agreement <80%:
 - `ingesting-messages` Phase A.5 only runs the Rubric.
 - `running-daily-tasks` Step 2.6 falls back to Rubric-only debt enumeration.
 - `monitoring-tasks --deep` becomes a no-op (or a notice: "Reviewer is disabled in this release. See calibration results.").
-- Document the disable in `CHANGELOG.md` for v2.8.0.
+- Document the disable in `core/CHANGELOG.md` for v2.8.0.
 
 ### Fallback B: Worthiness classifier disabled
 
@@ -141,7 +141,7 @@ If Worthiness agreement <80%:
 - `ingesting-messages` Phase A returns `worthiness=task` for every message (no Layer 0 classification).
 - The 3-way Phase B confirmation prompt is suppressed for worthiness-flagged items (since none are flagged).
 - `monitoring-tasks` LIKELY_NON_TASK category continues to work (it's a deterministic title regex, not the classifier).
-- Document the disable in `CHANGELOG.md`.
+- Document the disable in `core/CHANGELOG.md`.
 
 ### Fallback C: Both disabled
 
