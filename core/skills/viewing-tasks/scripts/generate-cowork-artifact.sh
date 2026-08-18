@@ -23,7 +23,7 @@
 # When <assignee_user_id> is empty, the Assignee predicate is omitted (degraded
 # unscoped mode); the status exclusion still applies.
 #
-# See skills/viewing-tasks/SKILL.md "Cowork Live Artifact Mode" for the
+# See this skill's SKILL.md, "Cowork Live Artifact Mode", for the
 # protocol-level invocation. The generator enforces structural invariants
 # (DOCTYPE / charset / IIFE wrap) and exits non-zero on any failure.
 

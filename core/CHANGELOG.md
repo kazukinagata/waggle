@@ -4,6 +4,36 @@ All notable changes to the Waggle project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## Cross-skill references replaced with skill-name references — 2026-08-18
+
+Follow-up to the `core/` move. Six places pointed at another skill's files by
+spelling a path in prose; those paths never resolved at runtime and quietly went
+stale whenever anything moved. The cross-reference rule in CLAUDE.md exists for
+exactly this, and the provider plugins were violating the self-reference rule
+that `provider-contract` itself states.
+
+- **`waggle` 3.0.1 → 3.0.2**, **`waggle-notion` 3.7.4 → 3.7.5**,
+  **`waggle-sqlite` / `waggle-turso` 2.4.0 → 2.4.1** (PATCH — documentation and
+  reference hygiene; no behavior change):
+  - Prose references to `skills/waggle-protocol/SKILL.md` in
+    `ingesting-messages`, `assigning-to-others`, and `managing-tasks` now name
+    the `waggle-protocol` skill instead of a path.
+  - `notion-provider` referenced `skills/reviewing-quality/references/cache-format.md`
+    — a path inside a different plugin, which never resolved from the Notion
+    plugin root. It now names the `reviewing-quality` skill.
+  - Two scripts pointed at their own SKILL.md by repository path; they now say
+    "this skill's SKILL.md".
+  - `sqlite-provider` and `turso-provider` addressed their own scripts as
+    `${CLAUDE_PLUGIN_ROOT}/skills/<self>/scripts/...` (40 occurrences), the
+    pattern `provider-contract` explicitly forbids. Now `${CLAUDE_SKILL_DIR}/scripts/...`,
+    which is robust to rename and relocation.
+
+Three cross-skill script invocations are knowingly left as they are, because
+replacing them means changing a flow rather than renaming a path:
+`core/agents/task-planning-agent.md` reads a `planning-tasks` template file, and
+the SQLite/Turso setup guides call the provider skill's `init-db.sh` /
+`turso-exec.sh` directly.
+
 ## Core plugin moved out of the marketplace root, skill descriptions fixed — 2026-08-18
 
 The `waggle` core plugin never appeared in the marketplace plugin list, so no

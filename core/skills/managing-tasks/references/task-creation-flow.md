@@ -37,7 +37,7 @@ For Notion specifically, **including an Issuer property in `notion-create-pages`
 
 Issuer remains immutable after creation. Delegation (`assigning-to-others` / `delegating-tasks`) and reassignment update `Assignee` but never touch `Issuer`.
 
-See `skills/waggle-protocol/SKILL.md` § Issuer Auto-Populate Contract for the full contract and per-provider details.
+See the `waggle-protocol` skill, § Issuer Auto-Populate Contract for the full contract and per-provider details.
 
 ## Acknowledged At (auto-populated for self-assigned tasks)
 

@@ -75,7 +75,7 @@ fi
 if ! grep -q '<!-- COWORK_BOOT -->' "$TEMPLATE"; then
   echo "Error: $TEMPLATE missing <!-- COWORK_BOOT --> marker. The marker must" >&2
   echo "       appear inside <head> for the live-fetch adapter to be injected." >&2
-  echo "       See the Reference Template in skills/managing-views/SKILL.md." >&2
+  echo "       See the Reference Template in this skill's SKILL.md." >&2
   exit 1
 fi
 
