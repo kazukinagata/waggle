@@ -28,6 +28,14 @@ that `provider-contract` itself states.
     pattern `provider-contract` explicitly forbids. Now `${CLAUDE_SKILL_DIR}/scripts/...`,
     which is robust to rename and relocation.
 
+`provider-contract` documented `${CLAUDE_PLUGIN_ROOT}` for provider script
+references while its own rule 3 forbids that pattern for a skill's own scripts.
+The contract now says `${CLAUDE_SKILL_DIR}` in both places. Resolution timing is
+unchanged either way: the runtime substitutes both variables into the SKILL.md
+text when the Skill tool loads it, so an On Completion Template carries a
+literal absolute path by the time `executing-tasks` copies it into a dispatch
+prompt — the dispatched agent never resolves a variable itself.
+
 Three cross-skill script invocations are knowingly left as they are, because
 replacing them means changing a flow rather than renaming a path:
 `core/agents/task-planning-agent.md` reads a `planning-tasks` template file, and
