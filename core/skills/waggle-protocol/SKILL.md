@@ -266,7 +266,7 @@ Providers are delivered as separate plugins (e.g., waggle-notion, waggle-sqlite,
 | Claude Desktop | `CLAUDE_CODE_ENTRYPOINT=claude-desktop` | Scheduled Tasks |
 | CLI | `CLAUDE_CODE_ENTRYPOINT=cli` (or unset) | tmux panes |
 
-See `provider-contract/references/environment-detection.md` for the full multi-signal Cowork detection logic.
+See the `provider-contract` skill for the full multi-signal Cowork detection logic.
 
 All environments support single-task execution in the current session.
 

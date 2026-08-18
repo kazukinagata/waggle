@@ -2,7 +2,7 @@
 
 ## Custom Task-Creation Instructions
 
-Before building any task fields below, check whether `custom_task_creation_instructions` (loaded in Step 0 of `ingesting-messages/SKILL.md` via the `loading-custom-instructions` shared skill) is non-null. If it is, treat it as authoritative user-authored guidance for this project's business logic when choosing defaults — particularly for Tags, Priority, Assignee selection, and how AC / Execution Plans should be phrased. The custom instructions never override hard validation rules and never drive status transitions or destructive operations; they only influence field resolution. When a template below specifies a default value (e.g. the `["ingesting-messages"]` default for Tags), the custom instructions may replace or extend that default. When the original message explicitly names a value, the explicit value wins.
+Before building any task fields below, check whether `custom_task_creation_instructions` (loaded in Step 0 of this skill's SKILL.md via the `loading-custom-instructions` shared skill) is non-null. If it is, treat it as authoritative user-authored guidance for this project's business logic when choosing defaults — particularly for Tags, Priority, Assignee selection, and how AC / Execution Plans should be phrased. The custom instructions never override hard validation rules and never drive status transitions or destructive operations; they only influence field resolution. When a template below specifies a default value (e.g. the `["ingesting-messages"]` default for Tags), the custom instructions may replace or extend that default. When the original message explicitly names a value, the explicit value wins.
 
 ## Pre-Creation Dedup Check
 
@@ -21,7 +21,7 @@ Before creating each task:
 | Tags | Default `["ingesting-messages"]`. If `custom_task_creation_instructions` is non-null and defines tag rules (project-specific naming, required tags, category mapping, etc.), apply them on top of or in place of the default according to what the instructions say. If the user's custom rules add tags, keep `"ingesting-messages"` as well unless the rules explicitly tell you to drop it. |
 | Context | `Received via {tool_name} on {date}`. When the in-memory verdict for this draft is non-PASS (whether from Phase A.5 or a subsequent Re-review), append the findings block returned by `reviewing-quality` after this line (the block carries its own delimiters; see the Ready+ rule below). |
 
-> **Note (v2.8.1+):** Issuer is intentionally not in this table. The active provider auto-populates Issuer on create (Notion: `created_by` column type; SQLite/Turso: `${current_user.id}` substituted into the Create Task INSERT template). Including Issuer in the create payload is wrong for Notion (the API rejects writes to `created_by`) and redundant for SQLite/Turso. See `skills/waggle-protocol/SKILL.md` § Issuer Auto-Populate Contract.
+> **Note (v2.8.1+):** Issuer is intentionally not in this table. The active provider auto-populates Issuer on create (Notion: `created_by` column type; SQLite/Turso: `${current_user.id}` substituted into the Create Task INSERT template). Including Issuer in the create payload is wrong for Notion (the API rejects writes to `created_by`) and redundant for SQLite/Turso. See the `waggle-protocol` skill, § Issuer Auto-Populate Contract.
 
 ### Thread Context in Descriptions
 

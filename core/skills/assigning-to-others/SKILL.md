@@ -30,7 +30,7 @@ communication. Only errors, warnings, and prompts required to proceed may surfac
 
 ## Rules
 
-- **Issuer is preserved** — it tracks who originated the task, not the current assignee. Under v2.8.1+ this is enforced at the provider boundary: Notion's `created_by` column type is read-only, and SQLite/Turso providers do not include `issuer` in their Update Task templates. Skills do not need to take any action to "preserve" Issuer; just refrain from passing it in update payloads. See `skills/waggle-protocol/SKILL.md` § Issuer Auto-Populate Contract.
+- **Issuer is preserved** — it tracks who originated the task, not the current assignee. Under v2.8.1+ this is enforced at the provider boundary: Notion's `created_by` column type is read-only, and SQLite/Turso providers do not include `issuer` in their Update Task templates. Skills do not need to take any action to "preserve" Issuer; just refrain from passing it in update payloads. See the `waggle-protocol` skill, § Issuer Auto-Populate Contract.
 - **Assignee is set to exactly 1 person** — the recipient. NEVER set multiple people in Assignee, even if the user says "assign to team X" or "assign to everyone". If the user requests a team or group assignment, ask which specific member to assign, or suggest splitting the task into per-member subtasks.
 - These resets apply regardless of the task's current state. Even if the task previously had an AI executor, assigning to another person resets to `human`.
 

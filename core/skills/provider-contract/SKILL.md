@@ -228,7 +228,7 @@ Use this checklist to verify a provider plugin meets all requirements before rel
 ### Script Conventions
 - [ ] All bash scripts use `SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"` pattern
 - [ ] No `${CLAUDE_PLUGIN_ROOT}` in bash scripts
-- [ ] SKILL.md uses `${CLAUDE_PLUGIN_ROOT}` for script references
+- [ ] SKILL.md uses `${CLAUDE_SKILL_DIR}` for its own script references
 
 ### Schema Support
 - [ ] All 15 Core fields supported with correct types

@@ -1,6 +1,6 @@
 # Quality Verdict Cache Format (v1)
 
-The protocol spec (`waggle-protocol/SKILL.md` § Quality Spec) is the canonical owner of this format. This file is the implementation-side documentation for `reviewing-quality`.
+The protocol spec (the `waggle-protocol` skill, § Quality Spec) is the canonical owner of this format. This file is the implementation-side documentation for `reviewing-quality`.
 
 ## Storage
 
