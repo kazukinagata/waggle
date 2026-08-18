@@ -81,7 +81,7 @@ The Reviewer dimension passed the ≥80% threshold (92.9% on the rated denominat
 
 ## Scope
 
-The v2.8.2 release ships a behavioral tweak to `agents/task-quality-reviewer-agent.md`. Three changes target the two failure patterns observed in v2.8.0 calibration:
+The v2.8.2 release ships a behavioral tweak to `core/agents/task-quality-reviewer-agent.md`. Three changes target the two failure patterns observed in v2.8.0 calibration:
 
 1. Mandatory Step 3 **Goal-clarity definition test** — the Reviewer must enumerate every proper noun / brand / store / project name / internal jargon term in the goal sentence and explicitly answer "What is &lt;term&gt;?" from the spec. Binary scoring: any failure → ✗.
 2. New Step 5 **Request-time vs execute-time boundary** — execute-time details (branch names, exact code edits, preview-URL syntax) MUST NOT down-score Verifiability or Reproducibility.

@@ -4,7 +4,7 @@ description: >
   Creates, lists, deletes, and regenerates custom task visualizations.
   In cli / claude-desktop they are HTML files served by the local view server.
   In Cowork each custom view is registered as its own Live Artifact (id
-  `waggle-view-<slug>`) that fetches data via window.cowork.callMcpTool.
+  `waggle-view-{slug}`) that fetches data via window.cowork.callMcpTool.
   Use this skill whenever the user wants to create, delete, customize, or
   manage saved task visualizations — custom dashboards, filtered boards, or
   personalized views. Triggers on: "create view", "custom view",

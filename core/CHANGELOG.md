@@ -4,6 +4,40 @@ All notable changes to the Waggle project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## Core plugin moved out of the marketplace root, skill descriptions fixed — 2026-08-18
+
+The `waggle` core plugin never appeared in the marketplace plugin list, so no
+release after 2.15.0 reached Cowork users; only the three provider plugins were
+listed and updatable. Three validation rules — enforced by Cowork but not by
+`claude plugin validate`, even with `--strict` — were rejecting the core plugin.
+
+- **`waggle` 3.0.0 → 3.0.1** (PATCH — packaging and metadata only; no behavior change):
+  - **Core moved from the repository root to `core/`.** Its marketplace entry
+    source changes from `./` to `./core`. A plugin's tree must contain exactly
+    one `.claude-plugin/plugin.json`; because core was the repository root, its
+    tree also contained the three provider manifests (4 in total) and was
+    rejected. `providers/` stays where it is. The plugin id is still
+    `waggle@waggle` and `${CLAUDE_PLUGIN_ROOT}` / `${CLAUDE_SKILL_DIR}` resolve
+    against the plugin root, so installs and in-skill references are unaffected.
+  - **`managing-tasks` description shortened** from 1093 to under 1024
+    characters, the documented ceiling. Dropped the redundant "If the user
+    mentions tasks in any way" sentence and the SessionStart implementation
+    note; all trigger phrases are retained.
+  - **XML-looking tags removed from two descriptions.** `<store/project>` in
+    `managing-tasks` and `waggle-view-<slug>` in `managing-views` became
+    `{store/project}` and `waggle-view-{slug}`. Angle-bracket tags are rejected
+    in `description`, backticks around them notwithstanding.
+  - **`CHANGELOG.md` moved into `core/`** so that
+    `${CLAUDE_PLUGIN_ROOT}/CHANGELOG.md`, which the `troubleshooting` skill reads
+    for post-upgrade diagnosis, still resolves now that the plugin root is
+    `core/` rather than the repository root.
+  - Repository paths updated to match the move: `CLAUDE.md`, `README.md`,
+    `docs/quality-calibration.md`, `docs/calibration-results.md`, and the
+    `validating-fields` workflow.
+
+Note for future edits: `ingesting-messages` sits at exactly 1024 characters,
+the limit. Any addition to that description will fail validation.
+
 ## Quality gates restructured: structural-only Layer 1, suppression removed, unified planning agent — 2026-07-22
 
 A field report (Cowork session, 2026-07-21) exposed three compounding failures

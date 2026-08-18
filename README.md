@@ -78,7 +78,7 @@ Backlog → Ready → In Progress → In Review → Done
                     Blocked
 ```
 
-See [`skills/waggle-protocol/`](skills/waggle-protocol/) for the full specification.
+See [`core/skills/waggle-protocol/`](core/skills/waggle-protocol/) for the full specification.
 
 ## Providers
 
@@ -88,7 +88,7 @@ See [`skills/waggle-protocol/`](skills/waggle-protocol/) for the full specificat
 | **Notion** | Team collaboration via Notion workspace | Available |
 | **Turso** | Remote SQLite, multi-agent sync | Available |
 
-The provider abstraction means you can add your own backend. See [`skills/provider-contract/`](skills/provider-contract/) for the interface contract.
+The provider abstraction means you can add your own backend. See [`core/skills/provider-contract/`](core/skills/provider-contract/) for the interface contract.
 
 ## Features
 
@@ -106,7 +106,7 @@ The provider abstraction means you can add your own backend. See [`skills/provid
 ## Architecture
 
 ```
-skills/
+core/skills/
 ├── detecting-provider/       # (shared) Provider auto-detection
 ├── resolving-identity/       # (shared) User identity resolution
 ├── looking-up-members/       # (shared) Member lookup
@@ -123,14 +123,14 @@ skills/
 ├── running-daily-tasks/      # Unified daily routine
 ├── provider-contract/        # Provider plugin development guide
 └── waggle-protocol/          # Protocol v1 specification
+core/agents/
+├── task-agent.md             # Autonomous task execution
+├── task-planning-agent.md    # AC/EP planning (codebase exploration + domain templates)
+└── task-quality-reviewer-agent.md  # Layer 2 quality review (5-axis IRC)
 providers/
 ├── notion/                   # Notion provider
 ├── sqlite/                   # SQLite provider
 └── turso/                    # Turso provider
-agents/
-├── task-agent.md             # Autonomous task execution
-├── task-planning-agent.md    # AC/EP planning (codebase exploration + domain templates)
-└── task-quality-reviewer-agent.md  # Layer 2 quality review (5-axis IRC)
 ```
 
 ## License

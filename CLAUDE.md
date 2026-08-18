@@ -10,26 +10,37 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ### Plugin Structure
 
-This is a Claude Code plugin (`.claude-plugin/plugin.json`). Skills are the core building blocks — each skill is a self-contained markdown-driven module under `skills/`.
+This repository is a Claude Code plugin marketplace (`.claude-plugin/marketplace.json`). The core
+plugin lives in `core/` and each provider is its own plugin under `providers/`. A plugin's tree must
+contain exactly one `.claude-plugin/plugin.json`, which is why `core/` is a subdirectory rather than
+the repository root. Skills are the core building blocks — each skill is a self-contained
+markdown-driven module under `core/skills/`.
 
 ```
-skills/
-├── detecting-provider/    # (shared) Provider auto-detection + config retrieval
-├── resolving-identity/    # (shared) Current user identity resolution
-├── looking-up-members/    # (shared) Member name/email → provider user ID
-├── providers/notion/      # Notion-specific implementation
-├── setting-up-tasks/      # Initial plugin setup and MCP configuration
-├── troubleshooting/       # Diagnoses common issues, schema mismatches, post-upgrade problems
-├── managing-tasks/        # Task CRUD + personal task dashboard
-├── executing-tasks/       # Task dispatch orchestration (single, tmux parallel, Scheduled Tasks)
-├── viewing-tasks/         # Local view server management
-├── delegating-tasks/      # Reassign tasks to other org members
-├── ingesting-messages/    # Auto-convert Slack/Teams DMs into tasks
-├── planning-tasks/        # AC/Execution Plan generation with brainstorming agents
-├── running-daily-tasks/   # Unified daily routine
-├── managing-views/        # Custom view management
-├── monitoring-tasks/      # Task health check and quality metrics
-└── validating-fields/     # (shared) Deterministic field validation for status transitions
+core/                          # the `waggle` plugin
+├── .claude-plugin/plugin.json
+├── agents/
+└── skills/
+    ├── detecting-provider/    # (shared) Provider auto-detection + config retrieval
+    ├── resolving-identity/    # (shared) Current user identity resolution
+    ├── looking-up-members/    # (shared) Member name/email → provider user ID
+    ├── setting-up-tasks/      # Initial plugin setup and MCP configuration
+    ├── troubleshooting/       # Diagnoses common issues, schema mismatches, post-upgrade problems
+    ├── managing-tasks/        # Task CRUD + personal task dashboard
+    ├── executing-tasks/       # Task dispatch orchestration (single, tmux parallel, Scheduled Tasks)
+    ├── viewing-tasks/         # Local view server management
+    ├── delegating-tasks/      # Reassign tasks to other org members
+    ├── ingesting-messages/    # Auto-convert Slack/Teams DMs into tasks
+    ├── planning-tasks/        # AC/Execution Plan generation with brainstorming agents
+    ├── running-daily-tasks/   # Unified daily routine
+    ├── managing-views/        # Custom view management
+    ├── monitoring-tasks/      # Task health check and quality metrics
+    └── validating-fields/     # (shared) Deterministic field validation for status transitions
+
+providers/                     # one plugin per data source
+├── notion/                    # Notion-specific implementation
+├── sqlite/
+└── turso/
 ```
 
 ### Skill Dependency Flow
@@ -65,11 +76,11 @@ User-invocable skill
 
 ### Provider Abstraction
 
-The provider layer (`skills/providers/{name}/SKILL.md`) encapsulates all data-source-specific operations: schema validation, auto-repair, CRUD via MCP tools, identity resolution, and view server data push. Currently Notion is implemented; SQLite and Turso are planned.
+The provider layer (`providers/{name}/skills/`) encapsulates all data-source-specific operations: schema validation, auto-repair, CRUD via MCP tools, identity resolution, and view server data push. Currently Notion is implemented; SQLite and Turso are planned.
 
 ### View Server
 
-A Hono-based TypeScript server at `skills/viewing-tasks/server/` serves interactive HTML views on `http://localhost:3456`. It receives task data via POST `/api/data` and pushes real-time updates to clients via SSE at `/api/events`.
+A Hono-based TypeScript server at `core/skills/viewing-tasks/server/` serves interactive HTML views on `http://localhost:3456`. It receives task data via POST `/api/data` and pushes real-time updates to clients via SSE at `/api/events`.
 
 ### Task Execution
 
@@ -87,7 +98,7 @@ Tasks have 15 Core fields (auto-repaired if missing) and 12 Extended fields (gra
 ### View Server
 
 ```bash
-cd skills/viewing-tasks/server
+cd core/skills/viewing-tasks/server
 
 npm ci               # Install dependencies (uses lockfile)
 npm run dev          # Start with hot-reload (tsx watch)
@@ -119,7 +130,7 @@ user-invocable: true|false
 - Each skill must be self-contained: scripts and resources live within the skill's own directory
 - Cross-skill interaction is natural-language-only: "Invoke the `<skill>` skill" is the single allowed pattern. Hardcoded file paths, line numbers, internal function names, and internal reference files of other skills are forbidden. Shared logic that is reused across 2+ skills should live in a `user-invocable: false` shared skill, invoked via natural language. For smaller duplication (a few lines of regex or configuration), prefer inline duplication over cross-skill coupling.
 - For self-references within a skill, use `${CLAUDE_SKILL_DIR}` (the official Claude Code runtime variable for the current skill's directory) — not hardcoded `${CLAUDE_PLUGIN_ROOT}/skills/<self>/...` paths.
-- Provider-specific logic belongs in `skills/providers/{name}/`
+- Provider-specific logic belongs in `providers/{name}/`
 - The `CLAUDE_PLUGIN_ROOT` variable points to the plugin root at runtime; `${CLAUDE_SKILL_DIR}` points to the current skill's own directory
 - **Output discipline**: skills run as multi-step pipelines, but the user only needs outcomes — without an explicit directive the agent narrates every step transition and relays protocol internals (provider detection, schema checks, cache state). Every user-invocable workflow skill carries an `## Output Discipline` section (limiting user-facing text to prompts, errors/warnings, outcome-changing intermediate results, and the final summary); every shared (`user-invocable: false`) skill carries a `**Silent operation:**` line. New skills must include the matching block. Pure specification skills (`waggle-protocol`, `provider-contract`) are exempt — they are documents, not pipelines.
 
