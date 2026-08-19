@@ -890,10 +890,10 @@ async function handleSetFilesProperty(args) {
       page_id,
       property_name,
       mode,
-      files: existing.map((e) => ({
-        name: e.name,
-        url: e.type === "file" ? e.file?.url : e.type === "external" ? e.external?.url : null,
-      })),
+      // describeFileEntry, not a hand-rolled map: it withholds the signed URL of a
+      // Notion-hosted entry and keeps an external one. See the note at the other
+      // call site below for why a write must not return the signed URL at all.
+      files: existing.map((e, i) => describeFileEntry(e, i)),
     };
   }
 
@@ -924,18 +924,29 @@ async function handleSetFilesProperty(args) {
     rethrowWithCapabilityHint(error);
   }
 
-  // The PATCH response is the full updated page; return the resolved files in
-  // read shape (signed URLs for uploads, stable URLs for external entries).
+  // The PATCH response is the full updated page; return the resolved files.
+  //
+  // A Notion-hosted entry's URL is deliberately NOT included. It is a pre-signed
+  // storage URL — possession is authorization for about an hour — so returning it
+  // writes a credential into a tool result, and from there into a transcript and
+  // any log that captures one. That it was cheap to include (the PATCH response
+  // already holds it) is not a reason to hand it out.
+  //
+  // An external entry keeps its URL: that is a string the user typed into Notion,
+  // visible in its own UI, and not a secret.
+  //
+  // A caller that actually needs the bytes back should read them with
+  // notion-read-files-property, which fetches through the signed URL without
+  // exposing it. Before that tool existed there was no other way to get at an
+  // attachment, which is presumably why this shape leaked the URL in the first
+  // place; there is now.
   const resolved = updated.properties[property_name]?.files ?? [];
   return {
     ok: true,
     page_id,
     property_name,
     mode,
-    files: resolved.map((e) => ({
-      name: e.name,
-      url: e.type === "file" ? e.file?.url : e.type === "external" ? e.external?.url : null,
-    })),
+    files: resolved.map((e, i) => describeFileEntry(e, i)),
   };
 }
 

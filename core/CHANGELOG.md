@@ -57,6 +57,22 @@ is written under `out_dir` and only the local path is returned. Entries over 50M
 unrecognized entry types, and requested names matching nothing are listed in `skipped` with
 a reason rather than silently dropped.
 
+### Breaking: notion-set-files-property no longer returns the signed URL
+
+The write tool returned the post-update file list including the pre-signed URL of every
+freshly uploaded entry. That is a credential — possession is authorization for about an
+hour — written into a tool result, and from there into a transcript and any log that
+captures one. It was cheap to include, because the PATCH response already holds it; that
+is not a reason to hand it out.
+
+A Notion-hosted entry now comes back with `url: null` from both tools. External entries
+keep their URL, which is a string the user typed into Notion and not a secret.
+
+**If you were using that URL to read an attachment back**, use `notion-read-files-property`,
+which fetches through the signed URL without exposing it. Before this release there was no
+other way to reach an attachment's contents, which is presumably why the write shape handed
+the URL out in the first place.
+
 ### This does not replace a readable spec
 
 Core requires a task to be self-contained: an executor holding only the task's fields must be

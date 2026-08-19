@@ -239,7 +239,7 @@ Sets or appends files on a Notion **files-type page property** (e.g. `Attachment
 
 Each `files` entry carries exactly one of `file_path` (a local file uploaded via the Notion File Upload API, max 20MB single-part) or `url` (an external file stored as-is). For `file_path`, `name` defaults to the basename.
 
-Returns the post-update file list in read shape. Uploaded entries get a Notion-hosted **signed URL that expires after ~1 hour**; external entries keep their stable URL:
+Returns the post-update file list. **A Notion-hosted entry's URL is not included** (`"url": null`) — it is a pre-signed storage URL, i.e. a credential, and returning it from a write would put it in a tool result and from there into a transcript. External entries keep their URL, which is a non-secret string the user typed into Notion:
 
 ```json
 {
@@ -248,11 +248,13 @@ Returns the post-update file list in read shape. Uploaded entries get a Notion-h
   "property_name": "Attachments",
   "mode": "append",
   "files": [
-    {"name": "spec.pdf", "url": "https://prod-files.notion-static.com/...signed..."},
-    {"name": "Figma board", "url": "https://www.figma.com/file/..."}
+    {"index": 0, "name": "spec.pdf", "source": "notion_hosted", "url": null},
+    {"index": 1, "name": "Figma board", "source": "external", "url": "https://www.figma.com/file/..."}
   ]
 }
 ```
+
+> **Changed in 1.3.0.** Earlier versions returned the signed URL for uploaded entries here. To read an attachment's contents, use `notion-read-files-property`, which fetches through the signed URL without exposing it. Before that tool existed there was no other way to get at an attachment, which is presumably why this shape handed the URL out; there is now.
 
 ### Examples
 

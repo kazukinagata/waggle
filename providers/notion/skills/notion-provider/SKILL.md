@@ -322,8 +322,11 @@ Returns `{ok, page_id, property_name, mode, files}` where `files` is the post-up
 
 - **Upload requires the integration's "Insert content" capability** (same as page-body image upload); a
   `403 restricted_resource` means it is missing.
-- Uploaded entries read back as `type:"file"` with a signed URL that **expires after ~1 hour**; external
-  entries return a stable `external.url`. Consumers needing a fresh URL re-fetch the task.
+- Uploaded entries are stored as `type:"file"` and Notion serves them through a signed URL that
+  **expires after ~1 hour**. **That URL is not returned to you** (extension v1.3.0+): a hosted entry
+  comes back with `url: null` from both the write and the read tool, because possession of the URL is
+  authorization for as long as it lives. External entries return their stable `external.url`, which is
+  not a secret. To read a hosted attachment's contents, use `notion-read-files-property`.
 - Local-file uploads are capped at 20MB (Notion single-part upload).
 
 ## Reading the Attachments Property
