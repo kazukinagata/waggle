@@ -70,10 +70,14 @@ If the task's `Executor` is `human` and the call site is `managing-tasks` pre-Re
 
 Invoke the `validating-fields` skill to run the Layer 1 structural checks on the current task fields. These are language-independent, exactly decidable rules (empty fields, description length, reserved placeholders, verdict-line integrity) — Layer 1 makes no judgment about the meaning of AC/EP text; semantic quality belongs to the Reviewer below.
 
+**Do not pass the task's stored `Quality Verdict` in this call.** Layer 1's verdict checks judge *the verdict travelling in a promotion write* — that it is well-formed, that it is a PASS, and that its format version is current. This step is asking a different question: is the spec structurally sound enough to be worth a Reviewer call? The verdict this run is about to produce does not exist yet, and the one currently stored is exactly what is being replaced.
+
+Passing the stored verdict here would deadlock the thing it is meant to protect. A Ready task holding a legacy `v1` PASS is the migration's whole subject; if Layer 1 rejects it for being `v1`, this step returns `REJECT`, the Reviewer never runs, no `v2` verdict is ever produced, and the task can never leave `v1`. The same trap catches a task holding a stale `NEEDS_REFINEMENT`: it could never be re-reviewed into a PASS. Omit the field and both work.
+
+The verdict checks still run where they belong — at the promotion itself, where `managing-tasks` and the other callers pass the `verdict_string` this skill returned, in the same write that sets the new Status.
+
 - Layer 1 fail (`valid: false`): return verdict = `REJECT` with the structural errors. **Do not** spawn the Reviewer. Cache the verdict so `monitoring-tasks` can list it. The errors name exactly what is missing (a field, a placeholder), so the caller can present a mechanical fix.
 - Layer 1 pass (warnings allowed): continue.
-
-Layer 1 also enforces the format-version rule at the transition it is validating: a Backlog → Ready promotion requires a `v2` PASS, while Ready → In Progress and beyond still accept a legacy `v1` PASS during the migration window. Dispatch is cache-only and cannot fall back to a live review, so invalidating `v1` wholesale would strand every existing Ready task.
 
 ### Step 3 — Cache lookup (when mode ≠ `live`)
 

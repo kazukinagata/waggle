@@ -167,6 +167,14 @@ run "Ready + malformed v2 line -> invalid on verdict_format" Ready \
   '{"qualityVerdict":"PASS hash=notahex1 @2026-06-10T10:42:00Z v2"}' false verdict_format
 # An unknown future version is not v2, so Ready rejects it rather than assuming
 # forward compatibility on the one field where guessing wrong hides a stale rubric.
+# The re-review path: a caller producing a verdict omits the field, so a legacy v1
+# task is structurally valid and the Reviewer can run and mint a v2 verdict. If
+# this ever fails, the migration window is a dead end — a v1 Ready task would be
+# rejected for being v1 and could never be re-reviewed out of it.
+run "Ready + verdict omitted -> valid (re-review pre-check)" Ready \
+  '{"qualityVerdict":""}' true
+run "Ready + verdict omitted -> only a warning, never verdict_stale_format" Ready \
+  '{"qualityVerdict":""}' true verdict_recommended warnings
 run "Ready + v3 PASS -> invalid (not v2)" Ready \
   '{"qualityVerdict":"PASS hash=abc12345 @2026-06-10T10:42:00Z v3"}' false verdict_stale_format
 # The version is read from its position in the line, not by searching for "v2"
