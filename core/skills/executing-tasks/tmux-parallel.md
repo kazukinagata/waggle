@@ -104,6 +104,7 @@ After pane creation, if running outside tmux, try to auto-open a terminal window
 ```bash
 # Auto-open terminal only when running outside tmux
 if [ -z "${TMUX:-}" ]; then
+  # waggle-ci: fail-open — best-effort convenience step, never a check or a write
   SCRIPT=scripts/open-terminal.sh; SKILL_DIR="${CLAUDE_SKILL_DIR}"
   if [ ! -d "$SKILL_DIR" ]; then _S="${PWD%%/mnt/*}"; _R="$_S/mnt/.remote-plugins"
     case "$SKILL_DIR" in */plugin_*) _P="plugin_${SKILL_DIR#*/plugin_}"; SKILL_DIR="$_R/$_P"

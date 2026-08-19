@@ -92,16 +92,30 @@ it, and CI enforces it in this repository.
 #### Added
 
 - **CI: `skill-dir-resolution`** (`core/scripts/check-skill-dir-resolution.sh`,
-  `.github/workflows/skill-dir-resolution.yml`) rejects unresolved
-  `${CLAUDE_SKILL_DIR}` use in shell blocks. The rule is an allowlist of one form
-  rather than a denylist of commands: inside a fenced shell block the variable may
-  appear only as `SCRIPT=<path>; SKILL_DIR="${CLAUDE_SKILL_DIR}"`, and everything
-  downstream must use the resolved `"$SKILL_DIR"`. A denylist would have to enumerate
-  every way a path can reach the shell — `bash`, `cd`, `source`, `cat`, shell `grep`,
-  `<` redirection, `awk -f`, `PATH` injection, or simply executing the path with no
-  leading command word — and would silently pass whichever form it forgot. Only fenced
-  shell blocks are inspected, so prose naming the forbidden pattern and comments inside
-  a block still pass.
+  `.github/workflows/skill-dir-resolution.yml`) enforces the resolution contract. The
+  fenced shell block is the unit of checking, because each Bash call is a fresh process
+  — a resolver in an earlier block does not carry over, which is precisely the failure
+  the guard exists to catch. Three properties per block:
+
+  1. **No unresolved use.** `${CLAUDE_SKILL_DIR}` may appear only as
+     `SCRIPT=<path>; SKILL_DIR="${CLAUDE_SKILL_DIR}"`. This is an allowlist of one
+     form, not a denylist of commands: a denylist would have to enumerate every way a
+     path reaches the shell — `bash`, `cd`, `source`, `cat`, shell `grep`, `<`
+     redirection, `awk -f`, `PATH` injection, or executing the path with no leading
+     command word — and would pass whichever form it forgot.
+  2. **Self-contained.** A block that uses `"$SKILL_DIR"` must itself assign it, and
+     assign it before first use.
+  3. **Complete and fail-closed.** A block that assigns it must carry the whole
+     resolver body — both tiers — and a fail-closed guard. This catches a block that
+     keeps the assignment but drops a clause, including the `#`-for-`##` substitution
+     that would silently produce a broken path.
+
+  A site that must fail *open* instead — a best-effort convenience step, never a check
+  or a write — declares itself with a `# waggle-ci: fail-open` comment. There is one:
+  the terminal auto-open in `executing-tasks/tmux-parallel.md`.
+
+  Only fenced shell blocks are inspected, so prose naming a forbidden pattern and
+  comments inside a block still pass.
 
 #### Documentation — Cowork claims corrected
 
