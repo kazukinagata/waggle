@@ -7,18 +7,30 @@ import {
   ListToolsRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 import { Client } from "@notionhq/client";
-import { readFile } from "node:fs/promises";
-import { basename } from "node:path";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { basename, join, resolve } from "node:path";
+import { tmpdir } from "node:os";
 import {
+  MAX_DOWNLOAD_BYTES,
+  MAX_INLINE_TEXT_BYTES,
   MAX_READ_IMAGE_BYTES,
   MAX_UPLOAD_BYTES,
   READABLE_MIME_TYPES,
   apiErrorDetail,
   collectImageBlocks,
+  describeFileEntry,
   filterByBlockIds,
+  filterByNames,
+  hostedUrl,
+  isAllowedDownloadUrl,
+  isExpired,
+  isTextualMime,
   mimeForAttachment,
   mimeFromFilename,
+  safeFilename,
+  scrubUrls,
   toWritableFiles,
+  validateReadFilesInput,
   validateSetFilesInput,
   validateUploadInput,
 } from "./helpers.js";
@@ -240,8 +252,259 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
         required: ["page_id", "property_name", "mode"],
       },
     },
+    {
+      name: "notion-read-files-property",
+      description:
+        "The only way to READ the contents of a files-type page property (e.g. \"Attachments\") — the hosted notion-fetch reports that a file is attached but cannot retrieve it, so an executor holding only the task cannot see what the attachment says. The mirror of notion-set-files-property. Returns a JSON summary plus, per entry: text-bearing files (text/*, csv, json, xml, yaml, markdown) inline as content, and everything else downloaded to out_dir with only the local path returned. Notion-hosted files are fetched through their short-lived signed URL, which is never included in the result; external entries are NOT fetched — their name and URL are returned so the caller can fetch them with a general-purpose tool if it wants to. Inline text is capped at 256KB (truncation is reported); downloads over 50MB are skipped with a reason.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          page_id: {
+            type: "string",
+            description: "Notion page UUID to read from",
+          },
+          property_name: {
+            type: "string",
+            description: 'files-type property name (e.g., "Attachments")',
+          },
+          names: {
+            type: "array",
+            items: { type: "string" },
+            description:
+              "Optional display names to read. Omit to read every entry (up to max_files). A requested name matching nothing is reported in skipped.",
+          },
+          max_files: {
+            type: "number",
+            description: "Maximum entries to retrieve (default 5). Entries beyond the cap are listed in skipped.",
+            default: 5,
+          },
+          out_dir: {
+            type: "string",
+            description:
+              "Directory for downloaded non-text files. Defaults to a per-run directory under the system temp dir. Created if absent.",
+          },
+          metadata_only: {
+            type: "boolean",
+            description:
+              "List the entries without retrieving any content. Use to see what is attached before deciding what to read.",
+            default: false,
+          },
+        },
+        required: ["page_id", "property_name"],
+      },
+    },
   ],
 }));
+
+// notion-read-files-property — read the contents of a files-type property.
+//
+// SIGNED URLS ARE CREDENTIALS. A Notion-hosted entry resolves to a pre-signed
+// storage URL: possession is authorization, for roughly an hour. So the URL is
+// used inside this function and never escapes it — not in the result, not in an
+// error message, not in a log line. Entries are identified to the caller by name
+// and index. Errors from the download are re-raised with the URL stripped.
+//
+// The Notion token is likewise never sent to that URL. It points at Notion's
+// storage host, not at api.notion.com; the signature is the authorization, and
+// attaching a bearer token would hand our integration credential to a host that
+// has no business holding it.
+async function handleReadFilesProperty(args) {
+  const {
+    page_id,
+    property_name,
+    names,
+    max_files = 5,
+    out_dir,
+    metadata_only = false,
+  } = args;
+
+  const inputError = validateReadFilesInput(args);
+  if (inputError) throw new Error(inputError);
+
+  let page = await notion.pages.retrieve({ page_id });
+  const property = page.properties?.[property_name];
+  if (!property) {
+    throw new Error(
+      `Page has no property named "${property_name}". Check the name, or use notion-fetch to list the page's properties.`
+    );
+  }
+  if (!Array.isArray(property.files)) {
+    throw new Error(
+      `Property "${property_name}" is type "${property.type}", not files. notion-read-files-property only reads files-type properties.`
+    );
+  }
+
+  const all = property.files;
+  const skipped = [];
+  let selected = all;
+
+  if (names?.length) {
+    const filtered = filterByNames(all, names);
+    selected = filtered.selected;
+    for (const missing of filtered.missing) {
+      skipped.push({ name: missing, reason: "no entry with this name on the property" });
+    }
+  }
+  if (selected.length > max_files) {
+    for (const entry of selected.slice(max_files)) {
+      skipped.push({
+        name: entry.name ?? null,
+        reason: `max_files (${max_files}) exceeded; call again with names to fetch it`,
+      });
+    }
+    selected = selected.slice(0, max_files);
+  }
+
+  const described = selected.map((entry, i) => describeFileEntry(entry, all.indexOf(entry) >= 0 ? all.indexOf(entry) : i));
+
+  if (metadata_only) {
+    return {
+      ok: true,
+      page_id,
+      property_name,
+      total_found: all.length,
+      metadata_only: true,
+      files: described,
+      skipped,
+    };
+  }
+
+  const results = [];
+  const textParts = [];
+  let refreshed = false;
+
+  for (let i = 0; i < selected.length; i += 1) {
+    let entry = selected[i];
+    const meta = described[i];
+
+    if (meta.source === "external") {
+      // Not fetched by design: the bytes are not in Notion, the URL is not a
+      // secret, and the caller already has a general-purpose fetcher. Returning
+      // the URL is both safe and sufficient.
+      results.push({ ...meta, retrieved: false, reason: "external entry; fetch the url with a general-purpose tool" });
+      continue;
+    }
+    if (meta.source === "unknown") {
+      results.push({ ...meta, retrieved: false, reason: `unrecognized entry type "${entry.type}"` });
+      continue;
+    }
+
+    // Refresh the page once if any signed URL has expired (or is about to).
+    // Fetching a stale URL yields a 403 that reads like a permissions problem
+    // and is not one, so it is cheaper to re-mint than to explain.
+    if (isExpired(entry, Date.now()) && !refreshed) {
+      page = await notion.pages.retrieve({ page_id });
+      const fresh = page.properties?.[property_name]?.files ?? [];
+      const match = fresh.find((f) => f.name === entry.name) ?? fresh[meta.index];
+      if (match) entry = match;
+      refreshed = true;
+    }
+
+    const url = hostedUrl(entry);
+    if (!url) {
+      results.push({ ...meta, retrieved: false, reason: "entry has no retrievable URL" });
+      continue;
+    }
+    if (isExpired(entry, Date.now())) {
+      results.push({
+        ...meta,
+        retrieved: false,
+        reason: "signed URL expired and could not be refreshed; re-run to obtain a fresh one",
+      });
+      continue;
+    }
+    if (!isAllowedDownloadUrl(url)) {
+      results.push({ ...meta, retrieved: false, reason: "download URL is not an allowed https destination" });
+      continue;
+    }
+
+    let downloaded;
+    try {
+      downloaded = await downloadAttachment(url);
+    } catch (error) {
+      // Strip the URL from anything the fetch layer put in the message.
+      results.push({ ...meta, retrieved: false, reason: `download failed: ${scrubUrls(error.message)}` });
+      continue;
+    }
+
+    const mime = downloaded.mime || mimeForAttachment(meta.name);
+    if (downloaded.bytes.length > MAX_DOWNLOAD_BYTES) {
+      results.push({
+        ...meta,
+        retrieved: false,
+        mime_type: mime,
+        size_bytes: downloaded.bytes.length,
+        reason: `exceeds the ${MAX_DOWNLOAD_BYTES} byte download cap`,
+      });
+      continue;
+    }
+
+    if (isTextualMime(mime)) {
+      const truncated = downloaded.bytes.length > MAX_INLINE_TEXT_BYTES;
+      const slice = truncated ? downloaded.bytes.subarray(0, MAX_INLINE_TEXT_BYTES) : downloaded.bytes;
+      textParts.push({
+        type: "text",
+        text: `--- ${meta.name ?? `attachment-${meta.index}`} (${mime}${truncated ? ", truncated" : ""}) ---\n${slice.toString("utf8")}`,
+      });
+      results.push({
+        ...meta,
+        retrieved: true,
+        delivery: "inline",
+        mime_type: mime,
+        size_bytes: downloaded.bytes.length,
+        truncated,
+      });
+      continue;
+    }
+
+    const dir = out_dir ? resolve(out_dir) : join(tmpdir(), `notion-attachments-${page_id}`);
+    await mkdir(dir, { recursive: true });
+    const filePath = join(dir, safeFilename(meta.name, meta.index));
+    await writeFile(filePath, downloaded.bytes);
+    results.push({
+      ...meta,
+      retrieved: true,
+      delivery: "file",
+      path: filePath,
+      mime_type: mime,
+      size_bytes: downloaded.bytes.length,
+    });
+  }
+
+  const summary = {
+    ok: true,
+    page_id,
+    property_name,
+    total_found: all.length,
+    files: results,
+    skipped,
+  };
+
+  return { __content: [{ type: "text", text: JSON.stringify(summary) }, ...textParts] };
+}
+
+// Fetch a pre-signed attachment URL. No Authorization header: the signature is
+// the credential and the host is not api.notion.com. Redirects are followed
+// manually so each hop can be re-checked — the first URL comes from Notion, a
+// redirect target does not.
+async function downloadAttachment(url) {
+  let current = url;
+  for (let hop = 0; hop < 5; hop += 1) {
+    const response = await fetch(current, { redirect: "manual" });
+    if (response.status >= 300 && response.status < 400) {
+      const location = response.headers.get("location");
+      if (!location) throw new Error(`HTTP ${response.status} with no Location header`);
+      const next = new URL(location, current).toString();
+      if (!isAllowedDownloadUrl(next)) throw new Error("redirected to a disallowed destination");
+      current = next;
+      continue;
+    }
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const buffer = Buffer.from(await response.arrayBuffer());
+    return { bytes: buffer, mime: response.headers.get("content-type") };
+  }
+  throw new Error("too many redirects");
+}
 
 async function handleQuery(args) {
   const { database_id, filter, sorts, page_size, start_cursor, filter_properties } = args;
@@ -702,6 +965,12 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     case "notion-set-files-property":
       result = await handleSetFilesProperty(args);
       break;
+    case "notion-read-files-property": {
+      // Returns a mixed text array (JSON summary + inline file contents), not a
+      // single JSON text part, so it bypasses the shared wrapper below.
+      const read = await handleReadFilesProperty(args);
+      return { content: read.__content };
+    }
     default:
       throw new Error(`Unknown tool: ${name}`);
   }

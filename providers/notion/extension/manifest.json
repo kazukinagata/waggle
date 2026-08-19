@@ -1,7 +1,7 @@
 {
   "manifest_version": "0.3",
   "name": "notion-extension",
-  "version": "1.2.3",
+  "version": "1.3.0",
   "description": "Notion database querying with people property filters, relation property updates, page-body image upload/read, and files-property attachment management. Designed for Waggle plugin.",
   "author": {
     "name": "Kazuki Nagata"
@@ -37,6 +37,10 @@
     {
       "name": "notion-set-files-property",
       "description": "The only way to write a files-type page property (e.g. Attachments) — the hosted notion-update-page cannot set files properties. Uploads local files (Notion File Upload API, max 20MB) and/or stores external URLs, with replace and append modes. Requires the integration's 'Insert content' capability for uploads."
+    },
+    {
+      "name": "notion-read-files-property",
+      "description": "The only way to read the CONTENTS of a files-type page property (e.g. Attachments) — the hosted notion-fetch reports that a file is attached but cannot retrieve it. Text-bearing files are returned inline; others are downloaded to a local path. Notion-hosted files are fetched through their short-lived signed URL, which is never included in the result; external entries are not fetched, their URL is returned instead."
     }
   ],
   "user_config": {

@@ -2,16 +2,28 @@
 // NOTION_TOKEN). Run via run.sh; prints one ok/FAIL line per case and exits
 // non-zero if any case fails.
 import {
+  EXPIRY_SKEW_MS,
+  MAX_DOWNLOAD_BYTES,
+  MAX_INLINE_TEXT_BYTES,
   MAX_READ_IMAGE_BYTES,
   MAX_UPLOAD_BYTES,
   READABLE_MIME_TYPES,
   apiErrorDetail,
   collectImageBlocks,
+  describeFileEntry,
   filterByBlockIds,
+  filterByNames,
+  hostedUrl,
+  isAllowedDownloadUrl,
+  isExpired,
+  isTextualMime,
   mimeForAttachment,
   mimeFromFilename,
   normalizeId,
+  safeFilename,
+  scrubUrls,
   toWritableFiles,
+  validateReadFilesInput,
   validateSetFilesInput,
   validateUploadInput,
 } from "../../extension/server/helpers.js";
@@ -164,6 +176,122 @@ check("readable: png/jpeg/gif/webp", ["image/png", "image/jpeg", "image/gif", "i
 check("svg not inline-readable", !READABLE_MIME_TYPES.has("image/svg+xml"));
 check("read cap is 5MB", MAX_READ_IMAGE_BYTES === 5 * 1024 * 1024);
 check("upload cap is 20MB", MAX_UPLOAD_BYTES === 20 * 1024 * 1024);
+
+console.log("== describeFileEntry: signed URLs must not escape ==");
+// The whole point of this tool's design: a Notion-hosted entry's URL is a bearer
+// credential, so it must not appear in anything returned to the caller. An
+// external entry's URL is a string the user typed into Notion and is visible in
+// its UI, so it is returned — and returning it is what makes fetching it here
+// unnecessary.
+const hosted = describeFileEntry(
+  { type: "file", name: "spec.pdf", file: { url: "https://s3.example.com/x?X-Amz-Signature=SECRET" } },
+  0
+);
+check("hosted entry: url is null", hosted.url === null);
+check("hosted entry: no field anywhere holds the signature", !JSON.stringify(hosted).includes("SECRET"));
+check("hosted entry: source is notion_hosted", hosted.source === "notion_hosted");
+const uploadShape = describeFileEntry(
+  { type: "file_upload", name: "a.bin", file_upload: { url: "https://s3.example.com/y?sig=SECRET" } },
+  1
+);
+check("file_upload entry: url is null too", uploadShape.url === null && !JSON.stringify(uploadShape).includes("SECRET"));
+const ext = describeFileEntry({ type: "external", name: "ref", external: { url: "https://ex.com/a" } }, 2);
+check("external entry: url IS returned", ext.url === "https://ex.com/a");
+check("external entry: source is external", ext.source === "external");
+check("unknown type -> source unknown, url null", (() => {
+  const u = describeFileEntry({ type: "wat", name: "x" }, 3);
+  return u.source === "unknown" && u.url === null;
+})());
+check("hostedUrl reaches the url the describe shape hides", hostedUrl({ type: "file", file: { url: "https://s/1" } }) === "https://s/1");
+check("hostedUrl on external -> null (never fetched by us)", hostedUrl({ type: "external", external: { url: "https://ex.com/a" } }) === null);
+
+console.log("== scrubUrls ==");
+check("strips an https url", scrubUrls("HTTP 403 fetching https://s3/x?sig=SECRET") === "HTTP 403 fetching [url redacted]");
+check("strips http too", !/http:/.test(scrubUrls("failed http://a/b")));
+check("strips every url in one message", (scrubUrls("https://a/1 and https://b/2").match(/\[url redacted\]/g) || []).length === 2);
+check("leaves url-free text alone", scrubUrls("too many redirects") === "too many redirects");
+check("handles null", scrubUrls(null) === "");
+
+console.log("== isExpired ==");
+const now = Date.parse("2026-08-20T12:00:00Z");
+check("expiry well in the future -> usable", !isExpired({ type: "file", file: { expiry_time: "2026-08-20T13:00:00Z" } }, now));
+check("already past -> expired", isExpired({ type: "file", file: { expiry_time: "2026-08-20T11:59:00Z" } }, now));
+// A download starting 30s before expiry would fail mid-transfer; the skew makes
+// that a refresh instead of a confusing 403.
+check("inside the skew window -> treated as expired", isExpired({ type: "file", file: { expiry_time: "2026-08-20T12:00:30Z" } }, now));
+check("just outside the skew -> usable", !isExpired({ type: "file", file: { expiry_time: "2026-08-20T12:02:00Z" } }, now));
+check("missing expiry_time -> usable, not a hard failure", !isExpired({ type: "file", file: {} }, now));
+check("unparseable expiry -> usable", !isExpired({ type: "file", file: { expiry_time: "not a date" } }, now));
+check("skew is 60s", EXPIRY_SKEW_MS === 60 * 1000);
+
+console.log("== isAllowedDownloadUrl ==");
+check("https public host -> allowed", isAllowedDownloadUrl("https://prod-files.notion-static.com/a/b.pdf"));
+check("http -> refused", !isAllowedDownloadUrl("http://prod-files.notion-static.com/a"));
+check("localhost -> refused", !isAllowedDownloadUrl("https://localhost/a"));
+check("sub.localhost -> refused", !isAllowedDownloadUrl("https://x.localhost/a"));
+check("127.0.0.1 -> refused", !isAllowedDownloadUrl("https://127.0.0.1/a"));
+check("10/8 -> refused", !isAllowedDownloadUrl("https://10.0.0.5/a"));
+check("192.168/16 -> refused", !isAllowedDownloadUrl("https://192.168.1.1/a"));
+check("172.16/12 -> refused", !isAllowedDownloadUrl("https://172.20.0.1/a"));
+check("172.32 is public -> allowed", isAllowedDownloadUrl("https://172.32.0.1/a"));
+check("169.254 link-local -> refused", !isAllowedDownloadUrl("https://169.254.169.254/latest/meta-data/"));
+check("100.64 CGNAT -> refused", !isAllowedDownloadUrl("https://100.64.0.1/a"));
+check("0.0.0.0 -> refused", !isAllowedDownloadUrl("https://0.0.0.0/a"));
+check("IPv6 loopback -> refused", !isAllowedDownloadUrl("https://[::1]/a"));
+check("IPv6 link-local -> refused", !isAllowedDownloadUrl("https://[fe80::1]/a"));
+check("IPv6 unique-local -> refused", !isAllowedDownloadUrl("https://[fd00::1]/a"));
+check("garbage -> refused", !isAllowedDownloadUrl("not a url"));
+check("file: -> refused", !isAllowedDownloadUrl("file:///etc/passwd"));
+
+console.log("== safeFilename ==");
+check("plain name kept", safeFilename("spec.pdf", 0) === "spec.pdf");
+// Notion display names are user-authored, so they must not decide the path.
+check("traversal stripped", safeFilename("../../etc/passwd", 0) === "passwd");
+check("backslash path stripped", safeFilename("a\\b\\c.txt", 0) === "c.txt");
+check("leading dots stripped", safeFilename("...hidden", 0) === "hidden");
+check("control chars replaced", !/\x00/.test(safeFilename("a\x00b.txt", 0)));
+check("empty -> indexed fallback", safeFilename("", 7) === "attachment-7");
+check("null -> indexed fallback", safeFilename(null, 2) === "attachment-2");
+check("only-separators -> indexed fallback", safeFilename("///", 1) === "attachment-1");
+check("very long name truncated", safeFilename("x".repeat(300), 0).length === 120);
+
+console.log("== isTextualMime ==");
+check("text/plain", isTextualMime("text/plain"));
+check("csv with charset param", isTextualMime("text/csv; charset=utf-8"));
+check("application/json", isTextualMime("application/json"));
+check("yaml", isTextualMime("application/x-yaml"));
+check("unenumerated text/* still text", isTextualMime("text/tab-separated-values"));
+check("uppercase", isTextualMime("TEXT/PLAIN"));
+check("pdf is not text", !isTextualMime("application/pdf"));
+check("png is not text", !isTextualMime("image/png"));
+check("octet-stream is not text", !isTextualMime("application/octet-stream"));
+check("null/undefined", !isTextualMime(null) && !isTextualMime(undefined));
+
+console.log("== filterByNames ==");
+const entries = [
+  { type: "file", name: "a.txt" },
+  { type: "external", name: "b" },
+  { type: "file", name: "c.pdf" },
+];
+check("selects requested", filterByNames(entries, ["a.txt", "c.pdf"]).selected.length === 2);
+// A requested name that matches nothing must be reported, not silently dropped —
+// otherwise the caller reads 2 of 3 files and believes it read everything.
+check("reports a name matching nothing", filterByNames(entries, ["a.txt", "nope"]).missing[0] === "nope");
+check("no missing when all match", filterByNames(entries, ["b"]).missing.length === 0);
+check("empty names selects nothing", filterByNames(entries, []).selected.length === 0);
+
+console.log("== validateReadFilesInput ==");
+check("valid minimal", validateReadFilesInput({ page_id: "p", property_name: "Attachments" }) === null);
+check("missing page_id", /page_id/.test(validateReadFilesInput({ property_name: "A" })));
+check("missing property_name", /property_name/.test(validateReadFilesInput({ page_id: "p" })));
+check("max_files 0 rejected", /max_files/.test(validateReadFilesInput({ page_id: "p", property_name: "A", max_files: 0 })));
+check("max_files non-integer rejected", /max_files/.test(validateReadFilesInput({ page_id: "p", property_name: "A", max_files: 1.5 })));
+check("max_files string rejected", /max_files/.test(validateReadFilesInput({ page_id: "p", property_name: "A", max_files: "3" })));
+check("max_files omitted is fine", validateReadFilesInput({ page_id: "p", property_name: "A" }) === null);
+
+console.log("== read-files constants ==");
+check("inline text cap is 256KB", MAX_INLINE_TEXT_BYTES === 256 * 1024);
+check("download cap is 50MB", MAX_DOWNLOAD_BYTES === 50 * 1024 * 1024);
 
 console.log("");
 console.log(`PASS=${PASS} FAIL=${FAIL}`);

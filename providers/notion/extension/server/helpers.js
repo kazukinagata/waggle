@@ -200,3 +200,166 @@ export function collectImageBlocks(blocks) {
   }
   return { images, containers };
 }
+
+// ---------------------------------------------------------------------------
+// notion-read-files-property
+// ---------------------------------------------------------------------------
+
+// Text-bearing MIME types whose content is returned inline. Everything else is
+// written to disk and only the path is returned: a spreadsheet or a PDF is not
+// useful as a wall of mojibake in the model's context, and inlining one costs
+// tokens without conveying the file.
+export const TEXTUAL_MIME_TYPES = new Set([
+  "text/plain",
+  "text/csv",
+  "text/markdown",
+  "text/html",
+  "text/xml",
+  "application/json",
+  "application/xml",
+  "application/x-yaml",
+  "application/yaml",
+]);
+
+// Inline text is capped and truncation is reported. A 40MB log attached to a
+// task must not silently become 40MB of context.
+export const MAX_INLINE_TEXT_BYTES = 256 * 1024;
+
+// Ceiling on a single downloaded attachment. Above this the entry is skipped
+// with a reason rather than streamed to disk: an attachment this large is not
+// a task requirement, and the caller asked to read a spec, not to mirror a blob.
+export const MAX_DOWNLOAD_BYTES = 50 * 1024 * 1024;
+
+// A signed URL is treated as expired this many ms before its stated expiry, so
+// a download that starts just under the wire does not fail mid-transfer.
+export const EXPIRY_SKEW_MS = 60 * 1000;
+
+export function isTextualMime(mime) {
+  if (!mime) return false;
+  const base = String(mime).split(";")[0].trim().toLowerCase();
+  if (TEXTUAL_MIME_TYPES.has(base)) return true;
+  // text/* not enumerated above (e.g. text/tab-separated-values) is still text.
+  return base.startsWith("text/");
+}
+
+// Validate notion-read-files-property input. Returns an error message string,
+// or null when valid.
+export function validateReadFilesInput({ page_id, property_name, max_files } = {}) {
+  if (!page_id) return "page_id is required.";
+  if (!property_name) return "property_name is required.";
+  if (max_files !== undefined) {
+    if (typeof max_files !== "number" || !Number.isInteger(max_files) || max_files < 1) {
+      return "max_files must be a positive integer.";
+    }
+  }
+  return null;
+}
+
+// Describe a raw Notion files-property entry without resolving its content.
+//
+// The `url` field is populated ONLY for external entries. A Notion-hosted entry
+// carries a signed URL that is itself a bearer credential — anyone holding it
+// can read the file until it expires — so it is deliberately dropped here and
+// never travels to the caller, into a tool result, or into a log. An external
+// entry's URL is a string the user typed into Notion and is visible in its UI,
+// so returning it is safe, and returning it is also sufficient: the caller has
+// a general-purpose fetcher and does not need this server to act as one.
+export function describeFileEntry(entry, index) {
+  const type = entry?.type;
+  const name = entry?.name ?? null;
+  if (type === "external") {
+    return { index, name, source: "external", url: entry.external?.url ?? null };
+  }
+  if (type === "file" || type === "file_upload") {
+    return { index, name, source: "notion_hosted", url: null };
+  }
+  return { index, name, source: "unknown", url: null };
+}
+
+// The signed URL of a Notion-hosted entry, or null. Kept separate from
+// describeFileEntry so the value never rides along in a returned object by
+// accident — a caller has to ask for it explicitly, and only the download path
+// does.
+export function hostedUrl(entry) {
+  if (entry?.type === "file") return entry.file?.url ?? null;
+  if (entry?.type === "file_upload") return entry.file_upload?.url ?? null;
+  return null;
+}
+
+// True when a Notion-hosted entry's signed URL is expired or about to be.
+// A missing expiry_time is treated as usable: Notion supplies it for hosted
+// files, and refusing to try on its absence would break the tool on any shape
+// change rather than degrading to one wasted request.
+export function isExpired(entry, nowMs) {
+  const raw = entry?.file?.expiry_time ?? entry?.file_upload?.expiry_time;
+  if (!raw) return false;
+  const at = Date.parse(raw);
+  if (Number.isNaN(at)) return false;
+  return at - EXPIRY_SKEW_MS <= nowMs;
+}
+
+// Select entries by display name. Returns { selected, missing } so a requested
+// name that matches nothing is reported rather than silently yielding fewer
+// files than the caller asked for.
+export function filterByNames(entries, names) {
+  const wanted = new Set(names.map((n) => String(n)));
+  const seen = new Set();
+  const selected = (entries || []).filter((e) => {
+    if (wanted.has(e.name)) {
+      seen.add(e.name);
+      return true;
+    }
+    return false;
+  });
+  return { selected, missing: names.filter((n) => !seen.has(String(n))) };
+}
+
+// Guard the host a download may reach. The signed URL comes from Notion's own
+// API response, but it is still followed with redirects, and a redirect is
+// attacker-influenceable in a way the original URL is not. https only, and no
+// private, loopback, or link-local destination — a download has no business
+// reaching a host that is only reachable from inside this network.
+export function isAllowedDownloadUrl(raw) {
+  let u;
+  try {
+    u = new URL(raw);
+  } catch {
+    return false;
+  }
+  if (u.protocol !== "https:") return false;
+  const host = u.hostname.toLowerCase().replace(/^\[|\]$/g, "");
+  if (host === "localhost" || host.endsWith(".localhost")) return false;
+  if (host === "::1" || host === "0.0.0.0") return false;
+  // IPv4 literals in private / loopback / link-local / CGNAT space.
+  const v4 = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(host);
+  if (v4) {
+    const [a, b] = [Number(v4[1]), Number(v4[2])];
+    if (a === 10 || a === 127 || a === 0) return false;
+    if (a === 192 && b === 168) return false;
+    if (a === 172 && b >= 16 && b <= 31) return false;
+    if (a === 169 && b === 254) return false;
+    if (a === 100 && b >= 64 && b <= 127) return false;
+  }
+  // IPv6 loopback / link-local / unique-local.
+  if (/^f[cd]/.test(host) || /^fe80:/.test(host)) return false;
+  return true;
+}
+
+// Filesystem-safe basename for a downloaded attachment. Notion names are
+// user-authored, so a name like "../../etc/passwd" or "a/b.txt" must not decide
+// where the file lands.
+export function safeFilename(name, index) {
+  const base = String(name ?? "").split(/[\\/]/).pop() ?? "";
+  const cleaned = base.replace(/[\x00-\x1f<>:"|?*]/g, "_").replace(/^\.+/, "").trim();
+  if (!cleaned) return `attachment-${index}`;
+  return cleaned.length > 120 ? cleaned.slice(0, 120) : cleaned;
+}
+
+// Remove any URL from a string before it reaches the caller or a log. Error
+// messages from the fetch layer routinely embed the URL that failed, and for a
+// pre-signed attachment URL that means a credential in a transcript. Applied to
+// every download error rather than to a known set of messages, because the set
+// of messages is whatever the runtime decides to produce.
+export function scrubUrls(text) {
+  return String(text ?? "").replace(/\bhttps?:\/\/\S+/gi, "[url redacted]");
+}

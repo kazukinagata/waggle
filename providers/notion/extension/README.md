@@ -149,6 +149,75 @@ The response is a mixed content array: first a text part with a JSON summary, th
 
 Images over 5MB, non-raster types (svg, tiff, heic), and requested `block_ids` that match no image block are listed in `skipped` (with a reason) instead of returned inline. `total_found` always counts every image discovered on the page before filtering.
 
+## Tool: notion-read-files-property
+
+Reads the **contents** of a Notion files-type page property. The mirror of `notion-set-files-property`: the write side has existed since v2.13.0, the read side did not, so an executor holding only a task could see *that* a file was attached but never what it said.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `page_id` | string | yes | Notion page UUID to read from |
+| `property_name` | string | yes | files-type property name (e.g., "Attachments") |
+| `names` | string[] | no | Display names to read. Omit to read every entry up to `max_files`. |
+| `max_files` | number | no | Maximum entries to retrieve (default 5) |
+| `out_dir` | string | no | Directory for downloaded non-text files. Defaults to a per-page directory under the system temp dir. |
+| `metadata_only` | boolean | no | List entries without retrieving content (default `false`) |
+
+Works on any files-type property, not only a waggle Tasks DB.
+
+### Two kinds of entry, handled differently
+
+A Notion files property holds two things, and the difference decides the behavior:
+
+| Entry | Where the bytes live | What this tool does |
+|---|---|---|
+| **Notion-hosted** (`type: file` / `file_upload`, from an upload) | Notion's storage, reachable only through a **signed URL that expires after ~1h** | Fetches it and returns the content. This is the case that needed a tool. |
+| **External** (`type: external`, a URL someone pasted) | Not in Notion at all — Notion stores only the URL | **Not fetched.** Returns the name and URL so the caller can fetch it with a general-purpose tool. |
+
+Not fetching external URLs is deliberate. The bytes were never in Notion, the URL is not a secret (it is visible in Notion's own UI), and the caller already has a general-purpose fetcher — there is no reason for this server to become one, and every reason not to make it reach arbitrary hosts.
+
+### Signed URLs are treated as credentials
+
+A Notion-hosted entry resolves to a pre-signed storage URL. Possession *is* authorization, for about an hour. So:
+
+- **The URL is never returned.** Not in the result, not in an error message, not in a log line. Entries are identified by name and index. Download errors are scrubbed of any URL before they surface, because the fetch layer routinely embeds the failing URL in its own messages.
+- **The Notion token is never sent to it.** The URL points at Notion's storage host, not `api.notion.com`; the signature is the authorization, and attaching a bearer token would hand the integration credential to a host with no business holding it.
+- **Expiry is checked before fetching**, with a 60s skew so a download does not fail mid-transfer. An expired URL triggers **one** page re-retrieval to mint a fresh one, rather than a 403 that reads like a permissions problem and is not one.
+- **Redirects are followed manually**, up to 5 hops, re-checking each: https only, and never to a loopback, private, link-local, or CGNAT address. The first URL comes from Notion; a redirect target does not.
+- **Display names never decide the path.** A name like `../../etc/passwd` is reduced to its basename before it is joined with `out_dir`.
+
+### Delivery
+
+- **Text-bearing** (`text/*`, `application/json`, `application/xml`, yaml): returned inline as content, capped at 256KB with truncation reported in the summary. A 40MB log must not silently become 40MB of context.
+- **Everything else**: written under `out_dir`; only the local path is returned. A PDF or spreadsheet inlined as bytes costs tokens without conveying the file.
+- Entries over 50MB, unrecognized entry types, and requested `names` that match nothing are listed in `skipped` with a reason instead of being silently dropped.
+
+The response is a JSON summary followed by one text part per inline file:
+
+```json
+{
+  "ok": true,
+  "page_id": "<uuid>",
+  "property_name": "Attachments",
+  "total_found": 3,
+  "files": [
+    {"index": 0, "name": "targets.csv", "source": "notion_hosted", "url": null,
+     "retrieved": true, "delivery": "inline", "mime_type": "text/csv", "size_bytes": 812, "truncated": false},
+    {"index": 1, "name": "spec.pdf", "source": "notion_hosted", "url": null,
+     "retrieved": true, "delivery": "file", "path": "/tmp/notion-attachments-<uuid>/spec.pdf",
+     "mime_type": "application/pdf", "size_bytes": 148213},
+    {"index": 2, "name": "Figma board", "source": "external", "url": "https://www.figma.com/file/...",
+     "retrieved": false, "reason": "external entry; fetch the url with a general-purpose tool"}
+  ],
+  "skipped": []
+}
+```
+
+Note `"url": null` on both hosted entries. That is the signed URL being withheld, not a missing value.
+
+### A tool is not a substitute for a readable spec
+
+waggle's protocol requires a task to be self-contained: an executor holding only the task's fields must be able to tell what is required without opening an attachment. This tool makes an attachment *reachable*; it does not make a spec that lives inside one reviewable or hashable, and the quality reviewer judges the spec, not the attachment. Inline text-bearing attachments into the page body and summarize what a binary one establishes — then use this tool for the detail.
+
 ## Tool: notion-set-files-property
 
 Sets or appends files on a Notion **files-type page property** (e.g. `Attachments`). `notion-update-page` cannot set files properties — use this tool. Local-file uploads require the integration's **Insert content** capability.
