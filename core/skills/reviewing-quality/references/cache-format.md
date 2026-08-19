@@ -32,7 +32,20 @@ Normalization, applied to each component before joining:
 - Trailing whitespace at the **end of the component** removed. Internal whitespace and blank lines preserved exactly.
 - Joined string encoded as UTF-8, no trailing newline.
 
-**Reviewer-visible `Context`** is `Context` with the Quality Review Findings block (below) removed. The removal must be byte-identical to the strip performed before the spec is handed to the Reviewer in Step 4: the hash covers exactly what the Reviewer read. The **Confirmation Log block is not removed** — it is issuer evidence the Reviewer must see, so it stays in both the review input and the hash.
+**Reviewer-visible `Context`** is `Context` with the **machine-written blocks** removed: the Quality Review Findings block and the Delegation History block (both below). The removal must be byte-identical to the strip performed before the spec is handed to the Reviewer in Step 4: the hash covers exactly what the Reviewer read.
+
+The **Confirmation Log block is not removed** — it is issuer evidence the Reviewer must see, so it stays in both the review input and the hash.
+
+That is the whole rule, and the line it draws is by **authorship**, not by "is it a block":
+
+| In `Context` | In the hash and the review input? | Why |
+|---|---|---|
+| Issuer prose | **yes** | It is part of the specification |
+| Confirmation Log | **yes** | It records the issuer's decisions; a confirmed line is sourced by it |
+| Quality Review Findings | no | The pipeline's own judgment; a review must not read its own prior output |
+| Delegation History | no | Machine-written audit metadata; it carries no requirement |
+
+Anything written by the pipeline that is not an issuer decision belongs in a delimited block and is stripped. A bare line appended by a skill is a bug: it enters the hash, and it invalidates a verdict that nothing about the specification actually changed.
 
 `irc-6axis` is the rubric identifier. It is inside the hash because a sixth axis changes what `PASS` means — without it, a verdict produced under the five-axis rubric would be indistinguishable from one produced under six.
 
@@ -121,6 +134,29 @@ Delimiter lines are exact-match anchors:
 ```
 
 An unterminated block is bounded the same conservative way as the findings block: replace from the opening delimiter through the last consecutive line that parses as block content (`- ` bullets), never blindly to end-of-field.
+
+## Delegation History Block Format
+
+Machine-written audit metadata: who handed the task to whom, and when. It carries no requirement, so it is stripped before hashing and before review.
+
+Stored inside the task's `Context` extended field:
+
+```
+--- Waggle Delegation History ---
+- Delegated from @<name> to @<name> on <YYYY-MM-DD>
+- <...>
+--- End Waggle Delegation History ---
+```
+
+Rules:
+
+- **At most one block per task**, appended to in place; entries are append-only.
+- **Stripped before hashing and before review**, like the findings block.
+- Delimiter lines are exact-match anchors, bounded conservatively when unterminated, exactly as for the findings block.
+
+**Why this needs a block at all.** Delegation used to append a bare `Delegated from ...` line to `Context`. Under the v2 hash that silently breaks delegation: the assignment gate reviews the task, gets a `PASS`, and then the delegation write appends to `Context` — so the verdict it just obtained is stale the moment it is stored, and the next cache-only dispatch rejects the task that was just delegated. Reviewing *after* the append would fix the hash but destroy the cache-hit path that makes assignment silent in the common case, turning every delegation into a live Reviewer call. Stripping the block keeps both.
+
+**Migration.** Tasks delegated before v4.0.0 carry a bare `Delegated from ...` line with no delimiters. It stays inside the hash — it is indistinguishable from issuer prose without guessing at line shapes, and guessing is how a strip starts eating user text. Those tasks are re-reviewed once by the daily sweep like any other `v1` task, and the line moves into the block the next time the task is delegated.
 
 ## Why content-hash (not timestamp)
 

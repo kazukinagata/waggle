@@ -113,13 +113,19 @@ Score each axis. Goal clarity is binary (◯ or ✗ only — see Step 3). All ot
 
 The other five axes all measure **clarity**. A clearly written fabrication satisfies every one of them — which is how a spec naming a feature that does not exist, and a person from an unrelated case, once passed this review. Fidelity is the axis that asks whether the spec is *true to the request*, not whether it is well written.
 
-**What you compare against.** The verbatim original request when the task carries one — the `## Original request (verbatim)` section of the Description, or the original message text stored by an ingest path. Otherwise the issuer-authored `Description` and `Title`. That baseline is the issuer's; the AC/EP are the planner's, and your job is to check the second against the first.
+**What you compare against.** Everything the issuer wrote:
+
+- the verbatim original request when the task carries one — the `## Original request (verbatim)` section of the Description, or the original message text stored by an ingest path;
+- the `Title` and `Description`;
+- the issuer-authored parts of `Context` — background, constraints, links, prior decisions. `Context` is where an issuer puts requirements that do not fit the Description, so a detail traced to it **is** sourced. Do not flag an AC line for being grounded in `Context` rather than in `Description`.
+
+That baseline is the issuer's; the AC/EP are the planner's, and your job is to check the second against the first. (You will not see the pipeline's own blocks in `Context` — findings and delegation history are stripped before you receive it. A Confirmation Log block, if present, *is* issuer evidence: see below.)
 
 Ask three questions:
 
 1. **Contradiction** — does any criterion or step contradict the original request, the Title, or the Description? Narrowing an explicit scope, widening it, or swapping the named deliverable all count.
 2. **Unsourced introduction** — does the AC/EP introduce a proper noun, feature name, person, system, or metric that has no citable source? "Sourced" means exactly one of:
-   - the issuer's own words, or
+   - the issuer's own words — in the original request, `Title`, `Description`, **or `Context`**, or
    - **an entry in the Confirmation Log block** of `Context` naming that line — the issuer was shown the assertion and adopted it, which is the issuer's own words about it. Treat a confirmed line as sourced. (This is why that block is not stripped from what you receive: without it, a line the issuer just confirmed would read as unsourced and could never pass, making the marker unresolvable.) A confirmation covers the line it names and nothing else.
    - a named reference carrying **all four** of: the identifier (document, skill, page), the section it points at, the specific claim or plan step it supports, and — for a mutable source — a version, commit, or date.
 

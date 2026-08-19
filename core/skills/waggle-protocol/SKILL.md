@@ -287,9 +287,10 @@ Normalization, applied to each component before joining:
 - Trailing whitespace at the **end of the component** is removed. Internal whitespace and blank lines are preserved exactly.
 - The joined string is encoded as UTF-8 with no trailing newline.
 
-**Reviewer-visible `Context`** means `Context` with the Quality Review Findings block
-removed. That block is the pipeline's own prior output, so the Reviewer must not read it
-and the hash must not cover it. The removal must be byte-identical to the strip performed
+**Reviewer-visible `Context`** means `Context` with the **machine-written blocks** removed:
+the Quality Review Findings block and the Delegation History block. Both are written by the
+pipeline and carry no requirement — one is its own prior judgment, the other is audit
+metadata — so the Reviewer must not read them and the hash must not cover them. The removal must be byte-identical to the strip performed
 before the spec is handed to the Reviewer: the hash covers exactly what the Reviewer read,
 no more and no less. This is what lets the findings block be written, replaced, or deleted
 without invalidating the verdict, while an issuer's edit to their own `Context` prose does
@@ -299,6 +300,12 @@ The **Confirmation Log block is not stripped** — from either the hash or the r
 records issuer decisions rather than pipeline judgments, and the Reviewer needs it: a line
 the issuer confirmed is sourced *by that confirmation*, and a Reviewer who cannot see it
 judges the line unsourced. See § Confirmation Log.
+
+The rule divides `Context` by **authorship**, not by whether something is a block: issuer
+prose and issuer decisions are specification and stay in; pipeline judgments and audit
+metadata stay out. A skill that appends a bare line to `Context` violates it — the line
+enters the hash and invalidates a verdict although nothing about the specification changed.
+Machine-written additions go in a delimited block.
 
 > **v4.0.0 breaking change**: `Context` was previously outside the hash. A citation or
 > constraint in `Context` could be added, changed, or removed while a `PASS` stood.

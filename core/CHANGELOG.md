@@ -33,8 +33,11 @@ Four, and each of them changes behavior you may be relying on.
    goes up. The findings block is stripped before hashing and stays harmless — but for a
    new reason, since `Context` is now inside the hash rather than outside it. The
    confirmation log is deliberately **not** stripped: it is issuer evidence the reviewer
-   must see, and a confirmed line is sourced by that confirmation. Parsers must return the
-   parsed version instead of discarding it. **Backlog → Ready requires a current `v2` PASS; Ready → In Progress and
+   must see, and a confirmed line is sourced by that confirmation. The rule divides
+   `Context` by authorship — issuer prose and issuer decisions are specification and stay
+   in the hash; pipeline judgments and audit metadata are stripped — so a skill appending a
+   bare line to `Context` is now a bug. Parsers must return the parsed version instead of
+   discarding it. **Backlog → Ready requires a current `v2` PASS; Ready → In Progress and
    beyond still accept a legacy `v1` PASS** during the migration window, because dispatch
    is cache-only and rejecting `v1` there would strand every existing Ready task. The
    daily sweep and monitoring re-review `v1` Ready+ tasks progressively. Expect the Ready
@@ -76,6 +79,12 @@ Fidelity's false-positive rate on legitimate specs is unmeasured.
   on the conversational creation path, captured during Description collection — before
   planning runs, since the hash covers `Description`. The verbatim section is optional
   (omitted when the issuer *is* the requester) and read-only to the planning agent.
+- **Delegation History** managed block. Delegation appended a bare `Delegated from ...`
+  line to `Context`; with `Context` now inside the hash that made the assignment gate's
+  own `PASS` stale the instant it was stored, so the next cache-only dispatch rejected the
+  task that had just been delegated. Machine-written additions to `Context` now live in a
+  delimited block and are stripped before hashing, which also keeps the silent cache-hit
+  path that reviewing after the append would have destroyed.
 - **Confirmation Log** managed block, recording that a line was adopted into the contract
   rather than originally stated. It is reviewer-visible and inside the hash — a confirmed
   line is sourced *by* the confirmation, so a reviewer that could not see it would judge a

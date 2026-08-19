@@ -77,10 +77,17 @@ Apply the following field updates (other fields remain unchanged).
 3. **Self-delegation exception**: If `recipient.id == current_user.id`, set `Acknowledged At` to the current ISO 8601 timestamp (no acknowledgment needed for self-assigned tasks).
 4. Append delegation history to `Context` (see format below).
 
-Append format for the `Context` field:
+Append format for the `Context` field — inside the **Delegation History** managed block (format owned by `reviewing-quality`'s reference documentation), creating the block if the task has none:
+
 ```
-Delegated from @{current_user.name} to @{recipient.name} on {YYYY-MM-DD}
+--- Waggle Delegation History ---
+- Delegated from @{current_user.name} to @{recipient.name} on {YYYY-MM-DD}
+--- End Waggle Delegation History ---
 ```
+
+**Do not append a bare line.** `Context` is part of the review-input hash (v4.0.0), and machine-written blocks are stripped from it before hashing; a bare line is not, so it would enter the hash. Concretely: the pre-assignment quality gate above reviews the task and obtains a `PASS`, and a bare append would make that verdict stale the instant it is stored — the next cache-only dispatch would reject the task that was just delegated. Reviewing after the append would fix the hash but cost the cache-hit path that keeps assignment silent in the common case.
+
+A task delegated before v4.0.0 carries a bare `Delegated from ...` line. Move it into the block when you append to that task, and leave anything you cannot confidently identify as delegation history where it is — `Context` is where the issuer writes, and mis-claiming their prose as machine output is worse than a stale-looking line.
 
 (Optional) Confirm with the user and reset Status to `Backlog` (suggests re-triage).
 
