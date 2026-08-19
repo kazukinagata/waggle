@@ -145,13 +145,18 @@ Planning results (5 tasks):
 1. [OK]          "API endpoint"  — AC: 4 criteria, Plan: 6 steps
 2. [OK]          "Fix auth bug"  — AC: 3 criteria, Plan: 4 steps
 3. [NEEDS INPUT] "Refactor DB"   — agent needs: "Which tables are affected?"
-4. [OK]          "Write blog"    — AC: 5 criteria, Plan: 7 steps
+4. [DECISION]    "Write blog"    — AC: 5 criteria, Plan: 7 steps — 1 unresolved line; needs your decision
 5. [FAILED]      "Update docs"   — agent error: timeout
 
 [Accept all OK] [Review one by one] [Skip all]
+   └─ "Accept all OK" covers 1 and 2. 4 needs your decision and is reviewed individually.
 ```
 
-- **Accept all OK**: Update all successful tasks via provider, then handle "needs input" tasks interactively
+- **Accept all OK**: Update all successful tasks via provider, then handle "needs input" tasks interactively. **A draft is excluded from "Accept all OK" when it carries an unresolved reserved marker (`[DRAFT-AC]` / `[DRAFT-EP]` / `[NEEDS-REFINE]` / `[INFERRED]`) or when the planning agent reported `requires_issuer_decision: true` in its Draft Metadata.** Excluded drafts route to individual review and are listed in the summary as such — never silently dropped, never silently committed.
+
+  The exclusion signal comes from the **planning agent's metadata**, not from the Reviewer. Phase 5 runs *after* this confirmation, so no human and no reviewer has seen the content when the batch is committed; a review cannot retroactively guard a confirmation that already happened. The ingest path's bulk action already excludes flagged drafts for the same reason, and this was the one unguarded bulk path left.
+
+  Rejected alternatives: expanding every AC/EP before Accept-all (which removes the point of bulk), capping the batch at an arbitrary size, and removing the bulk path.
 - **Review one by one**: Present each task's AC/Plan for individual Accept/Edit/Skip
 - **Skip all**: Leave all tasks unchanged
 

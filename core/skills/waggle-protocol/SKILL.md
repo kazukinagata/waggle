@@ -357,6 +357,30 @@ When an `[INFERRED]` line is confirmed by the issuer, the prefix is removed (see
 
 Removing an `[INFERRED]` prefix means "the issuer adopted this into the contract", not "the issuer originally said this" — which is exactly the distinction this block preserves. The block format is owned by the `reviewing-quality` skill's reference documentation, kept in sync with this section.
 
+### No Open Questions Field
+
+Core provides **no** field for carrying unresolved items, and the Reviewer's PASS condition is not relaxed to "remaining questions are declared".
+
+`Ready` means an executor can start without asking back. A field that lets a task reach Ready with unresolved questions lowers exactly the bar this protocol exists to hold. The argument for such a field is that banning fabrication while keeping a zero-questions PASS creates a deadlock — the review cannot pass, filling the gap is forbidden, so users route around the gate. That deadlock does not exist: there are five exits, all using machinery that already ships (surface the routes; a fact question with the task resting in Backlog; a consultation task with the main task Blocked; a verification step in the Execution Plan; or an issuer-approved decision rule delegating bounded authority). If none applies, the task correctly stays in Backlog or Blocked — an unresolved dependency, not a protocol deadlock.
+
+**If a deployment adds its own field for unresolved items**, that is legitimate — an issuer does need somewhere to write down what they do not yet know. The constraint is on its lifecycle, not its existence:
+
+- It is a **Backlog-only working field**. It must be empty before promotion, and the promotion gate is where that is checked — prose alone gets skipped under time pressure.
+- The only sanctioned ways to empty it are the five exits above. Deleting the entry without doing one of them is fabrication, not resolution.
+
+A field that can carry unresolved entries **past** promotion is the Open Questions field rejected here, whatever it is called and whichever layer owns it.
+
+### A Task Is Self-Contained
+
+A task's spec must be readable on its own. An executor holding only the task's fields — Title, Description, AC, EP, Context — must be able to determine what is required without opening an attachment, a file property, or an external document to find a requirement that exists nowhere else.
+
+This is a constraint on **where requirements live**, not a ban on attachments:
+
+- **Text-bearing attachments** (a pasted log, a CSV of target values, a snippet, a config): inline the relevant content into the page body as a code block. The attachment may stay as the archival original; the spec must not depend on opening it.
+- **Binary attachments** (a screenshot, a PDF, a design file): attach them, and additionally summarize in the spec the preconditions they establish that affect implementation — the observed state, the values, the constraint. "See the attached screenshot" is not a requirement; "the Submit button is hidden behind the address fields at 375px (see attachment)" is.
+
+A provider-side tool for reading attachments does not remove this requirement. Tooling makes an attachment reachable; it does not make a spec that lives inside one readable, reviewable, or hashable — and the reviewer judges the spec, not the attachment.
+
 ### Calibration Requirement
 
 Before a Waggle release that ships the Reviewer agent or Layer 0 classifier, implementations MUST measure agreement against hand-labeled samples. Recommended bar: ≥80% on 30 hand-labeled tasks. Below threshold, the affected layer ships disabled.

@@ -47,6 +47,8 @@ This gives the task executor full conversational context without needing to open
 
 When a message has `attachment_info` with images, include an `[Attachments]` section in the Description field after the message text and before the `Source:` line.
 
+**The spec must not depend on opening the attachment.** An executor holding only the task's fields has to be able to tell what is required. So the attachment's *description* carries the preconditions it establishes that affect implementation — the observed state, the values, the constraint — not just a pointer to it. "See the attached screenshot" is not a requirement; "the Submit button is hidden behind the address fields at 375px" is. For an attachment carrying **text** (a log, a CSV of target values, a snippet, a config), inline the relevant content into the page body as a code block rather than leaving it reachable only through the file. The original stays attached as the archival copy.
+
 **When images were successfully read:**
 
 ```

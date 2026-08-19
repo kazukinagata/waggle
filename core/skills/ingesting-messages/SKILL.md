@@ -359,9 +359,23 @@ For each image attachment detected:
 
 ### Message Permalink
 
-For each message that has at least one image with `read_status = "unread"` or `"skipped"`, construct (or extract from the API response) the message permalink so it can be shown to the user:
-- **Slack**: If the message payload includes a `permalink` field, use it directly. Otherwise construct: `https://{workspace}.slack.com/archives/{channel_id}/p{ts_without_dot}` where `ts_without_dot` is the message `ts` with the dot removed.
+For each message that has at least one image with `read_status = "unread"` or `"skipped"`, obtain the message permalink so it can be shown to the user:
+
+- **Prefer a permalink the API supplied** over one you assemble. If the message payload includes a `permalink` field, use it directly and skip the construction below entirely.
+- **Slack (construction fallback)**: `https://{workspace}.slack.com/archives/{channel_id}/p{ts_without_dot}`, where `ts_without_dot` is the message `ts` with the dot removed.
 - **Teams / Discord**: Use the message URL/link from the API response if available.
+
+**Verify a constructed link at construction time.** A permalink assembled from parts is only as good as the parts, and nothing about the resulting string reveals a wrong one — it is well-formed either way. One incident produced a stored link that pointed nowhere, off by 53 minutes: the signature of reading the wrong message's timestamp, not of a broken URL format.
+
+Before storing an assembled link, assert against the thread data **already in hand** — no extra network call:
+
+- the `channel_id` you used is the channel the message actually came from, not the parent thread's channel or a neighbouring message's,
+- the `ts` you used belongs to *this* message, not to its thread parent or an adjacent reply,
+- `ts_without_dot` is the same digits as `ts` with only the `.` removed — no rounding, reformatting, or timezone conversion.
+
+If any assertion fails, or the parts are not available: **record that the reference is unverified** rather than storing a link that silently does not resolve. An honest "no link available" costs a reader one lookup; a link that goes nowhere costs them a search for something that was never there.
+
+Do not fetch the link once more before saving as a substitute for this. That adds a network round trip per task to catch a bug that an assertion on data already in hand catches for free.
 
 ### Output
 

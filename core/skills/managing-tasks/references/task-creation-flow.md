@@ -223,7 +223,32 @@ When the user chooses Ready, the planning agent refines the seed and the quality
 
 **Refine loop (user-driven, runs until PASS):**
 
-1. Derive one concrete question per requester-side gap (e.g. "Who approves the In Review step, and via what channel?") and ask the user via AskUserQuestion. Gaps an agent can resolve alone (internal inconsistencies the Reviewer already named a fix for) need no question — carry the fix forward directly.
+1. Derive one concrete question per requester-side gap and ask the user via AskUserQuestion. Gaps an agent can resolve alone (internal inconsistencies the Reviewer already named a fix for) need no question — carry the fix forward directly.
+
+   **Ask the right kind of question.** There are two, and confusing them is how a false premise becomes an issuer-approved specification: a gap about an unverified fact was once posed as a preference question with a `(Recommended)` option, the issuer picked the recommendation, and the guess became the spec.
+
+   | Type | When | Form |
+   |---|---|---|
+   | **Fact question** | A premise is unverified ("does the checkout page already use the v2 endpoint?") | Yes / No / Unknown, in the issuer's vocabulary. **No `(Recommended)`.** `Unknown` is a real answer, not permission to proceed — it routes to one of the exits below. |
+   | **Means question** | The goal is clear, several routes exist, the issuer named none, and the routes differ materially | Each route with its risks, benefits, drawbacks, and reversibility, presented neutrally. **No `(Recommended)`.** State that the list may be incomplete and always offer an explicit "needs investigation / not in this list" choice. |
+
+   **Escalate a route choice only when the routes differ materially** — in the resulting deliverable or outcome, in reversibility, in impact visible outside the system being changed, or in order of magnitude of cost or duration. Equivalent, reversible procedural choices are execute-time; do not ask about them. Without this test the refine loop turns every task into a quiz at intake and users route around the reviewed path entirely.
+
+   When a skill or document prescribes exactly one route, this is not a question: present the route and cite its source.
+
+   **When a gap cannot be closed here**, one of these five exits applies — use them rather than filling the gap with a plausible value:
+
+   0. **Means unspecified** — surface the routes neutrally and let the issuer decide (above).
+   1. **Issuer-answerable unknown** — a fact question. Unresolved, the task rests in Backlog with `[NEEDS-REFINE]` and the findings block.
+   2. **Not answerable by the issuer** — split the consultation into its own task and block this one on it (see below).
+   3. **Execution-time discoverable fact** — write it as a verification step in the Execution Plan rather than as an assertion. The Reviewer's request-time / execute-time boundary already permits this.
+   4. **Observable only during execution, and pausing to ask is impossible or unsafe** — ask the issuer for an approved decision rule and delegate bounded authority: "if X then A, otherwise B; stop and escalate if Y".
+
+   If none applies — no choice, no decision rule, no delegated authority, nobody who can answer — the task correctly stays in Backlog or Blocked. That is an unresolved dependency, not a deadlock in this flow.
+
+   **`[Ask someone else]` — consultation as a task.** When the answer is not the issuer's to give, offer this option alongside the question. It creates a second task whose content *is* the question — Status `Ready`, Executor `human`, Assignee whoever can answer (the issuer chooses; this flow names no roles) — sets the main task to `Blocked`, and links them with `Blocked By`.
+
+   Provider degradation: `Blocked By` is a Core field, so the mechanism is portable. If relation creation is unsupported or fails, keep the main task in Backlog/Blocked and record the consultation task's identifier in a supported text field. **Never substitute an improvised dependency check for the deterministic relation step** — reporting a link that was not made is worse than reporting that it could not be made.
 2. Re-spawn the `task-planning-agent` with the user's answers, the user's own wording marked as authoritative intent, and the Reviewer's suggested fixes attached as additional context.
 3. Re-invoke `reviewing-quality` in `live` mode on the revised draft.
 4. Branch again as in step 3 above. The loop ends when:
