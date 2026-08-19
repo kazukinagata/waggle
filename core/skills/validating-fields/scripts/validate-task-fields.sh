@@ -123,6 +123,11 @@ RESULT=$(jq --arg target "$TARGET_STATUS" --arg code_keywords "$CODE_KEYWORDS_PA
     #     cache-only and cannot fall back to a live review, so rejecting v1 there would
     #     make every already-Ready task undispatchable. The daily health check and
     #     monitoring re-review v1 Ready+ tasks progressively instead.
+    #   - Exactly those two versions are defined, so anything else (v0, v3, ...) is
+    #     rejected at every gate. The shape regex deliberately accepts any v[0-9]+ because
+    #     the cache format requires parsers to tolerate unknown TRAILING keys, not unknown
+    #     VERSIONS. The hash behind an unknown version was computed over an unknown
+    #     input, so accepting it would admit a verdict nobody can recompute or verify.
     # Forward/backward-compat: the format allows zero or more trailing "<key>=<value>"
     # tokens after the version literal — per cache-format.md a parser MUST NOT reject a
     # line solely for unknown trailing keys. This also keeps legacy v2.x lines parseable:
@@ -135,6 +140,8 @@ RESULT=$(jq --arg target "$TARGET_STATUS" --arg code_keywords "$CODE_KEYWORDS_PA
      then $errors + [{"field":"Quality Verdict","rule":"verdict_not_pass","message":"\($target) requires a PASS Quality Verdict, but a non-PASS verdict was supplied. Refine the task and re-run reviewing-quality until it passes, or keep the task at Backlog."}]
      elif ($verdict | test("\\S")) and $target == "Ready" and (($verdict | test("^\\S+\\s+hash=\\S+\\s+@\\S+\\s+v2\\b")) | not)
      then $errors + [{"field":"Quality Verdict","rule":"verdict_stale_format","message":"Ready requires a v2 Quality Verdict (six-axis rubric, hashed over the normalized review input). The supplied verdict is not v2 — a v1 verdict predates that rubric and was never evaluated on Fidelity. Re-run reviewing-quality to produce a v2 verdict. Note: In Progress and beyond still accept a legacy v1 PASS during the migration window, so an already-Ready task keeps dispatching."}]
+     elif ($verdict | test("\\S")) and (($verdict | test("^\\S+\\s+hash=\\S+\\s+@\\S+\\s+v[12]\\b")) | not)
+     then $errors + [{"field":"Quality Verdict","rule":"verdict_unknown_version","message":"Quality Verdict carries an unrecognized format version. Exactly two are defined: v2 (current) and v1 (legacy, accepted at In Progress and beyond during the migration window). An unknown version cannot be interpreted — its hash was computed over an unknown input, so treating it as valid would accept a verdict nobody can verify. Re-run reviewing-quality to produce a v2 verdict."}]
      else $errors end) as $errors |
     # In Progress: Executor required
     (if $target == "In Progress" then

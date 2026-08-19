@@ -86,6 +86,8 @@ If parsing fails (empty field, malformed, or version > known): treat as cache mi
 | Backlog → Ready | current `v2` PASS only |
 | Ready → In Progress / In Review / Done | `v2` PASS, or a legacy `v1` PASS |
 
+Exactly two versions are defined, and **any other version is rejected at every gate**. Note the asymmetry with trailing keys: a parser must tolerate an unknown trailing `key=value` because the contract declares it meaningless, but it must *not* tolerate an unknown version, because the hash behind one was computed over an input the parser does not know. Tolerating it would admit a verdict nobody can recompute.
+
 New verdict producers emit `v2` only; `v1` is never written again.
 
 A `v1` line's hash was computed over a different input (four components, no `Context`, no rubric identifier), so it can never match a recomputed `v2` hash. Treat a `v1` line as **version-mismatched, not content-stale** — the distinction matters when reporting to the user, because "re-review needed after the format change" is a different message from "someone edited the spec".

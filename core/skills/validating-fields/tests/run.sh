@@ -177,6 +177,18 @@ run "Ready + verdict omitted -> only a warning, never verdict_stale_format" Read
   '{"qualityVerdict":""}' true verdict_recommended warnings
 run "Ready + v3 PASS -> invalid (not v2)" Ready \
   '{"qualityVerdict":"PASS hash=abc12345 @2026-06-10T10:42:00Z v3"}' false verdict_stale_format
+# Exactly two versions are defined. The shape regex accepts any v[0-9]+ because the
+# format requires tolerating unknown TRAILING KEYS, not unknown versions — an
+# unknown version's hash was computed over an unknown input, so accepting it would
+# admit a verdict nobody can recompute.
+run "In Progress + v3 PASS -> invalid (unknown version)" "In Progress" \
+  '{"qualityVerdict":"PASS hash=abc12345 @2026-06-10T10:42:00Z v3"}' false verdict_unknown_version
+run "In Progress + v0 PASS -> invalid (unknown version)" "In Progress" \
+  '{"qualityVerdict":"PASS hash=abc12345 @2026-06-10T10:42:00Z v0"}' false verdict_unknown_version
+run "In Progress + v11 PASS -> invalid (not v1, despite the prefix)" "In Progress" \
+  '{"qualityVerdict":"PASS hash=abc12345 @2026-06-10T10:42:00Z v11"}' false verdict_unknown_version
+run "In Progress + v2 with trailing key -> valid" "In Progress" \
+  '{"qualityVerdict":"PASS hash=abc12345 @2026-06-10T10:42:00Z v2 newkey=foo"}' true
 # The version is read from its position in the line, not by searching for "v2"
 # anywhere in it: a trailing key whose VALUE is v2 must not promote a v1 verdict.
 run "Ready + v1 PASS with a trailing key=v2 -> still invalid" Ready \

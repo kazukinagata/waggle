@@ -35,8 +35,11 @@ All rules are enforced by `scripts/validate-task-fields.sh` (see SKILL.md for th
 | `placeholder_present` | Execution Plan | No reserved placeholder remains | error |
 | `verdict_format` | Quality Verdict | When supplied, matches the cache format (lowercase 8-hex hash; fabricated/mnemonic hashes rejected) | error |
 | `verdict_stale_format` | Quality Verdict | At **Ready** only: the verdict's format version is `v2`. `v1` predates the six-axis rubric and the review-input hash. In Progress and beyond still accept `v1` during the migration window | error |
+| `verdict_unknown_version` | Quality Verdict | The version is one of the two defined (`v2` current, `v1` legacy). Anything else — `v0`, `v3`, `v11` — is rejected at every gate | error |
 
-All three `verdict_*` rules judge **the verdict travelling in a promotion write**, not whatever is currently stored on the task. A caller running a structural pre-check *before producing* a verdict must omit the field entirely — validating the stale verdict it is about to replace would reject exactly the tasks that most need re-reviewing, and a legacy `v1` task could then never be upgraded.
+The shape check deliberately accepts any `v[0-9]+`, because the cache format requires parsers to tolerate unknown **trailing keys** — not unknown **versions**. The two are different: a trailing key carries no semantics by contract, whereas the hash behind an unknown version was computed over an unknown input, so accepting it would admit a verdict nobody can recompute or verify. Hence the separate version rules above.
+
+All four `verdict_*` rules judge **the verdict travelling in a promotion write**, not whatever is currently stored on the task. A caller running a structural pre-check *before producing* a verdict must omit the field entirely — validating the stale verdict it is about to replace would reject exactly the tasks that most need re-reviewing, and a legacy `v1` task could then never be upgraded.
 | `verdict_not_pass` | Quality Verdict | When supplied, must be `PASS` for Ready+ | error |
 | `verdict_recommended` | Quality Verdict | Absent verdict — a fresh `reviewing-quality` PASS should travel in the same update as the Status change | warning |
 | `required_set` | Executor | In Progress only: Executor must be set | error |
