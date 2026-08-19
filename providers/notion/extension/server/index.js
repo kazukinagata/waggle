@@ -7,6 +7,7 @@ import {
   ListToolsRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 import { Client } from "@notionhq/client";
+import { lookup as dnsLookup } from "node:dns/promises";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { basename, join, resolve } from "node:path";
 import { tmpdir } from "node:os";
@@ -24,6 +25,7 @@ import {
   filterByNames,
   hostedUrl,
   isAllowedDownloadUrl,
+  isBlockedAddress,
   isExpired,
   isTextualMime,
   mimeForAttachment,
@@ -395,10 +397,20 @@ async function handleReadFilesProperty(args) {
     // and it is deliberately skipped when the name is ambiguous.
     selected = selected.map((entry, i) => {
       const idx = described[i].index;
-      if (fresh[idx] !== undefined) return fresh[idx];
+      // The indexed entry is used only when its identity still matches. The property
+      // can be reordered or edited between the two reads, and then fresh[idx] exists
+      // but is a DIFFERENT attachment — downloading it while keeping this entry's
+      // name and index would return mislabelled contents, which is worse than
+      // reporting that the refresh failed.
+      const atIndex = fresh[idx];
+      if (atIndex !== undefined && atIndex.name === entry.name && atIndex.type === entry.type) {
+        return atIndex;
+      }
       if (entry.name != null && fresh.filter((f) => f.name === entry.name).length === 1) {
         return fresh.find((f) => f.name === entry.name);
       }
+      // Neither identity check holds: leave the stale entry. Its expired URL is
+      // caught below and reported as un-refreshable, which is the honest outcome.
       return entry;
     });
   }
@@ -506,6 +518,30 @@ async function handleReadFilesProperty(args) {
   return { __content: [{ type: "text", text: JSON.stringify(summary) }, ...textParts] };
 }
 
+// Refuse a hostname that resolves into private, loopback, or link-local space.
+// The syntactic check catches an internal *literal*; this catches a name that
+// merely points at one, which is the form a redirect would realistically take.
+//
+// Residual risk, stated rather than papered over: this is a check-then-connect, so
+// a name that resolves differently between this lookup and the fetch (DNS
+// rebinding) is not prevented. Closing that needs pinning the resolved address into
+// the connection itself via a custom agent. Not done here — but the easy path is
+// closed, and a redirect to a *literal* internal address is rejected outright.
+async function assertPublicHost(hostname) {
+  // A literal needs no lookup, and dns.lookup on one just echoes it back.
+  if (isBlockedAddress(hostname)) throw new Error("download destination is not a public address");
+  let addresses;
+  try {
+    addresses = await dnsLookup(hostname, { all: true });
+  } catch {
+    throw new Error("download destination could not be resolved");
+  }
+  if (addresses.length === 0) throw new Error("download destination resolved to no address");
+  if (addresses.some((a) => isBlockedAddress(a.address))) {
+    throw new Error("download destination resolves to a non-public address");
+  }
+}
+
 // Fetch a pre-signed attachment URL. No Authorization header: the signature is
 // the credential and the host is not api.notion.com. Redirects are followed
 // manually so each hop can be re-checked — the first URL comes from Notion, a
@@ -513,6 +549,8 @@ async function handleReadFilesProperty(args) {
 async function downloadAttachment(url) {
   let current = url;
   for (let hop = 0; hop < 5; hop += 1) {
+    await assertPublicHost(new URL(current).hostname);
+
     // An abort signal, not the shared fetchWithTimeout: that helper puts the URL in
     // its timeout message, and for a pre-signed attachment URL that would write a
     // credential into an error string. A separate, longer budget too — 30s is right

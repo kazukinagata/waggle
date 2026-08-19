@@ -319,6 +319,55 @@ export function filterByNames(entries, names) {
 // attacker-influenceable in a way the original URL is not. https only, and no
 // private, loopback, or link-local destination — a download has no business
 // reaching a host that is only reachable from inside this network.
+// Is this IP address one a download must never reach? Accepts IPv4 and IPv6
+// literals, including IPv4-mapped IPv6 (`::ffff:127.0.0.1`) — a mapped literal
+// reaches the same host as the bare IPv4 one, so checking only the IPv6 prefixes
+// would let `https://[::ffff:127.0.0.1]/` through to loopback.
+//
+// Exported because the same rules apply to a literal in the URL and to an address
+// the hostname resolves to; one predicate for both keeps them from diverging.
+export function isBlockedAddress(addr) {
+  if (!addr) return true;
+  let host = String(addr).toLowerCase().replace(/^\[|\]$/g, "");
+  if (host === "::" || host === "::1") return true;
+
+  // IPv4-mapped IPv6. Both spellings must be handled: the dotted form
+  // (`::ffff:127.0.0.1`) and the hextet form (`::ffff:7f00:1`), because the URL
+  // parser normalizes the former into the latter — so a check that only knew the
+  // dotted spelling would pass `https://[::ffff:127.0.0.1]/` straight to loopback.
+  if (host.startsWith("::ffff:")) {
+    const rest = host.slice(7);
+    const hextets = /^([0-9a-f]{1,4}):([0-9a-f]{1,4})$/.exec(rest);
+    if (hextets) {
+      const hi = parseInt(hextets[1], 16);
+      const lo = parseInt(hextets[2], 16);
+      host = `${(hi >> 8) & 0xff}.${hi & 0xff}.${(lo >> 8) & 0xff}.${lo & 0xff}`;
+    } else {
+      host = rest;
+    }
+  }
+
+  const v4 = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(host);
+  if (v4) {
+    const [a, b] = [Number(v4[1]), Number(v4[2])];
+    if (v4.slice(1).some((o) => Number(o) > 255)) return true;
+    if (a === 0 || a === 10 || a === 127) return true;          // this-host, private, loopback
+    if (a === 192 && b === 168) return true;                     // private
+    if (a === 172 && b >= 16 && b <= 31) return true;            // private
+    if (a === 169 && b === 254) return true;                     // link-local (incl. metadata)
+    if (a === 100 && b >= 64 && b <= 127) return true;           // CGNAT
+    if (a >= 224) return true;                                   // multicast / reserved
+    return false;
+  }
+  // IPv6: loopback handled above; unique-local (fc00::/7) and link-local (fe80::/10).
+  if (/^f[cd]/.test(host)) return true;
+  if (/^fe[89ab]/.test(host)) return true;
+  return false;
+}
+
+// Syntactic check on a download URL: https, and not an obviously internal literal.
+// This is the cheap half. A hostname that *resolves* to a private address passes it
+// — see assertPublicHost in the server for the resolution check that closes that.
 export function isAllowedDownloadUrl(raw) {
   let u;
   try {
@@ -329,20 +378,7 @@ export function isAllowedDownloadUrl(raw) {
   if (u.protocol !== "https:") return false;
   const host = u.hostname.toLowerCase().replace(/^\[|\]$/g, "");
   if (host === "localhost" || host.endsWith(".localhost")) return false;
-  if (host === "::1" || host === "0.0.0.0") return false;
-  // IPv4 literals in private / loopback / link-local / CGNAT space.
-  const v4 = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(host);
-  if (v4) {
-    const [a, b] = [Number(v4[1]), Number(v4[2])];
-    if (a === 10 || a === 127 || a === 0) return false;
-    if (a === 192 && b === 168) return false;
-    if (a === 172 && b >= 16 && b <= 31) return false;
-    if (a === 169 && b === 254) return false;
-    if (a === 100 && b >= 64 && b <= 127) return false;
-  }
-  // IPv6 loopback / link-local / unique-local.
-  if (/^f[cd]/.test(host) || /^fe80:/.test(host)) return false;
-  return true;
+  return !isBlockedAddress(host);
 }
 
 // Filesystem-safe basename for a downloaded attachment. Notion names are

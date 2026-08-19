@@ -16,6 +16,7 @@ import {
   filterByNames,
   hostedUrl,
   isAllowedDownloadUrl,
+  isBlockedAddress,
   isExpired,
   isTextualMime,
   mimeForAttachment,
@@ -243,6 +244,28 @@ check("IPv6 loopback -> refused", !isAllowedDownloadUrl("https://[::1]/a"));
 check("IPv6 link-local -> refused", !isAllowedDownloadUrl("https://[fe80::1]/a"));
 check("IPv6 unique-local -> refused", !isAllowedDownloadUrl("https://[fd00::1]/a"));
 check("garbage -> refused", !isAllowedDownloadUrl("not a url"));
+// IPv4-mapped IPv6 reaches the same host as the bare IPv4 address. Both spellings
+// must be blocked: the URL parser normalizes the dotted form into hextets, so a
+// check that only knew "::ffff:127.0.0.1" would pass "[::ffff:7f00:1]" to loopback.
+check("mapped IPv6 loopback (dotted) -> refused", !isAllowedDownloadUrl("https://[::ffff:127.0.0.1]/a"));
+check("mapped IPv6 loopback (hextet) -> refused", !isAllowedDownloadUrl("https://[::ffff:7f00:1]/a"));
+check("mapped IPv6 private -> refused", !isAllowedDownloadUrl("https://[::ffff:10.0.0.1]/a"));
+check("mapped IPv6 metadata IP -> refused", !isAllowedDownloadUrl("https://[::ffff:169.254.169.254]/a"));
+check("mapped IPv6 public -> allowed", isAllowedDownloadUrl("https://[::ffff:8.8.8.8]/a"));
+check("IPv6 unspecified -> refused", !isAllowedDownloadUrl("https://[::]/a"));
+check("fe80-febf link-local range -> refused", !isAllowedDownloadUrl("https://[feb0::1]/a"));
+check("multicast -> refused", !isAllowedDownloadUrl("https://224.0.0.1/a"));
+check("octet over 255 -> refused", !isAllowedDownloadUrl("https://999.1.1.1/a"));
+
+console.log("== isBlockedAddress (same predicate for literals and resolved IPs) ==");
+// One predicate covers a literal in the URL and an address the hostname resolves
+// to, so the two rule sets cannot drift apart.
+check("resolved loopback -> blocked", isBlockedAddress("127.0.0.53"));
+check("resolved private -> blocked", isBlockedAddress("172.31.255.254"));
+check("resolved public -> allowed", !isBlockedAddress("8.8.8.8"));
+check("resolved CGNAT -> blocked", isBlockedAddress("100.100.1.1"));
+check("172.32 is public -> allowed", !isBlockedAddress("172.32.0.1"));
+check("empty/undefined -> blocked (fail closed)", isBlockedAddress("") && isBlockedAddress(undefined));
 check("file: -> refused", !isAllowedDownloadUrl("file:///etc/passwd"));
 
 console.log("== safeFilename ==");
