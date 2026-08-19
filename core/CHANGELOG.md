@@ -93,9 +93,15 @@ it, and CI enforces it in this repository.
 
 - **CI: `skill-dir-resolution`** (`core/scripts/check-skill-dir-resolution.sh`,
   `.github/workflows/skill-dir-resolution.yml`) rejects unresolved
-  `${CLAUDE_SKILL_DIR}` shell invocations. It inspects only fenced shell blocks, so
-  prose naming the forbidden pattern still passes. Verified to catch `bash`, `cd`,
-  `source`, `npx`, command-substitution and post-`&&` forms.
+  `${CLAUDE_SKILL_DIR}` use in shell blocks. The rule is an allowlist of one form
+  rather than a denylist of commands: inside a fenced shell block the variable may
+  appear only as `SCRIPT=<path>; SKILL_DIR="${CLAUDE_SKILL_DIR}"`, and everything
+  downstream must use the resolved `"$SKILL_DIR"`. A denylist would have to enumerate
+  every way a path can reach the shell — `bash`, `cd`, `source`, `cat`, shell `grep`,
+  `<` redirection, `awk -f`, `PATH` injection, or simply executing the path with no
+  leading command word — and would silently pass whichever form it forgot. Only fenced
+  shell blocks are inspected, so prose naming the forbidden pattern and comments inside
+  a block still pass.
 
 #### Documentation — Cowork claims corrected
 

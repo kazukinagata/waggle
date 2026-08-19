@@ -317,8 +317,10 @@ Use this checklist to verify a provider plugin meets all requirements before rel
 - [ ] Every shell invocation of a bundled script applies the canonical resolver from
   § Resolving the Skill Directory, in the same shell invocation, with `SCRIPT` set to
   that script's own path
-- [ ] No `bash ${CLAUDE_SKILL_DIR}/...`, `cd "${CLAUDE_SKILL_DIR}/..."`, or
-  `source "${CLAUDE_SKILL_DIR}/..."` used unresolved
+- [ ] Inside a shell block, `${CLAUDE_SKILL_DIR}` appears **only** in the resolver's
+  `SKILL_DIR=` assignment — every downstream use is `"$SKILL_DIR"`. This covers every
+  way a path reaches the shell (`bash`, `cd`, `source`, `cat`, shell `grep`, `<`
+  redirection, or executing the path directly), not just the obvious ones
 - [ ] Resolution failure fails closed — the script is not run and no model-improvised
   substitute is used
 - [ ] No shell-emitted path is fed back into a later shell command
