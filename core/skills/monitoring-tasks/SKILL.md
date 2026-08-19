@@ -131,9 +131,13 @@ If the analysis script is not available (no bash, no jq), compute the metrics ma
    - **Priority missing**: Non-Done / non-Cancelled tasks without a Priority set.
    - **Test tasks**: Titles matching placeholder patterns (`test task — delete me`, `delete me`, `wip delete`, bare `test task`). These should be cleaned up.
 
-   **Ready Health Score**: `(Ready tasks with a current v2 PASS verdict) / (total Ready tasks)`. A verdict counts only when it is `PASS`, its format version is `v2`, and its hash matches the task's current review input — a `v1` PASS was produced under the five-axis rubric and was never evaluated on Fidelity, and a hash mismatch means the spec changed after the judgment. Displayed at the top of Section 6 as a single percentage. <70% indicates broad quality debt.
+   **Ready Health Score**: `(Ready tasks with a v2 PASS verdict) / (total Ready tasks)`, from the analysis script's `ready_health.score_pct`. Displayed at the top of Section 6 as a single percentage. <70% indicates broad quality debt. The script also reports `ready_legacy_v1_pass` and `ready_non_pass_or_missing`, which is what distinguishes "not yet re-reviewed" from "actually bad".
 
-   Immediately after v4.0.0 this score drops sharply, because every pre-upgrade Ready task carries a `v1` verdict. That is the migration surfacing itself, not a regression — the score recovers as `--deep` and the daily sweep re-review those tasks. Say so when reporting it, rather than presenting the drop as new quality debt.
+   **This score checks the verdict's shape, not its freshness** (`hash_freshness_checked: false` in the output). A task whose AC was hand-edited while keeping a matching-shape `v2` PASS counts as healthy here. That is deliberate: detecting a stale hash means recomputing the review input, and a second implementation of that hash — in a shell script, kept in step with the one in `reviewing-quality` by hand — would drift. A drifted hash does not fail loudly; it reports healthy tasks as stale and stale tasks as healthy, which is worse than not reporting freshness at all. Hash staleness is detected on the paths that go through `reviewing-quality` and therefore use the single implementation: `--deep` here, and the daily health check.
+
+   A `v1` PASS counts as *not* healthy: it was produced under the five-axis rubric and was never evaluated on Fidelity.
+
+   Immediately after v4.0.0 this score drops sharply, because every pre-upgrade Ready task carries a `v1` verdict. That is the migration surfacing itself, not a regression — the score recovers as `--deep` and the daily sweep re-review those tasks. Say so when reporting it, and quote `ready_legacy_v1_pass` alongside the percentage, rather than presenting the drop as new quality debt.
 
 ## Step 4: Render Report
 
@@ -174,6 +178,7 @@ Table: Title | Assignee | Issuer | Unacknowledged Days | Status
 ### Unresolved placeholders ({count})
 Table: Title | Status | Age (days) | AC/EP Preview
   (tasks where AC or EP contains [DRAFT-AC] / [DRAFT-EP] / [NEEDS-REFINE] / [INFERRED] and status is not Blocked / Done / Cancelled)
+  Each row names the field the marker was found in (`placeholder_field`) and previews that field, not AC unconditionally — a marker sitting only in EP would otherwise be shown with unrelated AC text.
 
 ### EMPTY_AC_READY_PLUS ({count})
 Table: Title | Status | Age (days)
