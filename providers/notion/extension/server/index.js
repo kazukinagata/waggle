@@ -52,6 +52,12 @@ if (typeof fetch !== "function" || typeof FormData !== "function") {
 
 const NOTION_API_VERSION = "2022-06-28";
 
+// Budget for one attachment download hop. Deliberately larger than the 30s used for
+// API calls: this covers transferring up to the 50MB cap, not a JSON round trip. A
+// stalled storage host or redirect target would otherwise block the MCP request for
+// as long as the peer kept the socket open.
+const DOWNLOAD_TIMEOUT_MS = 120_000;
+
 // Without an explicit fetch, @notionhq/client falls back to its bundled
 // node-fetch v2, which has a long-standing "Premature close" bug in its
 // chunked-response termination detection (node-fetch/node-fetch#1576) that
@@ -381,10 +387,19 @@ async function handleReadFilesProperty(args) {
   if (selected.some((e) => hostedUrl(e) !== null && isExpired(e, Date.now()))) {
     page = await notion.pages.retrieve({ page_id });
     const fresh = page.properties?.[property_name]?.files ?? [];
+    // Remap by stored INDEX first, not by name. Display names are not unique on a
+    // files property, so a name-keyed lookup maps every duplicate onto the first
+    // match — the tool would then return the first attachment's contents several
+    // times while labelling each with a different original index. Name is only a
+    // fallback for the case where the property was reordered between the two reads,
+    // and it is deliberately skipped when the name is ambiguous.
     selected = selected.map((entry, i) => {
       const idx = described[i].index;
-      const byName = entry.name != null ? fresh.find((f) => f.name === entry.name) : undefined;
-      return byName ?? fresh[idx] ?? entry;
+      if (fresh[idx] !== undefined) return fresh[idx];
+      if (entry.name != null && fresh.filter((f) => f.name === entry.name).length === 1) {
+        return fresh.find((f) => f.name === entry.name);
+      }
+      return entry;
     });
   }
 
@@ -498,7 +513,22 @@ async function handleReadFilesProperty(args) {
 async function downloadAttachment(url) {
   let current = url;
   for (let hop = 0; hop < 5; hop += 1) {
-    const response = await fetch(current, { redirect: "manual" });
+    // An abort signal, not the shared fetchWithTimeout: that helper puts the URL in
+    // its timeout message, and for a pre-signed attachment URL that would write a
+    // credential into an error string. A separate, longer budget too — 30s is right
+    // for an API call and wrong for a 50MB transfer.
+    let response;
+    try {
+      response = await fetch(current, {
+        redirect: "manual",
+        signal: AbortSignal.timeout(DOWNLOAD_TIMEOUT_MS),
+      });
+    } catch (error) {
+      if (error?.name === "TimeoutError" || error?.name === "AbortError") {
+        throw new Error(`download timed out after ${DOWNLOAD_TIMEOUT_MS}ms`);
+      }
+      throw new Error(scrubUrls(error?.message ?? String(error)));
+    }
     if (response.status >= 300 && response.status < 400) {
       const location = response.headers.get("location");
       if (!location) throw new Error(`HTTP ${response.status} with no Location header`);
