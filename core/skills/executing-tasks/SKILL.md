@@ -176,6 +176,12 @@ When generating the dispatch prompt for each task, replace the `<ON_COMPLETION_B
 
    Match the variable *reference* forms above, not the bare words. `SCRIPT` and `SKILL_DIR` are ordinary identifiers that can legitimately appear in a task's description, acceptance criteria, or quoted code, and a bare-word scan would refuse to dispatch a perfectly valid task. For the same reason, scope the scan to the generated block and launcher rather than the whole prompt — user-authored task content is not waggle's substitution to police.
 
+   **Precondition: a resolved path only travels where the filesystem does.** Substituting the resolved absolute path is correct when the dispatching and receiving agent share a filesystem — a tmux pane, a subagent, or a Claude Desktop Scheduled Task on the same machine. It is **not** correct across Cowork sessions: the resolved path there lives under `/sessions/<session>/mnt/...`, which is scoped to *this* session, so a receiving session cannot open it. Injecting it would produce a completion command that silently fails, leaving the task stuck In Progress with no error recorded.
+
+   So on Cowork, do not dispatch a script-based completion instruction to another session. Either use a provider whose completion path is MCP-based (an MCP tool needs no path and is available to the receiving agent directly), or have the receiving agent invoke the provider skill itself and follow its documented recipe — which resolves the directory in *its own* session, where the answer is valid.
+
+   No current configuration hits this: the only Cowork-supported provider completes through MCP tools with no script path, and both script-using providers are unsupported on Cowork. Stated here so that changing either of those facts does not silently reintroduce the failure.
+
 ## Fallback: Sequential Execution
 
 **Terminal CLI:** If tmux is unavailable, fall back to sequential execution via the Agent tool:
