@@ -255,6 +255,8 @@ check("mapped IPv6 public -> allowed", isAllowedDownloadUrl("https://[::ffff:8.8
 check("IPv6 unspecified -> refused", !isAllowedDownloadUrl("https://[::]/a"));
 check("fe80-febf link-local range -> refused", !isAllowedDownloadUrl("https://[feb0::1]/a"));
 check("multicast -> refused", !isAllowedDownloadUrl("https://224.0.0.1/a"));
+check("IPv6 multicast (ff02::1) -> refused", !isAllowedDownloadUrl("https://[ff02::1]/a"));
+check("IPv6 multicast (ff05::1:3) -> refused", !isAllowedDownloadUrl("https://[ff05::1:3]/a"));
 check("octet over 255 -> refused", !isAllowedDownloadUrl("https://999.1.1.1/a"));
 
 console.log("== isBlockedAddress (same predicate for literals and resolved IPs) ==");
@@ -264,6 +266,9 @@ check("resolved loopback -> blocked", isBlockedAddress("127.0.0.53"));
 check("resolved private -> blocked", isBlockedAddress("172.31.255.254"));
 check("resolved public -> allowed", !isBlockedAddress("8.8.8.8"));
 check("resolved CGNAT -> blocked", isBlockedAddress("100.100.1.1"));
+check("resolved IPv6 multicast -> blocked", isBlockedAddress("ff02::1"));
+check("resolved IPv6 unique-local -> blocked", isBlockedAddress("fd12:3456::1"));
+check("resolved IPv6 public -> allowed", !isBlockedAddress("2606:4700::1111"));
 check("172.32 is public -> allowed", !isBlockedAddress("172.32.0.1"));
 check("empty/undefined -> blocked (fail closed)", isBlockedAddress("") && isBlockedAddress(undefined));
 check("file: -> refused", !isAllowedDownloadUrl("file:///etc/passwd"));

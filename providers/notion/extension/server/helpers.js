@@ -359,9 +359,12 @@ export function isBlockedAddress(addr) {
     if (a >= 224) return true;                                   // multicast / reserved
     return false;
   }
-  // IPv6: loopback handled above; unique-local (fc00::/7) and link-local (fe80::/10).
-  if (/^f[cd]/.test(host)) return true;
-  if (/^fe[89ab]/.test(host)) return true;
+  // IPv6: loopback handled above.
+  if (/^f[cd]/.test(host)) return true;      // unique-local, fc00::/7
+  if (/^fe[89ab]/.test(host)) return true;   // link-local, fe80::/10
+  if (/^ff/.test(host)) return true;         // multicast, ff00::/8 — the IPv4 side
+                                             // already rejected 224.0.0.0/4, and
+                                             // ff02::1 is the same kind of target
   return false;
 }
 
