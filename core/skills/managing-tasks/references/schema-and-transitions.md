@@ -21,7 +21,7 @@
 | Agent Output | rich_text | Execution result |
 | Error Message | rich_text | Written on failure only. Query with "Error Message is not empty" |
 | Issuer | people | Who created/initiated this task. Auto-populated with current_user. Write-once. |
-| Quality Verdict | rich_text | v2.8.0+. Cached Reviewer verdict. Format: `<verdict> hash=<8hex> @<iso> v1` (legacy v2.x lines may carry a retired `suppressed-until` trailing key — ignored). Auto-managed by `reviewing-quality` skill; users do not edit directly. |
+| Quality Verdict | rich_text | v2.8.0+. Cached Reviewer verdict. Current format: `<verdict> hash=<8hex> @<iso> v2`. `v1` is the legacy format — never written any more, still accepted for dispatch during the migration window (see the Quality Gate section below). Some lines carry a retired `suppressed-until` trailing key, ignored. Auto-managed by the `reviewing-quality` skill; users do not edit directly. |
 
 ### Extended Fields (optional — graceful degradation if absent)
 
