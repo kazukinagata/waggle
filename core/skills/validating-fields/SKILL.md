@@ -32,10 +32,33 @@ Other skills invoke this one via natural language — e.g., "Invoke the `validat
 
 3. Write the canonical JSON to a writable temp file. `/tmp/validate_task.json` is the default; callers on read-only filesystems should pass a writable path instead (e.g., under `${TMPDIR}`).
 
-4. Run the validation script:
+4. Run the validation script. The leading eight lines resolve the skill directory for
+   the runtime the shell is actually running in — `${CLAUDE_SKILL_DIR}` expands to a
+   path in the agent loop's filesystem, which the shell cannot always reach (on Cowork
+   the agent loop is native to the host while Bash runs in a separate VM). See the
+   `provider-contract` skill for why each clause is required. Resolution and invocation
+   MUST stay in the same Bash call — a resolver run in an earlier Bash call does not
+   carry over.
+
    ```bash
-   bash ${CLAUDE_SKILL_DIR}/scripts/validate-task-fields.sh <target_status> /tmp/validate_task.json
+   SCRIPT=scripts/validate-task-fields.sh; SKILL_DIR="${CLAUDE_SKILL_DIR}"
+   if [ ! -d "$SKILL_DIR" ]; then _S="${PWD%%/mnt/*}"; _R="$_S/mnt/.remote-plugins"
+     case "$SKILL_DIR" in */plugin_*) _P="plugin_${SKILL_DIR#*/plugin_}"; SKILL_DIR="$_R/$_P"
+       if [ ! -f "$SKILL_DIR/$SCRIPT" ]; then _M=$(find "$_R/${_P%%/*}" -path "*/$SCRIPT" 2>/dev/null)
+         [ "$(printf %s "$_M" | grep -c .)" = 1 ] && SKILL_DIR="${_M%/$SCRIPT}"; fi ;;
+     esac
+   fi
+   [ -f "$SKILL_DIR/$SCRIPT" ] || { printf '{"valid": false, "target_status": "%s", "errors": [{"field": "_skill", "rule": "skill_dir_unresolved", "message": "Validation script not found; the skill directory could not be resolved for this shell. Validation was NOT performed."}], "warnings": []}\n' "<target_status>"; exit 0; }
+   bash "$SKILL_DIR/$SCRIPT" <target_status> /tmp/validate_task.json
    ```
+
+   The fail-closed branch honours this skill's own contract: exit 0, and the outcome
+   carried in the JSON. It emits `valid: false` with a `skill_dir_unresolved` error, so
+   a caller that only inspects `.valid` blocks the transition instead of proceeding on a
+   check that never ran. **Never reimplement the validation rules in the model when this
+   fires** — a hand-rolled validator does not error, it returns `valid: true`, which is
+   the silent-wrong-answer this gate exists to prevent. Report that validation was not
+   performed.
 
 5. Parse the JSON output. It always has this shape:
    ```json
@@ -49,6 +72,7 @@ Other skills invoke this one via natural language — e.g., "Invoke the `validat
 ### Error handling
 
 - **Script exit code ≠ 0**: Should not happen by design (the script always exits 0 and signals via `valid`), but if it does, treat as a fatal environment error and report it to the caller.
+- **`skill_dir_unresolved` error in the output**: the validation script could not be located from the shell, so validation was **not performed**. Exit code is still 0 and `valid` is `false`, so a caller checking `.valid` blocks the transition automatically. Report to the user that the gate could not run; do not re-derive the rules in the model to unblock it.
 - **`jq` not installed**: The script prints "Error: jq is required" to stderr and exits 1. Treat as an environment setup problem and surface it to the user.
 - **Malformed canonical JSON**: The script returns `valid: false` with an `input` field error. Treat as a caller bug — re-check the construction step.
 - **`/tmp` not writable**: Pass a writable path instead. The caller owns the temp file location.

@@ -169,9 +169,10 @@ When generating the dispatch prompt for each task, replace the `<ON_COMPLETION_B
 2. Replace placeholders in the template with actual values:
    - `<task_id>` → the actual task page ID / row ID
    - `<db_path>` → the actual database path (SQLite/Turso providers)
-   - Provider-specific script paths (e.g. Turso's exec helper) are the provider's responsibility: the provider's On Completion Template documents any `${CLAUDE_SKILL_DIR}` substitutions the dispatcher must resolve. The dispatcher resolves those paths to absolute paths before injection.
+   - Provider-specific script paths (e.g. Turso's exec helper) are the provider's responsibility: the provider's On Completion Template documents any `${CLAUDE_SKILL_DIR}` substitutions the dispatcher must resolve. The dispatcher resolves those paths to absolute paths before injection, by running the provider's canonical resolver block and taking the resulting `$SKILL_DIR/$SCRIPT` value.
 3. Inject the rendered block into the dispatch prompt, replacing `<ON_COMPLETION_BLOCK>`
-4. **All paths MUST be absolute** — no `${CLAUDE_SKILL_DIR}` or `${CLAUDE_PLUGIN_ROOT}` should remain in the final dispatch prompt
+4. **All paths MUST be absolute** — no `${CLAUDE_SKILL_DIR}`, no `${CLAUDE_PLUGIN_ROOT}`, and no `$SKILL_DIR` or `$SCRIPT` reference should remain in the final dispatch prompt. `$SKILL_DIR` is a shell variable of the *dispatcher's* resolver block; a dispatched agent runs in its own session where that variable is unset, so leaving it in silently expands to an empty path.
+5. **Assert it.** Before dispatching, scan the rendered prompt (and any generated launcher script) for `CLAUDE_SKILL_DIR`, `CLAUDE_PLUGIN_ROOT`, `SKILL_DIR`, and `SCRIPT`. If any survives, the substitution in step 2 was incomplete — fix it rather than dispatching. A dispatched agent cannot resolve any of them.
 
 ## Fallback: Sequential Execution
 

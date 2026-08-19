@@ -63,8 +63,23 @@ Invoke the bundled loader script — it encapsulates file reading, size limit
 enforcement, and dangerous-token rejection so the behavior is deterministic:
 
 ```bash
-bash "${CLAUDE_SKILL_DIR}/scripts/load.sh" <key>
+SCRIPT=scripts/load.sh; SKILL_DIR="${CLAUDE_SKILL_DIR}"
+if [ ! -d "$SKILL_DIR" ]; then _S="${PWD%%/mnt/*}"; _R="$_S/mnt/.remote-plugins"
+  case "$SKILL_DIR" in */plugin_*) _P="plugin_${SKILL_DIR#*/plugin_}"; SKILL_DIR="$_R/$_P"
+    if [ ! -f "$SKILL_DIR/$SCRIPT" ]; then _M=$(find "$_R/${_P%%/*}" -path "*/$SCRIPT" 2>/dev/null)
+      [ "$(printf %s "$_M" | grep -c .)" = 1 ] && SKILL_DIR="${_M%/$SCRIPT}"; fi ;;
+  esac
+fi
+[ -f "$SKILL_DIR/$SCRIPT" ] || { echo "waggle: skill directory unresolved; $SCRIPT not found. Custom instructions not loaded." >&2; exit 1; }
+bash "$SKILL_DIR/$SCRIPT" <key>
 ```
+
+The first eight lines resolve the skill directory for the runtime the shell is
+actually running in; see the `provider-contract` skill for why each clause is
+required. Resolution and invocation must stay in the same Bash call. If the block
+reports the directory unresolved, treat it as "custom instructions unavailable"
+(`custom_<key>_instructions = null`) and warn the user — never improvise a
+replacement for the loader.
 
 The script prints the instruction body to stdout and any warnings to stderr.
 It exits with status 0 in all normal cases (including "file does not exist",

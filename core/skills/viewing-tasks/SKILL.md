@@ -63,7 +63,15 @@ In Cowork, the dashboard is a single Live Artifact (`id = "waggle-tasks"`) that 
 4. Generate the bundled HTML. The 4th argument is the assignee Notion user ID; the 5th argument is the resolved MCP tool name from Step 3. The bundle will server-side filter to that assignee AND exclude Done/Cancelled at the Notion query layer:
 
    ```bash
-   bash "${CLAUDE_SKILL_DIR}/scripts/generate-cowork-artifact.sh" \
+   SCRIPT=scripts/generate-cowork-artifact.sh; SKILL_DIR="${CLAUDE_SKILL_DIR}"
+   if [ ! -d "$SKILL_DIR" ]; then _S="${PWD%%/mnt/*}"; _R="$_S/mnt/.remote-plugins"
+     case "$SKILL_DIR" in */plugin_*) _P="plugin_${SKILL_DIR#*/plugin_}"; SKILL_DIR="$_R/$_P"
+       if [ ! -f "$SKILL_DIR/$SCRIPT" ]; then _M=$(find "$_R/${_P%%/*}" -path "*/$SCRIPT" 2>/dev/null)
+         [ "$(printf %s "$_M" | grep -c .)" = 1 ] && SKILL_DIR="${_M%/$SCRIPT}"; fi ;;
+     esac
+   fi
+   [ -f "$SKILL_DIR/$SCRIPT" ] || { echo "waggle: skill directory unresolved; $SCRIPT not found. Artifact not generated." >&2; exit 1; }
+   bash "$SKILL_DIR/$SCRIPT" \
      "<tasksDatabaseId>" \
      "<current_team.id or empty>" \
      "<current_team.name or empty>" \
@@ -71,6 +79,14 @@ In Cowork, the dashboard is a single Live Artifact (`id = "waggle-tasks"`) that 
      "<the full MCP tool name you resolved in Step 3>" \
      > /tmp/waggle-tasks.html
    ```
+
+   The leading eight lines resolve the skill directory for the runtime the shell is
+   actually running in. This branch runs on Cowork, where the agent loop is native to
+   the host and Bash runs in a separate VM, so the substituted `${CLAUDE_SKILL_DIR}`
+   path does not exist for the shell. See the `provider-contract` skill for the
+   rationale. Resolution and invocation must stay in the same Bash call. If the block
+   reports the directory unresolved, stop and tell the user the dashboard could not be
+   generated — do not hand-write the artifact HTML.
 
    Pass an empty string for the 4th argument only if the user has explicitly asked for an unscoped view across all assignees; the bundle then shows all open tasks with an informational banner. Status exclusion (Done + Cancelled) is always applied — these terminal states are never useful in the active dashboard.
 
@@ -126,8 +142,22 @@ In cli / claude-desktop, the dashboard is served from a local Hono server on `ht
 ### Starting the Server
 
 ```bash
-cd "${CLAUDE_SKILL_DIR}/server" && npm ci --silent && npx tsx src/index.ts &
+SCRIPT=server/src/index.ts; SKILL_DIR="${CLAUDE_SKILL_DIR}"
+if [ ! -d "$SKILL_DIR" ]; then _S="${PWD%%/mnt/*}"; _R="$_S/mnt/.remote-plugins"
+  case "$SKILL_DIR" in */plugin_*) _P="plugin_${SKILL_DIR#*/plugin_}"; SKILL_DIR="$_R/$_P"
+    if [ ! -f "$SKILL_DIR/$SCRIPT" ]; then _M=$(find "$_R/${_P%%/*}" -path "*/$SCRIPT" 2>/dev/null)
+      [ "$(printf %s "$_M" | grep -c .)" = 1 ] && SKILL_DIR="${_M%/$SCRIPT}"; fi ;;
+  esac
+fi
+[ -f "$SKILL_DIR/$SCRIPT" ] || { echo "waggle: skill directory unresolved; $SCRIPT not found. View server not started." >&2; exit 1; }
+cd "$SKILL_DIR/server" && npm ci --silent && npx tsx src/index.ts &
 ```
+
+The resolver applies to `cd` exactly as it does to `bash` — the rule is about reaching
+a bundled file from the shell, not about which command does the reaching. This mode
+only runs on cli / claude-desktop, where the `[ ! -d ]` test is false and the branch
+is skipped; the block is present so the failure mode is an explicit error rather than a
+`cd` into a nonexistent directory. See the `provider-contract` skill for the rationale.
 
 Before starting, check if it's already running:
 

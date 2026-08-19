@@ -80,8 +80,22 @@ Session Reference is written in Phase 5 after pane creation succeeds.
 Launch tmux using the script:
 
 ```bash
-bash "${CLAUDE_SKILL_DIR}/scripts/launch-tmux.sh" "$SDIR" "$SESSION" "$N"
+SCRIPT=scripts/launch-tmux.sh; SKILL_DIR="${CLAUDE_SKILL_DIR}"
+if [ ! -d "$SKILL_DIR" ]; then _S="${PWD%%/mnt/*}"; _R="$_S/mnt/.remote-plugins"
+  case "$SKILL_DIR" in */plugin_*) _P="plugin_${SKILL_DIR#*/plugin_}"; SKILL_DIR="$_R/$_P"
+    if [ ! -f "$SKILL_DIR/$SCRIPT" ]; then _M=$(find "$_R/${_P%%/*}" -path "*/$SCRIPT" 2>/dev/null)
+      [ "$(printf %s "$_M" | grep -c .)" = 1 ] && SKILL_DIR="${_M%/$SCRIPT}"; fi ;;
+  esac
+fi
+[ -f "$SKILL_DIR/$SCRIPT" ] || { echo "waggle: skill directory unresolved; $SCRIPT not found. tmux session not launched." >&2; exit 1; }
+bash "$SKILL_DIR/$SCRIPT" "$SDIR" "$SESSION" "$N"
 ```
+
+The leading eight lines resolve the skill directory for the runtime the shell is
+actually running in; see the `provider-contract` skill for why each clause is required.
+Resolution and invocation must stay in the same Bash call. If the block reports the
+directory unresolved, treat it exactly like "tmux not installed" and fall back to
+sequential Agent tool execution.
 
 If the script exits with code 1 (tmux not installed), fall back to sequential Agent tool execution.
 
@@ -90,9 +104,21 @@ After pane creation, if running outside tmux, try to auto-open a terminal window
 ```bash
 # Auto-open terminal only when running outside tmux
 if [ -z "${TMUX:-}" ]; then
-  bash "${CLAUDE_SKILL_DIR}/scripts/open-terminal.sh" "$SESSION" || true
+  SCRIPT=scripts/open-terminal.sh; SKILL_DIR="${CLAUDE_SKILL_DIR}"
+  if [ ! -d "$SKILL_DIR" ]; then _S="${PWD%%/mnt/*}"; _R="$_S/mnt/.remote-plugins"
+    case "$SKILL_DIR" in */plugin_*) _P="plugin_${SKILL_DIR#*/plugin_}"; SKILL_DIR="$_R/$_P"
+      if [ ! -f "$SKILL_DIR/$SCRIPT" ]; then _M=$(find "$_R/${_P%%/*}" -path "*/$SCRIPT" 2>/dev/null)
+        [ "$(printf %s "$_M" | grep -c .)" = 1 ] && SKILL_DIR="${_M%/$SCRIPT}"; fi ;;
+    esac
+  fi
+  [ -f "$SKILL_DIR/$SCRIPT" ] && bash "$SKILL_DIR/$SCRIPT" "$SESSION" || true
 fi
 ```
+
+Auto-opening a terminal is best-effort, so this site fails open rather than closed: an
+unresolved skill directory skips the convenience step and leaves the tmux session
+running for the user to attach manually. Every site that performs a *check* or a
+*write* must fail closed instead — see the `provider-contract` skill.
 
 After each pane is created successfully, set pane titles and write Session Reference to Notion:
 - Inside tmux: `tmux select-pane -t "$CURRENT:$SESSION:0.$i" -T "<task-i-title>"`

@@ -284,8 +284,22 @@ For each item retrieved from a custom source, first detect whether it is a stub 
 
 ```bash
 echo '<item_json>' > /tmp/item.json
-bash "${CLAUDE_SKILL_DIR}/scripts/detect-stub-import.sh" /tmp/item.json
+SCRIPT=scripts/detect-stub-import.sh; SKILL_DIR="${CLAUDE_SKILL_DIR}"
+if [ ! -d "$SKILL_DIR" ]; then _S="${PWD%%/mnt/*}"; _R="$_S/mnt/.remote-plugins"
+  case "$SKILL_DIR" in */plugin_*) _P="plugin_${SKILL_DIR#*/plugin_}"; SKILL_DIR="$_R/$_P"
+    if [ ! -f "$SKILL_DIR/$SCRIPT" ]; then _M=$(find "$_R/${_P%%/*}" -path "*/$SCRIPT" 2>/dev/null)
+      [ "$(printf %s "$_M" | grep -c .)" = 1 ] && SKILL_DIR="${_M%/$SCRIPT}"; fi ;;
+  esac
+fi
+[ -f "$SKILL_DIR/$SCRIPT" ] || { echo "waggle: skill directory unresolved; $SCRIPT not found. Stub detection not performed." >&2; exit 1; }
+bash "$SKILL_DIR/$SCRIPT" /tmp/item.json
 ```
+
+The resolver lines are required: `${CLAUDE_SKILL_DIR}` expands to a path in the agent
+loop's filesystem, which the shell cannot always reach. See the `provider-contract`
+skill for the rationale. Resolution and invocation must stay in the same Bash call.
+If the block reports the directory unresolved, skip stub enrichment for this item and
+treat it as a non-stub — do not hand-roll the detector.
 
 The output JSON has this shape:
 
