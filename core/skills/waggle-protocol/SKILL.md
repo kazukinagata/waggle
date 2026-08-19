@@ -173,7 +173,7 @@ Applied at every status transition into Ready or beyond. No LLM involvement. Lay
 | Check | Rule |
 |---|---|
 | Description | Non-empty; ≥50 characters at Ready+ |
-| Acceptance Criteria | Non-empty; no reserved placeholder (`[DRAFT-AC]` / `[DRAFT-EP]` / `[NEEDS-REFINE]`) remaining |
+| Acceptance Criteria | Non-empty; no reserved placeholder (`[DRAFT-AC]` / `[DRAFT-EP]` / `[NEEDS-REFINE]` / `[INFERRED]`) remaining |
 | Execution Plan | Non-empty; no reserved placeholder remaining |
 | Quality Verdict | When supplied, well-formed per the cache format below; must be `PASS` for Ready+, and format `v2` at Ready (`v1` still accepted at In Progress and beyond during the migration window) |
 | Executor / Working Directory | Executor set at In Progress; Working Directory set for AI executors (cli / claude-code / claude-desktop / cowork) |
@@ -232,14 +232,25 @@ A citation supports **one** assertion. It does not implicitly license every prop
 
 ### Reserved Placeholder Prefixes
 
-Exactly 2 prefixes are reserved at the protocol level:
+Exactly 3 prefixes are reserved at the protocol level:
 
 | Prefix | Meaning |
 |---|---|
 | `[DRAFT-AC]` / `[DRAFT-EP]` | Field is intentionally an empty stub; refinement pending |
 | `[NEEDS-REFINE]` | Reviewer returned NEEDS_REFINEMENT or REJECT; field needs work before promotion |
+| `[INFERRED]` | The line is an **unresolved assertion** — not traceable to the issuer's words or a citable source |
+
+All three block Ready and above: they are part of the Layer 1 reserved-placeholder check, which is a structural, language-independent string test.
 
 Skills MUST NOT introduce additional reserved prefixes. Other tags (e.g., `worthiness:*`) live on the `Tags` field, not as title or AC prefixes.
+
+> **v4.0.0 breaking change**: `[INFERRED]` was already being persisted by the ingest path as an audit trail on tasks that reached Ready — the table said two prefixes while shipped code wrote a third, and a fourth (`[LOW CONFIDENCE]`) was documented elsewhere. The table is now aligned with reality, and the meaning changes: `[INFERRED]` no longer marks "an inferred line, visible on a Ready task"; it marks "an assertion nobody has resolved yet", and it blocks promotion. `[LOW CONFIDENCE]` is removed entirely — the planning agent's disengagement fallback uses `[NEEDS-REFINE]`.
+>
+> **Resolution has exactly two outcomes**: the issuer confirms the line and the prefix is removed, or the task stays in Backlog. Removing the prefix means "the issuer adopted this into the contract", not "the issuer originally said this" — which is why the verbatim original request and the Confirmation Log both exist.
+>
+> Note the interaction with Layer 2: `reviewing-quality` runs Layer 1 first and does not spawn the Reviewer when a structural check fails. A draft carrying `[INFERRED]` is therefore rejected **before** Fidelity ever runs. `[INFERRED]` is a Layer 1 defect marker, not a Fidelity flag — which is why bulk approval must be gated on the planning agent's own metadata rather than on a review that never happened.
+
+> **Rejected alternative**: an authorship tag vocabulary (`[USER]` / `[KNOWLEDGE:topic]` / `[INFERRED]`) inside AC text. AC is the field the executor reads; every additional reserved prefix couples Layer 1, the dispatch prompt, the view server, and the monitoring scripts to a growing vocabulary. And under this release an unsourced inferred line must not reach a Ready task at all, so labelling it as metadata to carry forward is the wrong shape. Knowledge-derived lines cite their source inline instead of being tagged.
 
 ### Quality Verdict Cache Format (v2)
 

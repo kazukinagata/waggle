@@ -78,7 +78,7 @@ run "Ready + empty EP -> invalid" Ready '{"executionPlan":""}' false required_no
 run "Blocked + empty AC -> invalid" Blocked '{"acceptanceCriteria":""}' false required_non_empty
 
 # ---------------------------------------------------------------------------
-# Reserved placeholders (structural rule: any of the three strings blocks Ready+)
+# Reserved placeholders (structural rule: any of the four strings blocks Ready+)
 # ---------------------------------------------------------------------------
 run "Ready + [DRAFT-AC] in AC -> invalid" Ready \
   '{"acceptanceCriteria":"[DRAFT-AC] branch exists for GP and merchant editing"}' false placeholder_present
@@ -92,6 +92,22 @@ run "In Progress + [NEEDS-REFINE] in EP -> invalid" "In Progress" \
   '{"executionPlan":"[NEEDS-REFINE] 1. edit /src/foo.ts 2. npm test"}' false placeholder_present
 run "Backlog + [DRAFT-AC] -> valid (placeholders gate Ready+ only)" Backlog \
   '{"acceptanceCriteria":"[DRAFT-AC] stub"}' true
+# [INFERRED] became protocol-reserved and Ready-blocking in v4.0.0. It marks an
+# unresolved assertion — a line traceable to neither the issuer's words nor a
+# citable source. The ingest path was already writing it onto tasks that reached
+# Ready as an "audit trail"; that is exactly the state this now prevents.
+run "Ready + [INFERRED] in AC -> invalid" Ready \
+  '{"acceptanceCriteria":"[INFERRED] the staging site refreshes hourly"}' false placeholder_present
+run "Ready + [INFERRED] in EP -> invalid" Ready \
+  '{"executionPlan":"1. edit /src/foo.ts 2. [INFERRED] notify the release channel"}' false placeholder_present
+run "In Progress + [INFERRED] in AC -> invalid" "In Progress" \
+  '{"acceptanceCriteria":"[INFERRED] the client uses the v2 endpoint"}' false placeholder_present
+run "Backlog + [INFERRED] -> valid (Backlog is where an unresolved line belongs)" Backlog \
+  '{"acceptanceCriteria":"[INFERRED] the client uses the v2 endpoint"}' true
+# [LOW CONFIDENCE] was never a reserved prefix and is removed in v4.0.0: it must
+# not be treated as one, or every task mentioning the phrase would be blocked.
+run "Ready + [LOW CONFIDENCE] text -> valid (never reserved)" Ready \
+  '{"acceptanceCriteria":"Run npm test; the [LOW CONFIDENCE] label is removed from the dashboard"}' true
 
 # ---------------------------------------------------------------------------
 # Quality Verdict integrity (format + PASS gate)

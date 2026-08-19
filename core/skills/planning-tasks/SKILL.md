@@ -193,7 +193,7 @@ Round 3 (continue if user is engaged):
   → If user adds more: incorporate and re-present
 
 Fallback (user disengages — "that's enough", "just go with it", etc.):
-  → Accept current state with [LOW CONFIDENCE] tag prepended
+  → Accept current state with the [NEEDS-REFINE] prefix (the protocol's reserved prefix; [LOW CONFIDENCE] was never reserved and is removed in v4.0.0)
   → Move on to next task
 ```
 

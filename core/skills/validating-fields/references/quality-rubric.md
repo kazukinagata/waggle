@@ -30,7 +30,7 @@ All rules are enforced by `scripts/validate-task-fields.sh` (see SKILL.md for th
 |---|---|---|---|
 | `min_length` | Description | ≥50 characters | error |
 | `required_non_empty` | Acceptance Criteria | Non-empty | error |
-| `placeholder_present` | Acceptance Criteria | No reserved placeholder (`[DRAFT-AC]` / `[DRAFT-EP]` / `[NEEDS-REFINE]`) remains | error |
+| `placeholder_present` | Acceptance Criteria | No reserved placeholder (`[DRAFT-AC]` / `[DRAFT-EP]` / `[NEEDS-REFINE]` / `[INFERRED]`) remains | error |
 | `required_non_empty` | Execution Plan | Non-empty | error |
 | `placeholder_present` | Execution Plan | No reserved placeholder remains | error |
 | `verdict_format` | Quality Verdict | When supplied, matches the cache format (lowercase 8-hex hash; fabricated/mnemonic hashes rejected) | error |
@@ -56,7 +56,7 @@ All rules are enforced by `scripts/validate-task-fields.sh` (see SKILL.md for th
 
 ## Reserved Placeholders
 
-The protocol reserves exactly two prefixes (three strings): `[DRAFT-AC]` / `[DRAFT-EP]` (field is an intentional stub) and `[NEEDS-REFINE]` (Reviewer flagged the field). Any of the three appearing in AC **or** EP blocks Ready+ — a `[DRAFT-EP]` string sitting in the AC field is just as much unresolved work as one in EP.
+The protocol reserves three prefixes (four strings): `[DRAFT-AC]` / `[DRAFT-EP]` (field is an intentional stub), `[NEEDS-REFINE]` (Reviewer flagged the field), and `[INFERRED]` (the line is an unresolved assertion — not traceable to the issuer's words or a citable source). Any of the four appearing in AC **or** EP blocks Ready+ — a `[DRAFT-EP]` string sitting in the AC field is just as much unresolved work as one in EP, and an `[INFERRED]` line is unresolved wherever it sits.
 
 ## Verdict Composition
 
@@ -92,4 +92,4 @@ Semantic quality debt (vague but non-empty ACs) is no longer enumerated here —
 
 ## Worthiness Tag Skip
 
-Tasks with `Tags` containing `worthiness:calendar-like` or `worthiness:info-only` skip Layer 2 entirely per the protocol Quality Spec. Layer 1 structural checks (including `placeholder_present`) apply to them like any other task: a worthiness-tagged task with `[DRAFT-AC]` / `[DRAFT-EP]` / `[NEEDS-REFINE]` remaining cannot be promoted to Ready until the user removes the placeholder. This prevents accidentally promoting a never-refined worthiness-tagged stub.
+Tasks with `Tags` containing `worthiness:calendar-like` or `worthiness:info-only` skip Layer 2 entirely per the protocol Quality Spec. Layer 1 structural checks (including `placeholder_present`) apply to them like any other task: a worthiness-tagged task with `[DRAFT-AC]` / `[DRAFT-EP]` / `[NEEDS-REFINE]` / `[INFERRED]` remaining cannot be promoted to Ready until the user removes the placeholder. This prevents accidentally promoting a never-refined worthiness-tagged stub.

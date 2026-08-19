@@ -43,7 +43,7 @@ RESULT=$(jq --arg target "$TARGET_STATUS" --arg code_keywords "$CODE_KEYWORDS_PA
   # by Layer 2 (task-quality-reviewer-agent) — a keyword heuristic cannot judge it
   # and demonstrably rejects well-specified non-English ACs.
   def has_reserved_placeholder:
-    test("\\[(DRAFT-AC|DRAFT-EP|NEEDS-REFINE)\\]");
+    test("\\[(DRAFT-AC|DRAFT-EP|NEEDS-REFINE|INFERRED)\\]");
 
   # Read canonical flat fields
   (.description // "") as $desc |
@@ -98,13 +98,13 @@ RESULT=$(jq --arg target "$TARGET_STATUS" --arg code_keywords "$CODE_KEYWORDS_PA
     (if ($ac | length) == 0
      then $errors + [{"field":"Acceptance Criteria","rule":"required_non_empty","message":"Acceptance Criteria is required for \($target) status."}]
      elif ($ac | has_reserved_placeholder)
-     then $errors + [{"field":"Acceptance Criteria","rule":"placeholder_present","message":"Acceptance Criteria still contains a reserved placeholder ([DRAFT-AC] / [DRAFT-EP] / [NEEDS-REFINE]). Resolve it (e.g. via planning-tasks) before promoting to \($target)."}]
+     then $errors + [{"field":"Acceptance Criteria","rule":"placeholder_present","message":"Acceptance Criteria still contains a reserved placeholder ([DRAFT-AC] / [DRAFT-EP] / [NEEDS-REFINE] / [INFERRED]). Resolve it (e.g. via planning-tasks) before promoting to \($target)."}]
      else $errors end) as $errors |
     # Execution Plan required + no reserved placeholder
     (if ($plan | length) == 0
      then $errors + [{"field":"Execution Plan","rule":"required_non_empty","message":"Execution Plan is required for \($target) status."}]
      elif ($plan | has_reserved_placeholder)
-     then $errors + [{"field":"Execution Plan","rule":"placeholder_present","message":"Execution Plan still contains a reserved placeholder ([DRAFT-AC] / [DRAFT-EP] / [NEEDS-REFINE]). Resolve it (e.g. via planning-tasks) before promoting to \($target)."}]
+     then $errors + [{"field":"Execution Plan","rule":"placeholder_present","message":"Execution Plan still contains a reserved placeholder ([DRAFT-AC] / [DRAFT-EP] / [NEEDS-REFINE] / [INFERRED]). Resolve it (e.g. via planning-tasks) before promoting to \($target)."}]
      else $errors end) as $errors |
     # Quality Verdict integrity (format-level). A promotion to Ready / In Progress must
     # carry a verdict produced by a real reviewing-quality run. We reject a hand-authored

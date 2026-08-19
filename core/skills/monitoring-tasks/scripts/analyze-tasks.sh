@@ -44,6 +44,7 @@ jq -n \
 # Helper: extract flat task record from a Notion page object
 def extract_task:
   (.properties["Acceptance Criteria"].rich_text // [] | map(.plain_text) | join("")) as $ac_text |
+  (.properties["Execution Plan"].rich_text // [] | map(.plain_text) | join("")) as $ep_text |
   (.properties.Title.title[0].plain_text // "Untitled") as $title_text |
   {
     id: .id,
@@ -67,9 +68,11 @@ def extract_task:
     assignee_ids: [.properties.Assignee.people[]? | .id],
     ac_text: $ac_text,
     # Quality debt signals:
-    # - DRAFT AC: AC text contains "[DRAFT" (case-insensitive), indicating a
-    #   placeholder left after an ingest flow that was never filled in.
-    has_draft_ac: (($ac_text // "") | test("\\[DRAFT"; "i")),
+    # - Reserved placeholder: AC *or* EP contains any protocol-reserved string,
+    #   left after a flow that was never finished. All four block Ready+ at
+    #   Layer 1, so all four are debt — testing only "[DRAFT" in AC missed a
+    #   [NEEDS-REFINE] or [INFERRED] line, and missed everything sitting in EP.
+    has_draft_ac: ((($ac_text // "") + " " + ($ep_text // "")) | test("\\[(DRAFT-AC|DRAFT-EP|NEEDS-REFINE|INFERRED)\\]"; "i")),
     # - Test task: title matches common patterns for scratch/test placeholders
     #   ("Test task — delete me", "delete me", "WIP delete", bare "Test task").
     #   Anchored so legitimate titles like "Unit test for DELETE endpoint" do
@@ -210,9 +213,9 @@ def executor_counts:
 # === Dimension 6: Quality Debt ===
 # Debt signals that highlight tasks needing retroactive quality improvement.
 
-# DRAFT AC: AC text contains "[DRAFT" and status is not Blocked (Blocked is
-# expected to have DRAFT AC while waiting on hearing; once unblocked, the AC
-# should have been refined).
+# Reserved placeholder in AC or EP, status is not Blocked (Blocked is expected to
+# carry one while waiting on a hearing; once unblocked, it should have been
+# resolved). Covers [DRAFT-AC] / [DRAFT-EP] / [NEEDS-REFINE] / [INFERRED].
 ($tasks_aged
   | map(select(.has_draft_ac and (.status != "Blocked") and (.status != "Done") and (.status != "Cancelled")))
   | sort_by(-.age_days)

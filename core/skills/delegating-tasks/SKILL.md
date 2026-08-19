@@ -65,7 +65,7 @@ Legacy non-LLM checks (kept as fast pre-checks):
 - If Acceptance Criteria is empty or under 20 characters: still prompt the user.
 - If Description is empty: still prompt the user.
 
-These remain non-blocking suggestions; the user can override with `[Delegate anyway]`.
+These remain non-blocking suggestions; the user can override with `[Delegate anyway]`. When the task carries an unresolved reserved marker (`[DRAFT-AC]` / `[DRAFT-EP]` / `[NEEDS-REFINE]` / `[INFERRED]`), the prompt must state that delegation proceeds but Ready remains blocked until the marker is resolved — handing the task to whoever can answer is often how it gets resolved, so the delegation itself is not the problem.
 
 ## Step 4: Update the Task
 

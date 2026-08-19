@@ -123,7 +123,7 @@ If the analysis script is not available (no bash, no jq), compute the metrics ma
 6. **Quality Debt**: All categories are deterministic and structural — no LLM call and no semantic judgment in default monitoring (v3.0.0: the keyword-heuristic categories SHALLOW_AC / SHALLOW_EP_STEPS / MISSING_CONCRETE_ARTIFACT_EP were removed with Layer 1's semantic rules; semantic quality debt surfaces through the Ready Health Score and the `--deep` Reviewer batch instead). The optional `--deep` flag (see Step 5) escalates to a live Reviewer batch.
 
    **Always evaluated (structural / deterministic):**
-   - **DRAFT placeholders**: Tasks whose AC or EP contains a reserved placeholder AND status is not Blocked / Done / Cancelled. (Recognized placeholders: `[DRAFT-AC]`, `[DRAFT-EP]`, `[NEEDS-REFINE]`.)
+   - **Unresolved placeholders**: Tasks whose AC or EP contains a reserved placeholder AND status is not Blocked / Done / Cancelled. (Recognized placeholders: `[DRAFT-AC]`, `[DRAFT-EP]`, `[NEEDS-REFINE]`, `[INFERRED]`.) All four block Ready+ at Layer 1, so all four count as debt — and all four are searched in **both** fields, not just AC.
    - **EMPTY_AC_READY_PLUS**: Status ∈ {Ready, In Progress, In Review} AND Acceptance Criteria is empty.
    - **EMPTY_EP_READY_PLUS**: Status ∈ {Ready, In Progress, In Review} AND Execution Plan is empty.
    - **STUB_INGEST_AGED**: Tasks tagged `ingesting-messages` or `stub-import` that have been Backlog for ≥3 days.
@@ -171,9 +171,9 @@ Table: Title | Assignee | Issuer | Unacknowledged Days | Status
 ## 6. Quality Debt
 **Ready Health Score**: {pct}% (Ready tasks with cached Reviewer PASS / total Ready)
 
-### DRAFT placeholders ({count})
+### Unresolved placeholders ({count})
 Table: Title | Status | Age (days) | AC/EP Preview
-  (tasks where AC or EP contains [DRAFT-AC] / [DRAFT-EP] / [NEEDS-REFINE] and status is not Blocked / Done / Cancelled)
+  (tasks where AC or EP contains [DRAFT-AC] / [DRAFT-EP] / [NEEDS-REFINE] / [INFERRED] and status is not Blocked / Done / Cancelled)
 
 ### EMPTY_AC_READY_PLUS ({count})
 Table: Title | Status | Age (days)
@@ -248,5 +248,5 @@ Generate 3-5 actionable recommendations based on findings. Focus on:
 - **AI delegation opportunity**: If human executor ratio is above 70%, suggest reviewing Ready tasks for AI-executable candidates
 - **Unset executors**: Tasks in Ready/In Progress without an Executor assigned
 - **Unacknowledged tasks**: Tasks not seen by assignee for 2+ days — suggest sending a reminder or Slack notification
-- **Quality debt (retroactive)**: If the DRAFT AC count or Priority missing count is non-zero, surface the copy-paste command shown in section 6 so the user can run `planning-tasks` in batch. Keep this a user-initiated suggestion — do not auto-dispatch, to avoid bulk side-effects.
+- **Quality debt (retroactive)**: If the unresolved-placeholder count or Priority missing count is non-zero, surface the copy-paste command shown in section 6 so the user can run `planning-tasks` in batch. Keep this a user-initiated suggestion — do not auto-dispatch, to avoid bulk side-effects.
 - **Test task cleanup**: If test tasks are detected, list them and ask the user to cancel or delete them.

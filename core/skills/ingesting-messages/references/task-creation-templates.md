@@ -111,11 +111,16 @@ Source: slack DM from @alice at 2026-04-10 09:15
    - Blocked By: `[blocker_task_id]` *(relation field — set via `update-relations.sh` after task creation, not in `notion-create-pages` properties)*
    - Executor: Determine from message content — if the required action (after hearing) is clearly code/research/docs, infer executor (cli or cowork based on execution_environment). If unclear or requires human judgment → `human` (default, re-evaluated when unblocked).
    - Assignee: `[current_user]`
-   - Acceptance Criteria: Derive from message content. Fallback: `"[DRAFT — update after hearing] Determine required action from {requester_name}'s response and complete it."`
+   - Acceptance Criteria: Derive from message content. Fallback: `"[DRAFT-AC] Determine required action from {requester_name}'s response and complete it (update after hearing)."` — use the protocol's reserved `[DRAFT-AC]` string, not a free-form `[DRAFT — ...]` variant: only the reserved strings are recognized by the Layer 1 check and by monitoring's debt list, so a near-miss spelling silently escapes both.
 
 ### Category B (Self-Action)
 
-- Status: `Ready`
+- Status: `Ready` — **conditionally**. Ready is the default, not an unconditional outcome. The task is created at `Backlog` instead whenever any of these holds:
+  - the draft still carries an `[INFERRED]` line (an unresolved assertion; Layer 1 rejects the reserved prefix at Ready),
+  - the draft carries any other reserved placeholder (`[DRAFT-AC]` / `[DRAFT-EP]` / `[NEEDS-REFINE]`),
+  - no valid `Quality Verdict` can travel in the same create payload (e.g. the user edited the draft after review and it was not re-reviewed).
+
+  Backlog is a valid resting place. Creating at Ready in any of these cases produces a task that immediately fails its own gate, which is worse than an honest Backlog.
 - Executor: Determine from environment and context:
   - `execution_environment = "cowork"`: Default for AI-executed tasks is `cowork`
   - `execution_environment = "claude-desktop"`: Default for AI-executed tasks is `claude-desktop`

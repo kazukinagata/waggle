@@ -60,7 +60,7 @@ For every invocation:
 ### Step 1 — Skip-path checks
 
 If the task's `Tags` contain `worthiness:calendar-like` or `worthiness:info-only`:
-- Apply the **reserved-placeholder check** only (no `[DRAFT-AC]` / `[DRAFT-EP]` / `[NEEDS-REFINE]` placeholder in either field). The Reviewer (Layer 2) is skipped for worthiness-tagged tasks per the protocol Quality Spec.
+- Apply the **reserved-placeholder check** only (no `[DRAFT-AC]` / `[DRAFT-EP]` / `[NEEDS-REFINE]` / `[INFERRED]` placeholder in either field). The Reviewer (Layer 2) is skipped for worthiness-tagged tasks per the protocol Quality Spec.
 - If a placeholder remains → return verdict = `REJECT` with the placeholder as the gap. The user must remove the placeholder before promoting.
 - Otherwise → return verdict = `PASS` (worthiness skip). Do not write a new cache entry; preserve any pre-existing one.
 
