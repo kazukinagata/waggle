@@ -34,7 +34,24 @@ set -uo pipefail
 cd "$(dirname "$0")/../.." || exit 2
 
 python3 - "$@" <<'PY'
-import pathlib, re, sys
+import pathlib, re, subprocess, sys
+
+
+def target_files():
+    """Markdown files git tracks, or every .md file when git is unavailable.
+
+    Scoping to tracked files matters for local runs: a contributor may keep
+    untracked or locally-excluded notes in the tree -- a design document quoting an
+    abbreviated resolver, for instance -- which CI never sees because it clones. A
+    naive walk fails on those and makes the check useless as a local pre-commit
+    step, which is the moment it is most valuable.
+    """
+    try:
+        out = subprocess.run(['git', 'ls-files', '-z', '--', '*.md'],
+                             capture_output=True, text=True, check=True).stdout
+        return sorted(pathlib.Path(n) for n in out.split('\0') if n)
+    except (OSError, subprocess.CalledProcessError):
+        return sorted(pathlib.Path('.').rglob('*.md'))
 
 SHELL_FENCE = re.compile(r'^\s*```(bash|sh|shell|console)\s*$')
 FENCE_END   = re.compile(r'^\s*```\s*$')
@@ -100,10 +117,12 @@ problems = []
 def flag(path, line, msg, detail=''):
     problems.append((path, line, msg, detail))
 
-for path in sorted(pathlib.Path('.').rglob('*.md')):
+for path in target_files():
     if any(p in ('.git', 'node_modules', '.claude') for p in path.parts):
         continue
     if path.name == 'CHANGELOG.md':
+        continue
+    if not path.is_file():
         continue
 
     lines = path.read_text().split('\n')
