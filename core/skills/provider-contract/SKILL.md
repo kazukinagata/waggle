@@ -314,8 +314,8 @@ Not all providers support all execution environments:
 | Provider | CLI | Claude Desktop | Cowork | Notes |
 |---|---|---|---|---|
 | Notion | Yes | Yes | Yes | Requires Notion MCP tools |
-| Turso | Yes | Yes | No | Requires `TURSO_URL` and `TURSO_AUTH_TOKEN` env vars; Cowork requires Desktop Extension (not yet available) |
-| SQLite | Yes | Yes | No | Local file — not accessible from Cowork |
+| Turso | Yes | Yes | No | Requires `TURSO_URL` and `TURSO_AUTH_TOKEN` env vars. Cowork is unsupported because the only ways to get those values into its execution VM keep them in plaintext; safe credential delivery needs a Desktop Extension (not yet available) |
+| SQLite | Yes | Yes | No | Local file — not reachable from Cowork's execution VM, which also has no `sqlite3` binary |
 
 See `references/environment-detection.md` for runtime environment detection logic.
 

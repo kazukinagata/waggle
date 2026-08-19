@@ -4,6 +4,33 @@ All notable changes to the Waggle project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## Turso is unsupported on Cowork, in both tables — 2026-08-19
+
+The provider compatibility tables disagreed. `provider-contract` § Environment Support
+listed Turso as unsupported on Cowork; `references/environment-detection.md` §
+Provider Compatibility listed it as supported. Only one of them can be right, and a
+reader who consulted the wrong one would plan a Turso deployment that cannot
+authenticate.
+
+Turso on Cowork is **unsupported**. The reason is credential delivery rather than
+connectivity. The provider talks to the database over HTTPS, which Cowork's execution
+VM permits, but it needs `TURSO_URL` and `TURSO_AUTH_TOKEN` in the shell
+environment. That VM does not inherit the host's environment, and every injection
+route that does reach it keeps the values in plaintext — not an acceptable place for a
+database credential. Safe delivery needs a Desktop Extension, which does not exist
+yet.
+
+Both tables now say No and both carry that reason, stated as a deliberate refusal so
+that discovering an injection mechanism is not mistaken for discovering support.
+
+The SQLite row in `provider-contract` picked up the measured reason its counterpart in
+`environment-detection.md` already had: the execution VM has no `sqlite3` binary, on
+top of the host DB file being unreachable from it.
+
+Documentation only. No skill behaviour, protocol semantics, or script changes.
+
+- **`waggle` 3.0.3 → 3.0.4** (PATCH)
+
 ## Skill-directory resolution before shell invocation — 2026-08-19
 
 `${CLAUDE_SKILL_DIR}` is substituted when a skill loads, and the value is a path in

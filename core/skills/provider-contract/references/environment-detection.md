@@ -95,8 +95,17 @@ env-var check.
 | Provider | CLI | Claude Desktop | Cowork | Constraint |
 |---|---|---|---|---|
 | Notion | Yes | Yes | Yes | Requires Notion MCP tools in all environments |
-| Turso | Yes | Yes | Yes | Requires `TURSO_URL` and `TURSO_AUTH_TOKEN` env vars |
+| Turso | Yes | Yes | No | Requires `TURSO_URL` and `TURSO_AUTH_TOKEN` env vars; see the note below |
 | SQLite | Yes | Yes | No | `sqlite3` is absent from Cowork's execution VM, and a local DB file on the host is not reachable from it |
+
+**Turso on Cowork.** The blocker is credential delivery, not connectivity. The provider
+reaches the database over HTTPS, which the execution VM permits, but it needs
+`TURSO_URL` and `TURSO_AUTH_TOKEN` in the shell's environment. Cowork's execution VM does not inherit the host's environment, and
+the injection mechanisms that do reach it require the values to sit in plaintext, which
+is not an acceptable place for a database credential. Delivering a secret safely needs a
+Desktop Extension, which is not available yet. This is a deliberate refusal, not a
+missing feature: do not restore Cowork support on the grounds that an injection
+mechanism exists.
 
 ## Provider Considerations by Environment
 
