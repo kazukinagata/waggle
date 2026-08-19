@@ -190,7 +190,7 @@ A Notion-hosted entry resolves to a pre-signed storage URL. Possession *is* auth
 
 ### Delivery
 
-- **Text-bearing** (`text/*`, `application/json`, `application/xml`, yaml): returned inline as content, capped at 256KB with truncation reported in the summary. A 40MB log must not silently become 40MB of context.
+- **Text-bearing** (`text/*`, `application/json`, `application/xml`, yaml): returned inline as content, capped at 256KB with truncation reported in the summary. A 40MB log must not silently become 40MB of context. The type comes from the response header, except that a **generic** header (`application/octet-stream` and friends) falls back to the filename extension — object storage routinely serves that for anything whose type was not set at upload, and trusting it would send a `.csv` to disk as binary.
 - **Everything else**: written under `out_dir`; only the local path is returned. A PDF or spreadsheet inlined as bytes costs tokens without conveying the file. The filename is prefixed with the entry index (`00-spec.pdf`), because display names are not unique on a Notion files property — two entries called `spec.pdf` would otherwise resolve to one path and the second download would overwrite the first.
 - Entries over 50MB, unrecognized entry types, and requested `names` that match nothing are reported with a reason instead of being silently dropped. The size cap is enforced **while reading** — refused up front on a declared `Content-Length`, and otherwise stopped mid-stream — so an oversized attachment cannot exhaust the extension process's memory on its way to being rejected.
 

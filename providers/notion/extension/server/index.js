@@ -29,6 +29,7 @@ import {
   isExpired,
   isTextualMime,
   mimeForAttachment,
+  resolveMime,
   mimeFromFilename,
   readCapped,
   scrubUrls,
@@ -475,7 +476,8 @@ async function handleReadFilesProperty(args) {
       continue;
     }
 
-    const mime = downloaded.mime || mimeForAttachment(meta.name);
+    // Generic or absent Content-Type falls back to the filename — see resolveMime.
+    const mime = resolveMime(downloaded.mime, meta.name);
     if (isTextualMime(mime)) {
       const truncated = downloaded.bytes.length > MAX_INLINE_TEXT_BYTES;
       const slice = truncated ? downloaded.bytes.subarray(0, MAX_INLINE_TEXT_BYTES) : downloaded.bytes;

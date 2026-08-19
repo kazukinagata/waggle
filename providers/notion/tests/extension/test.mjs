@@ -23,6 +23,7 @@ import {
   mimeFromFilename,
   normalizeId,
   readCapped,
+  resolveMime,
   safeFilename,
   scrubUrls,
   toWritableFiles,
@@ -296,6 +297,23 @@ check("pdf is not text", !isTextualMime("application/pdf"));
 check("png is not text", !isTextualMime("image/png"));
 check("octet-stream is not text", !isTextualMime("application/octet-stream"));
 check("null/undefined", !isTextualMime(null) && !isTextualMime(undefined));
+
+console.log("== resolveMime ==");
+// Object storage routinely serves application/octet-stream for anything whose type
+// was not set at upload. Trusting a present-but-generic header sends a .csv to disk
+// as binary instead of returning it inline, which is the documented contract.
+check("specific header wins", resolveMime("text/csv", "data.bin") === "text/csv");
+check("header params stripped", resolveMime("text/csv; charset=utf-8", "x") === "text/csv");
+check("octet-stream falls back to the extension", resolveMime("application/octet-stream", "notes.md") === "text/markdown");
+check("binary/octet-stream also generic", resolveMime("binary/octet-stream", "data.csv") === "text/csv");
+check("*/* also generic", resolveMime("*/*", "a.txt") === "text/plain");
+check("missing header falls back", resolveMime(null, "a.json") === "application/json");
+check("empty header falls back", resolveMime("", "a.txt") === "text/plain");
+check("generic header + unknown extension -> octet-stream", resolveMime("application/octet-stream", "a.weird") === "application/octet-stream");
+check("uppercase header normalized", resolveMime("TEXT/CSV", "x") === "text/csv");
+// The end-to-end property that matters: a text file served generically is inline.
+check("octet-stream .csv is treated as text", isTextualMime(resolveMime("application/octet-stream", "targets.csv")));
+check("octet-stream .pdf is still not text", !isTextualMime(resolveMime("application/octet-stream", "spec.pdf")));
 
 console.log("== filterByNames ==");
 const entries = [

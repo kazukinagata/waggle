@@ -469,3 +469,23 @@ export async function readCapped(response, maxBytes) {
 export function attachmentFilename(name, index) {
   return `${String(index).padStart(2, "0")}-${safeFilename(name, index)}`;
 }
+
+// Decide an attachment's MIME type from the response header and the filename.
+//
+// The header is preferred but cannot simply be trusted when present: object storage
+// routinely serves `application/octet-stream` for anything whose type was not set at
+// upload time. Treating that as authoritative sends a .csv or .md attachment to disk
+// as "binary" instead of returning it inline, so a generic or absent header falls
+// back to the extension.
+const GENERIC_MIME_TYPES = new Set([
+  "application/octet-stream",
+  "binary/octet-stream",
+  "application/unknown",
+  "*/*",
+]);
+
+export function resolveMime(headerValue, filename) {
+  const base = String(headerValue ?? "").split(";")[0].trim().toLowerCase();
+  if (base && !GENERIC_MIME_TYPES.has(base)) return base;
+  return mimeForAttachment(filename);
+}
