@@ -69,7 +69,7 @@ const DOWNLOAD_TIMEOUT_MS = 120_000;
 const notion = new Client({ auth: NOTION_TOKEN, fetch });
 
 const server = new Server(
-  { name: "notion-extension", version: "1.2.3" },
+  { name: "notion-extension", version: "1.3.0" },
   { capabilities: { tools: {} } }
 );
 
@@ -347,7 +347,12 @@ async function handleReadFilesProperty(args) {
   const skipped = [];
   let selected = all;
 
-  if (names?.length) {
+  // Array.isArray, not names?.length: an explicitly empty list means "select
+  // nothing", and treating it as "no filter given" downloaded every attachment —
+  // the opposite of what the caller asked for, and inconsistent with filterByNames,
+  // which already returns nothing for an empty list. Omitting the field is how a
+  // caller asks to read them all.
+  if (Array.isArray(names)) {
     const filtered = filterByNames(all, names);
     selected = filtered.selected;
     for (const missing of filtered.missing) {
