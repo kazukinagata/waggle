@@ -8,7 +8,7 @@ import {
 } from "@modelcontextprotocol/sdk/types.js";
 import { Client } from "@notionhq/client";
 import { lookup as dnsLookup } from "node:dns/promises";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { basename, join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import {
@@ -423,6 +423,25 @@ async function handleReadFilesProperty(args) {
 
   const results = [];
   const textParts = [];
+  // Created on first use, once per invocation.
+  let downloadDir = null;
+  const ensureDownloadDir = async () => {
+    if (downloadDir) return downloadDir;
+    if (out_dir) {
+      downloadDir = resolve(out_dir);
+      await mkdir(downloadDir, { recursive: true });
+    } else {
+      // mkdtemp, not a predictable join(tmpdir(), `...-${page_id}`). A predictable
+      // path in a shared temp directory lets another local user pre-create it and
+      // plant a symlink at the filename this tool is about to write, turning the
+      // download into an overwrite of any file this process can write. mkdtemp
+      // creates a fresh directory with 0700, so neither the name nor the contents
+      // are guessable or reachable. It also stops one invocation from overwriting
+      // an earlier one's downloads for the same page.
+      downloadDir = await mkdtemp(join(tmpdir(), "notion-attachments-"));
+    }
+    return downloadDir;
+  };
 
   for (let i = 0; i < selected.length; i += 1) {
     const entry = selected[i];
@@ -496,13 +515,32 @@ async function handleReadFilesProperty(args) {
       continue;
     }
 
-    const dir = out_dir ? resolve(out_dir) : join(tmpdir(), `notion-attachments-${page_id}`);
-    await mkdir(dir, { recursive: true });
+    const dir = await ensureDownloadDir();
     // attachmentFilename prefixes the entry index: display names are not unique on a
     // Notion files property, so two attachments with the same name would otherwise
     // resolve to one path and the second would overwrite the first.
     const filePath = join(dir, attachmentFilename(meta.name, meta.index));
-    await writeFile(filePath, downloaded.bytes);
+    try {
+      // "wx" — create exclusively. This tool never overwrites a file it did not
+      // create, and O_EXCL also refuses to follow a symlink planted at the path.
+      // In the temp case the directory is fresh so this cannot collide; in a
+      // caller-supplied out_dir it means a pre-existing file is reported rather
+      // than silently replaced.
+      await writeFile(filePath, downloaded.bytes, { flag: "wx", mode: 0o600 });
+    } catch (error) {
+      if (error?.code === "EEXIST") {
+        results.push({
+          ...meta,
+          retrieved: false,
+          mime_type: mime,
+          size_bytes: downloaded.bytes.length,
+          reason: "a file already exists at the target path; pass a different out_dir rather than overwriting it",
+        });
+        continue;
+      }
+      results.push({ ...meta, retrieved: false, reason: `could not be written: ${scrubUrls(error?.message ?? String(error))}` });
+      continue;
+    }
     results.push({
       ...meta,
       retrieved: true,

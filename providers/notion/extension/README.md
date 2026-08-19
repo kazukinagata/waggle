@@ -159,7 +159,7 @@ Reads the **contents** of a Notion files-type page property. The mirror of `noti
 | `property_name` | string | yes | files-type property name (e.g., "Attachments") |
 | `names` | string[] | no | Display names to read. **Omit** to read every entry up to `max_files`; an explicitly empty list selects nothing. |
 | `max_files` | number | no | Maximum entries to retrieve (default 5) |
-| `out_dir` | string | no | Directory for downloaded non-text files. Defaults to a per-page directory under the system temp dir. |
+| `out_dir` | string | no | Directory for downloaded non-text files. Defaults to a **fresh private directory** created per invocation under the system temp dir. |
 | `metadata_only` | boolean | no | List entries without retrieving content (default `false`) |
 
 Works on any files-type property, not only a waggle Tasks DB.
@@ -186,6 +186,8 @@ A Notion-hosted entry resolves to a pre-signed storage URL. Possession *is* auth
 
   Residual risk, stated rather than papered over: the resolution check is a check-then-connect, so a name that resolves differently between the lookup and the fetch (DNS rebinding) is not prevented. Closing that needs pinning the resolved address into the connection through a custom agent. What is closed is the straightforward path — a redirect to an internal literal, or to a name that simply points at one.
 - **Display names never decide the path.** A name like `../../etc/passwd` is reduced to its basename before it is joined with `out_dir`.
+- **The default download directory is created with `mkdtemp`, 0700, per invocation** — not a predictable `notion-attachments-<page_id>` path. A predictable path in a shared temp directory lets another local user pre-create it and plant a symlink at the filename about to be written, turning a download into an overwrite of any file this process can write. It also stops one invocation from overwriting an earlier one's downloads for the same page.
+- **Files are created exclusively (`O_EXCL`), never overwritten.** This tool does not replace a file it did not create, and the exclusive flag also refuses to follow a planted symlink. In a caller-supplied `out_dir`, a pre-existing file at the target path is reported in the result rather than silently replaced.
 - **Each download hop carries a 120s abort budget**, so a stalled storage host or redirect target cannot block the MCP request for as long as the peer keeps the socket open. It is a separate, longer budget than the 30s used for API calls — this covers transferring up to the 50MB cap, not a JSON round trip — and it does not reuse the shared timeout helper, because that helper names the URL in its timeout message and here the URL is a credential.
 
 ### Delivery
