@@ -2,13 +2,13 @@
 
 Deterministic rules applied at every status transition into Ready or beyond. No LLM involvement; this is a fast, free pre-filter that catches structurally broken specs before any expensive Reviewer call.
 
-This document is the canonical Layer 1 definition. The `task-quality-reviewer-agent` (Layer 2) is the canonical owner of the 5 IRC axes; both layers are referenced by `reviewing-quality`, `monitoring-tasks`, `planning-tasks`, `running-daily-tasks`, and the protocol spec.
+This document is the canonical Layer 1 definition. The `task-quality-reviewer-agent` (Layer 2) is the canonical owner of the IRC axes; both layers are referenced by `reviewing-quality`, `monitoring-tasks`, `planning-tasks`, `running-daily-tasks`, and the protocol spec.
 
 ## Design Boundary: Structural Only
 
 Layer 1 checks only properties a script can decide **exactly and language-independently**: emptiness, length, reserved placeholder strings, and verdict-line integrity. It makes no judgment about the *meaning* of AC/EP text.
 
-Semantic quality — verifiability, groundedness, echo-of-title, step richness, concrete artifacts — is owned entirely by Layer 2 (the `task-quality-reviewer-agent`'s 5 axes: goal clarity, boundary clarity, verifiability, reproducibility, hidden context).
+Semantic quality — verifiability, groundedness, echo-of-title, step richness, concrete artifacts — is owned entirely by Layer 2 (the `task-quality-reviewer-agent`'s axes: goal clarity, boundary clarity, verifiability, reproducibility, hidden context, and fidelity). Fidelity — whether the spec is true to the request it claims to serve — is likewise a Layer 2 judgment: whether a proper noun has a citable source is not something a script can decide language-independently.
 
 > **History (v3.0.0)**: earlier versions defined semantic heuristics at Layer 1 (rules R-AC1–R-AC3, R-EP1–R-EP4: verifiable-indicator keyword lists, echo-of-title token overlap, step-count/step-length thresholds, concrete-artifact detection). They were removed because keyword heuristics cannot judge semantics: the implemented `semantic_quality` check hard-rejected well-specified Japanese ACs (its command/verb/unit vocabularies were English-only) while passing vague English prose that happened to contain a `/` or the word "test". Every semantic axis those rules approximated is evaluated better by Layer 2. Do not reintroduce semantic keyword rules at this layer.
 
@@ -34,6 +34,7 @@ All rules are enforced by `scripts/validate-task-fields.sh` (see SKILL.md for th
 | `required_non_empty` | Execution Plan | Non-empty | error |
 | `placeholder_present` | Execution Plan | No reserved placeholder remains | error |
 | `verdict_format` | Quality Verdict | When supplied, matches the cache format (lowercase 8-hex hash; fabricated/mnemonic hashes rejected) | error |
+| `verdict_stale_format` | Quality Verdict | At **Ready** only: the verdict's format version is `v2`. `v1` predates the six-axis rubric and the review-input hash. In Progress and beyond still accept `v1` during the migration window | error |
 | `verdict_not_pass` | Quality Verdict | When supplied, must be `PASS` for Ready+ | error |
 | `verdict_recommended` | Quality Verdict | Absent verdict — a fresh `reviewing-quality` PASS should travel in the same update as the Status change | warning |
 | `required_set` | Executor | In Progress only: Executor must be set | error |

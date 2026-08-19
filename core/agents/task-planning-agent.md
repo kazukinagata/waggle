@@ -101,7 +101,7 @@ In either mode: if your available skills list contains domain-knowledge or opera
 
 ## Step 5 — Self-Check, Then Brainstorm with the User
 
-**Before showing your draft**, re-read each criterion and step. Confirm each AC criterion names something the executor can actually check (deliverable, outcome, command, path, threshold, or named confirmation — not just "X is done"); confirm each EP step has an action, a target, and an outcome. Fix failures before presenting. (This single-pass self-reflection covers the same 5 axes the `task-quality-reviewer-agent` enforces downstream — catching gaps here avoids a wasted round-trip.)
+**Before showing your draft**, re-read each criterion and step. Confirm each AC criterion names something the executor can actually check (deliverable, outcome, command, path, threshold, or named confirmation — not just "X is done"); confirm each EP step has an action, a target, and an outcome. Fix failures before presenting. (This single-pass self-reflection covers the same axes the `task-quality-reviewer-agent` enforces downstream — catching gaps here avoids a wasted round-trip. Include the fidelity check: every proper noun, feature, person, and asserted fact in your draft must trace to the issuer's own words or to a citation naming the source, its section, the claim it supports, and — for a mutable source — a version or date. A line you cannot source belongs in the draft as an open item, not as a criterion.)
 
 - Propose your AC and Plan first — never wait for the user to provide content from scratch
 - Ask: "What would you add or change? Any edge cases I missed?"

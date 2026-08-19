@@ -98,11 +98,11 @@ The validation script is **provider-agnostic**. Before calling it, construct a f
   "errorMessage": "Error details",
   "createdAt": "2026-04-15T10:00:00.000Z",
   "repository": "https://github.com/org/repo",
-  "qualityVerdict": "PASS hash=abc12345 @2026-04-15T10:00:00Z v1"
+  "qualityVerdict": "PASS hash=abc12345 @2026-04-15T10:00:00Z v2"
 }
 ```
 
-`createdAt` is used for legacy grandfathering of the Agent Output rule on Done transitions. `repository` is optional and enables repository-aware warnings when code tasks reach Ready without a working directory. `qualityVerdict` is the task's `Quality Verdict` cache string; when present, Ready / In Progress transitions reject a malformed verdict (a hand-authored or fabricated string whose `hash` is not a real 8-hex `sha256("Title|Description|AC|EP")`) or a non-PASS verdict. Pass it whenever it is set so a fabricated verdict cannot promote a task past the gate; an absent verdict is a warning, not a hard error (the content-hash match is verified separately by the org-layer hook).
+`createdAt` is used for legacy grandfathering of the Agent Output rule on Done transitions. `repository` is optional and enables repository-aware warnings when code tasks reach Ready without a working directory. `qualityVerdict` is the task's `Quality Verdict` cache string; when present, Ready / In Progress transitions reject a malformed verdict (a hand-authored or fabricated string whose `hash` is not a real lowercase 8-hex SHA-256 over the normalized review input) or a non-PASS verdict. A **Ready** transition additionally requires format `v2`: a `v1` verdict was produced under the five-axis rubric and so was never evaluated on Fidelity. In Progress and beyond still accept a legacy `v1` PASS during the migration window, because dispatch is cache-only and rejecting `v1` there would strand every already-Ready task. Pass it whenever it is set so a fabricated verdict cannot promote a task past the gate; an absent verdict is a warning, not a hard error (the content-hash match is verified separately by the org-layer hook).
 
 ### Construction Guide
 

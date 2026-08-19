@@ -110,9 +110,19 @@ RESULT=$(jq --arg target "$TARGET_STATUS" --arg code_keywords "$CODE_KEYWORDS_PA
     # carry a verdict produced by a real reviewing-quality run. We reject a hand-authored
     # or fabricated verdict deterministically: the verdict string must match the cache
     # format, and a non-hex / mnemonic hash (e.g. "line0612a") or a non-PASS verdict at
-    # Ready+ is invalid. The content-hash match (hash == sha256("Title|Description|AC|EP"))
-    # is verified by the org-layer hook; here we enforce the shape and PASS requirement so
-    # every backing provider gets the same baseline guarantee.
+    # Ready+ is invalid. The content-hash match (hash == sha256 over the normalized review
+    # input) is verified by the org-layer hook; here we enforce the shape, the PASS
+    # requirement, and the format version so every backing provider gets the same baseline.
+    #
+    # Format version (v4.0.0): a v2 verdict is one produced under the six-axis rubric and
+    # hashed over the normalized review input (which now includes reviewer-visible Context
+    # and a rubric identifier). A v1 verdict predates both.
+    #   - Ready requires v2: this is where a task first claims "an executor can start
+    #     without asking back", and under v1 that claim was never checked for fidelity.
+    #   - In Progress and beyond still accept v1 during the migration window. Dispatch is
+    #     cache-only and cannot fall back to a live review, so rejecting v1 there would
+    #     make every already-Ready task undispatchable. The daily health check and
+    #     monitoring re-review v1 Ready+ tasks progressively instead.
     # Forward/backward-compat: the format allows zero or more trailing "<key>=<value>"
     # tokens after the version literal — per cache-format.md a parser MUST NOT reject a
     # line solely for unknown trailing keys. This also keeps legacy v2.x lines parseable:
@@ -120,9 +130,11 @@ RESULT=$(jq --arg target "$TARGET_STATUS" --arg code_keywords "$CODE_KEYWORDS_PA
     # unknown trailing key and carries no semantics. The hash class stays lowercase 8-hex per spec (the
     # producer is sha256sum | cut, always lowercase), which is what rejects mnemonics.
     (if ($verdict | test("\\S")) and (($verdict | test("^(PASS|NEEDS_REFINEMENT|REJECT)\\s+hash=[0-9a-f]{8}\\s+@\\S+\\s+v[0-9]+(\\s+\\S+=\\S+)*\\s*$")) | not)
-     then $errors + [{"field":"Quality Verdict","rule":"verdict_format","message":"Quality Verdict is malformed. Expected \"<PASS|NEEDS_REFINEMENT|REJECT> hash=<8 lowercase hex> @<iso8601> v1\", where hash is the first 8 hex chars of sha256(\"Title|Description|AC|EP\"). A hand-authored / fabricated verdict (e.g. a non-hex mnemonic hash like \"line0612a\") is rejected — run reviewing-quality to produce it."}]
+     then $errors + [{"field":"Quality Verdict","rule":"verdict_format","message":"Quality Verdict is malformed. Expected \"<PASS|NEEDS_REFINEMENT|REJECT> hash=<8 lowercase hex> @<iso8601> v2\", where hash is the first 8 lowercase hex chars of sha256 over the normalized review input (Title|Description|AC|EP|reviewer-visible Context|rubric id). A hand-authored / fabricated verdict (e.g. a non-hex mnemonic hash like \"line0612a\") is rejected — run reviewing-quality to produce it."}]
      elif ($verdict | test("\\S")) and (($verdict | test("^PASS\\b")) | not)
      then $errors + [{"field":"Quality Verdict","rule":"verdict_not_pass","message":"\($target) requires a PASS Quality Verdict, but a non-PASS verdict was supplied. Refine the task and re-run reviewing-quality until it passes, or keep the task at Backlog."}]
+     elif ($verdict | test("\\S")) and $target == "Ready" and (($verdict | test("^\\S+\\s+hash=\\S+\\s+@\\S+\\s+v2\\b")) | not)
+     then $errors + [{"field":"Quality Verdict","rule":"verdict_stale_format","message":"Ready requires a v2 Quality Verdict (six-axis rubric, hashed over the normalized review input). The supplied verdict is not v2 — a v1 verdict predates that rubric and was never evaluated on Fidelity. Re-run reviewing-quality to produce a v2 verdict. Note: In Progress and beyond still accept a legacy v1 PASS during the migration window, so an already-Ready task keeps dispatching."}]
      else $errors end) as $errors |
     # In Progress: Executor required
     (if $target == "In Progress" then

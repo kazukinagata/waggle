@@ -1,4 +1,4 @@
-# Quality Verdict Cache Format (v1)
+# Quality Verdict Cache Format (v2)
 
 The protocol spec (the `waggle-protocol` skill, § Quality Spec) is the canonical owner of this format. This file is the implementation-side documentation for `reviewing-quality`.
 
@@ -9,22 +9,49 @@ The verdict is stored in the task's `Quality Verdict` core field (rich_text, sin
 ## Format
 
 ```
-<verdict> hash=<8hex> @<iso8601> v1
+<verdict> hash=<8hex> @<iso8601> v2
 ```
 
 - `<verdict>`: one of `PASS`, `NEEDS_REFINEMENT`, `REJECT`
-- `hash=<8hex>`: first 8 hex chars of `sha256("${Title}|${Description}|${AC}|${EP}")`. Any edit to those fields invalidates the cache.
+- `hash=<8hex>`: first 8 lowercase hex chars of `sha256(<normalized review input>)` — see below
 - `@<iso8601>`: UTC timestamp when the verdict was computed
-- `v1`: format version literal
+- `v2`: format version literal
+
+### The normalized review input
+
+Six components, in this order, joined by a single `|`:
+
+```
+Title | Description | Acceptance Criteria | Execution Plan | reviewer-visible Context | irc-6axis
+```
+
+Normalization, applied to each component before joining:
+
+- An absent, null, or provider-unsupported field is the **empty string** — never omitted. The component and its delimiter always occupy their position, so the pipe count is constant at 5.
+- Line endings normalized to `LF`.
+- Trailing whitespace at the **end of the component** removed. Internal whitespace and blank lines preserved exactly.
+- Joined string encoded as UTF-8, no trailing newline.
+
+**Reviewer-visible `Context`** is `Context` with every managed block removed — the Quality Review Findings block (below) and the Confirmation Log block. The removal must be byte-identical to the strip performed before the spec is handed to the Reviewer in Step 4: the hash covers exactly what the Reviewer read.
+
+`irc-6axis` is the rubric identifier. It is inside the hash because a sixth axis changes what `PASS` means — without it, a verdict produced under the five-axis rubric would be indistinguishable from one produced under six.
+
+Producing it, given the six components already normalized and joined in `$INPUT`:
+
+```
+printf '%s' "$INPUT" | sha256sum | cut -c1-8
+```
+
+`sha256sum` emits lowercase, which is what makes a mnemonic or upper-case hash detectable as fabricated.
 
 ### Examples
 
 ```
-PASS hash=abc12345 @2026-05-19T10:42:00Z v1
+PASS hash=abc12345 @2026-05-19T10:42:00Z v2
 ```
 
 ```
-NEEDS_REFINEMENT hash=def67890 @2026-05-19T10:42:00Z v1
+NEEDS_REFINEMENT hash=def67890 @2026-05-19T10:42:00Z v2
 ```
 
 ## Parsing
@@ -35,11 +62,26 @@ A regex that captures all fields:
 ^(?P<verdict>PASS|NEEDS_REFINEMENT|REJECT)\s+hash=(?P<hash>[0-9a-f]{8})\s+@(?P<at>\S+)\s+v(?P<version>\d+)(?:\s+\S+=\S+)*\s*$
 ```
 
+**Return the captured `version` — do not discard it.** The version is load-bearing: a `v1` line is a verdict produced under a different rubric and a different hash input, and callers gate on that (see below). A parser that reports only "well-formed" makes the migration window unimplementable.
+
 If parsing fails (empty field, malformed, or version > known): treat as cache miss.
+
+## Format versions and the migration window
+
+| Transition | Accepted |
+|---|---|
+| Backlog → Ready | current `v2` PASS only |
+| Ready → In Progress / In Review / Done | `v2` PASS, or a legacy `v1` PASS |
+
+New verdict producers emit `v2` only; `v1` is never written again.
+
+A `v1` line's hash was computed over a different input (four components, no `Context`, no rubric identifier), so it can never match a recomputed `v2` hash. Treat a `v1` line as **version-mismatched, not content-stale** — the distinction matters when reporting to the user, because "re-review needed after the format change" is a different message from "someone edited the spec".
+
+Dispatch is cache-only and cannot fall back to a live review, so invalidating `v1` wholesale would make every existing Ready task undispatchable. The daily health check and `monitoring-tasks` re-review `v1` Ready+ tasks progressively instead.
 
 ## Forward and backward compatibility
 
-A future `v2` may add new fields. Parsers MUST NOT reject a line solely because of unknown trailing key=value pairs after the version literal. Unknown keys should be ignored.
+A future `v3` may add new fields. Parsers MUST NOT reject a line solely because of unknown trailing key=value pairs after the version literal. Unknown keys should be ignored.
 
 This rule also covers legacy lines: verdict lines written by v2.x may carry a trailing `suppressed-until=<iso8601>` key (the retired 7-day re-review suppression, removed in v3.0.0). Such lines parse normally; the key is ignored and carries **no semantics** — the ordinary content-hash rules apply. Suppression was removed because it kept returning the frozen verdict even after the user substantively fixed the spec, punishing legitimate rework to guard a cost (Reviewer re-runs) that the content hash and user-gated refine loops already bound.
 
@@ -48,6 +90,36 @@ This rule also covers legacy lines: verdict lines written by v2.x may carry a tr
 - Notion `rich_text` is a prose field; users see it.
 - A single-line key=value format is human-scannable in the Notion UI without overwhelming a viewer.
 - JSON in a rich_text field tends to be reformatted by users editing in Notion.
+
+## Confirmation Log Block Format
+
+The second managed block. When an `[INFERRED]` line is confirmed by the issuer and the prefix removed, this block records that the line was **adopted into the contract**, not that the issuer originally stated it.
+
+Stored inside the task's `Context` extended field, alongside the findings block:
+
+```
+--- Waggle Confirmation Log ---
+- <the confirmed line, after prefix removal> — confirmed by <who> @<iso8601>
+- <...>
+--- End Waggle Confirmation Log ---
+```
+
+Rules:
+
+- **At most one block per task.** Writes replace the existing block in place; the rest of `Context` is preserved verbatim.
+- **Append-only within the block.** A confirmation is a historical fact; entries are not rewritten when the spec changes later.
+- **No hash.** Unlike the findings block, this block does not go stale — it records what happened, not a judgment about current content.
+- **Stripped before hashing and before review**, exactly like the findings block. This is load-bearing: `Context` is inside the v2 hash, so an unmanaged confirmation note would invalidate the verdict at the very moment of confirmation, and the reviewer would read its own pipeline's bookkeeping as issuer-authored background.
+- **Graceful degradation:** when a provider does not support `Context`, surface the confirmation in conversation only.
+
+Delimiter lines are exact-match anchors:
+
+```
+^--- Waggle Confirmation Log ---$
+^--- End Waggle Confirmation Log ---$
+```
+
+An unterminated block is bounded the same conservative way as the findings block: replace from the opening delimiter through the last consecutive line that parses as block content (`- ` bullets), never blindly to end-of-field.
 
 ## Why content-hash (not timestamp)
 
@@ -78,7 +150,7 @@ Suggested fixes:
 Rules:
 
 - **At most one block per task.** Writes replace the existing block in place; the rest of `Context` is preserved verbatim.
-- **`hash` equals the verdict line's hash** (same `sha256("${Title}|${Description}|${AC}|${EP}")[:8]`). A block whose hash differs from the current verdict line is stale: ignore its contents and report findings as unavailable. `Context` is not part of the content hash, so writing or removing the block never invalidates the verdict cache.
+- **`hash` equals the verdict line's hash** (the same normalized review input). A block whose hash differs from the current verdict line is stale: ignore its contents and report findings as unavailable. The block is stripped from `Context` before hashing, so writing or removing it never invalidates the verdict cache — note this is *because of the strip*, not because `Context` is outside the hash; under v2 it is inside it.
 - **Lifecycle:** written on `NEEDS_REFINEMENT` / `REJECT` (Reviewer gaps/fixes, or Layer 1 structural errors when the Reviewer was skipped); deleted on `PASS`.
 - **Size cap ~1500 characters.** Keep one line per gap/fix. When truncating, drop fixes before gaps (gaps are the diagnosis; fixes can be re-derived).
 - **Self-exclusion:** the block is stripped from `Context` before the spec is handed to the Reviewer agent, so a review never reads its own prior output.

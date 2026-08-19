@@ -73,16 +73,21 @@ Invoke the `validating-fields` skill to run the Layer 1 structural checks on the
 - Layer 1 fail (`valid: false`): return verdict = `REJECT` with the structural errors. **Do not** spawn the Reviewer. Cache the verdict so `monitoring-tasks` can list it. The errors name exactly what is missing (a field, a placeholder), so the caller can present a mechanical fix.
 - Layer 1 pass (warnings allowed): continue.
 
+Layer 1 also enforces the format-version rule at the transition it is validating: a Backlog → Ready promotion requires a `v2` PASS, while Ready → In Progress and beyond still accept a legacy `v1` PASS during the migration window. Dispatch is cache-only and cannot fall back to a live review, so invalidating `v1` wholesale would strand every existing Ready task.
+
 ### Step 3 — Cache lookup (when mode ≠ `live`)
 
-Compute the content hash: first 8 hex chars of `sha256("${Title}|${Description}|${AC}|${EP}")`.
+Compute the review-input hash over the normalized review input defined in `references/cache-format.md`: `Title`, `Description`, `Acceptance Criteria`, `Execution Plan`, reviewer-visible `Context`, and the rubric identifier, pipe-joined and normalized exactly as that file specifies.
 
-Read the task's `Quality Verdict` field. Parse using `references/cache-format.md`.
+**Reviewer-visible `Context` means `Context` with the managed blocks removed** — the findings block and the confirmation log. Perform that strip once and use the same result for both the hash here and the spec handed to the Reviewer in Step 4. Two independent strip implementations would drift, and a drift here silently mismatches every hash.
 
-Evaluate:
+Read the task's `Quality Verdict` field. Parse using `references/cache-format.md`, and **keep the parsed format version** — the next step branches on it.
 
-1. Hash matches → cache hit, return the cached verdict.
-2. Hash mismatch → cache stale, fall through to live evaluation.
+Evaluate, in order:
+
+1. Format version is `v1` → **version mismatch**, not a content-staleness result. A `v1` hash was computed over a different input and can never match. Fall through to live evaluation, and when reporting to the caller say the verdict predates the rubric change rather than implying someone edited the spec.
+2. Hash matches (and version is `v2`) → cache hit, return the cached verdict.
+3. Hash mismatch → cache stale, fall through to live evaluation.
 
 There is no re-review throttle (the 7-day suppression mechanism was removed in v3.0.0): identical content is already deduplicated by the content hash, and every refine loop is gated on an explicit user choice at the caller, so re-reviews only happen when the user changed the spec and asked for one.
 
@@ -94,7 +99,7 @@ In `cache-only` mode, a cache miss returns verdict = `UNREVIEWED` to the caller.
 
 Spawn the `task-quality-reviewer-agent` subagent with the task spec block (Title, Description, AC, EP, Context, Working Directory, Repository, Executor).
 
-Before passing `Context`, strip any Quality Review Findings block it contains (this skill's own persisted output from a previous round) — the Reviewer must evaluate the requester's spec, not be steered by its own prior findings.
+Before passing `Context`, strip the managed blocks it contains — the Quality Review Findings block (this skill's own persisted output from a previous round) and the Confirmation Log block. The Reviewer must evaluate the requester's spec, not be steered by its own prior findings or read the pipeline's own bookkeeping as issuer-authored background. This is the **same strip** whose result fed the hash in Step 3; reuse it rather than recomputing.
 
 Wait for its return. Parse the structured output to extract:
 - Verdict (`PASS` / `NEEDS_REFINEMENT` / `REJECT` / `INSUFFICIENT_CONTEXT`)
@@ -106,13 +111,13 @@ Treat `INSUFFICIENT_CONTEXT` as `NEEDS_REFINEMENT` for cache/return purposes; su
 
 ### Step 5 — Cache write
 
-Write the verdict to the task's `Quality Verdict` field in the format documented in `references/cache-format.md`. Single line, overwrites the previous entry.
+Write the verdict to the task's `Quality Verdict` field in the format documented in `references/cache-format.md`. Single line, overwrites the previous entry. **Emit `v2` only** — `v1` is never written again, including when re-reviewing a task that currently carries a `v1` line.
 
 **Findings persistence (same write step):** keep the gaps and suggested fixes on the task, not just in chat — they are what the user (or a later session) needs to act on a non-PASS verdict.
 
 - Verdict is `NEEDS_REFINEMENT` or `REJECT` → render a Quality Review Findings block (format in `references/cache-format.md`) from the Reviewer's gaps and fixes (or the Layer 1 structural errors when the Reviewer was not spawned) and upsert it into the task's `Context` field: replace any existing findings block, leave the rest of `Context` untouched. At most one block per task.
 - Verdict is `PASS` → remove any existing findings block from `Context` (the issues are resolved; stale findings would mislead executors).
-- The block carries the same `hash` as the verdict line, so staleness is detectable without extra writes. `Context` is not part of the content hash, so writing the block never invalidates the verdict cache.
+- The block carries the same `hash` as the verdict line, so staleness is detectable without extra writes. The block is stripped before hashing, so writing it never invalidates the verdict cache — note the reason: under v2 `Context` *is* inside the hash, and it is the strip, not the field's exclusion, that keeps the block harmless.
 - Graceful degradation: if the provider/task has no `Context` field, skip findings persistence — the verdict line still caches; gaps/fixes surface in chat only.
 - Creation-time callers: see "Deferred-write contract" above — the block is returned to the caller instead of written.
 
@@ -122,10 +127,11 @@ Return a structured payload:
 
 ```
 verdict: PASS | NEEDS_REFINEMENT | REJECT | UNREVIEWED
-verdict_string: "<verdict> hash=<8hex> @<iso8601> v1" | ""
+verdict_string: "<verdict> hash=<8hex> @<iso8601> v2" | ""
 hash: <8-hex>
+format_version: 1 | 2                                # parsed from the line; never discarded
 cached_at: <iso8601>
-per_axis: { goal: ◯|△|✗, boundary: ◯|△|✗, ... }   # only on live verdicts
+per_axis: { goal: ◯|△|✗, boundary, verifiability, reproducibility, hidden_context, fidelity }   # only on live verdicts; 6 axes
 gaps: [...]                                          # only on non-PASS verdicts
 fixes: [...]                                         # only on non-PASS verdicts
 findings_block: "<rendered block>" | null            # non-PASS only; for deferred-write callers

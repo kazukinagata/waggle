@@ -98,8 +98,8 @@ run "Backlog + [DRAFT-AC] -> valid (placeholders gate Ready+ only)" Backlog \
 # ---------------------------------------------------------------------------
 run "Ready + fabricated mnemonic hash -> invalid" Ready \
   '{"qualityVerdict":"PASS hash=line0612a @2026-06-10T00:00:00Z v1"}' false verdict_format
-run "Ready + well-formed PASS -> valid" Ready \
-  '{"qualityVerdict":"PASS hash=abc12345 @2026-06-10T10:42:00Z v1"}' true
+run "Ready + well-formed v2 PASS -> valid" Ready \
+  '{"qualityVerdict":"PASS hash=abc12345 @2026-06-10T10:42:00Z v2"}' true
 run "Ready + NEEDS_REFINEMENT -> invalid" Ready \
   '{"qualityVerdict":"NEEDS_REFINEMENT hash=abc12345 @2026-06-10T10:42:00Z v1"}' false verdict_not_pass
 run "Ready + REJECT -> invalid" Ready \
@@ -115,11 +115,48 @@ run "Backlog + fabricated hash -> valid (not checked)" Backlog \
 # removed in v3.0.0, but parsers MUST NOT reject unknown trailing keys, so
 # existing DB values keep parsing (the key carries no semantics anymore).
 run "Ready + legacy suppressed-until key tolerated" Ready \
+  '{"qualityVerdict":"PASS hash=abc12345 @2026-06-10T10:42:00Z v2 suppressed-until=2026-06-17T10:42:00Z"}' true
+run "In Progress + legacy suppressed-until key on a v1 line tolerated" "In Progress" \
   '{"qualityVerdict":"PASS hash=abc12345 @2026-06-10T10:42:00Z v1 suppressed-until=2026-06-17T10:42:00Z"}' true
 run "Ready + PASS v2 w/ unknown trailing key -> valid (forward-compat)" Ready \
   '{"qualityVerdict":"PASS hash=abc12345 @2026-06-10T10:42:00Z v2 newkey=foo"}' true
 run "Ready + fabricated hash w/ trailing key -> invalid" Ready \
   '{"qualityVerdict":"PASS hash=line0612a @2026-06-10T00:00:00Z v1 extra=1"}' false verdict_format
+
+# ---------------------------------------------------------------------------
+# Verdict format version and the migration window (v4.0.0)
+#
+# Ready requires v2 — that is where a task first claims "an executor can start
+# without asking back", and a v1 verdict was produced under the five-axis rubric
+# and so was never evaluated on Fidelity. In Progress and beyond still accept v1:
+# dispatch is cache-only and cannot fall back to a live review, so rejecting v1
+# there would strand every already-Ready task.
+# ---------------------------------------------------------------------------
+run "Ready + legacy v1 PASS -> invalid (stale rubric)" Ready \
+  '{"qualityVerdict":"PASS hash=abc12345 @2026-06-10T10:42:00Z v1"}' false verdict_stale_format
+run "In Progress + legacy v1 PASS -> valid (migration window)" "In Progress" \
+  '{"qualityVerdict":"PASS hash=abc12345 @2026-06-10T10:42:00Z v1"}' true
+run "In Progress + v2 PASS -> valid" "In Progress" \
+  '{"qualityVerdict":"PASS hash=abc12345 @2026-06-10T10:42:00Z v2"}' true
+run "Backlog + legacy v1 PASS -> valid (below the gate)" Backlog \
+  '{"qualityVerdict":"PASS hash=abc12345 @2026-06-10T10:42:00Z v1"}' true
+# A v1 line that is also non-PASS fails on the PASS rule, which is checked first —
+# pinning the order so the user is told the actionable thing (refine it), not that
+# the format is stale.
+run "Ready + v1 NEEDS_REFINEMENT -> invalid on verdict_not_pass, not format" Ready \
+  '{"qualityVerdict":"NEEDS_REFINEMENT hash=abc12345 @2026-06-10T10:42:00Z v1"}' false verdict_not_pass
+# A malformed line fails on shape before either rule — version is meaningless on a
+# line that did not parse.
+run "Ready + malformed v2 line -> invalid on verdict_format" Ready \
+  '{"qualityVerdict":"PASS hash=notahex1 @2026-06-10T10:42:00Z v2"}' false verdict_format
+# An unknown future version is not v2, so Ready rejects it rather than assuming
+# forward compatibility on the one field where guessing wrong hides a stale rubric.
+run "Ready + v3 PASS -> invalid (not v2)" Ready \
+  '{"qualityVerdict":"PASS hash=abc12345 @2026-06-10T10:42:00Z v3"}' false verdict_stale_format
+# The version is read from its position in the line, not by searching for "v2"
+# anywhere in it: a trailing key whose VALUE is v2 must not promote a v1 verdict.
+run "Ready + v1 PASS with a trailing key=v2 -> still invalid" Ready \
+  '{"qualityVerdict":"PASS hash=abc12345 @2026-06-10T10:42:00Z v1 rubric=v2"}' false verdict_stale_format
 
 # ---------------------------------------------------------------------------
 # In Progress: executor + working directory

@@ -131,7 +131,9 @@ If the analysis script is not available (no bash, no jq), compute the metrics ma
    - **Priority missing**: Non-Done / non-Cancelled tasks without a Priority set.
    - **Test tasks**: Titles matching placeholder patterns (`test task — delete me`, `delete me`, `wip delete`, bare `test task`). These should be cleaned up.
 
-   **Ready Health Score**: `(Ready tasks with cached Reviewer verdict = PASS) / (total Ready tasks)`. Displayed at the top of Section 6 as a single percentage. <70% indicates broad quality debt.
+   **Ready Health Score**: `(Ready tasks with a current v2 PASS verdict) / (total Ready tasks)`. A verdict counts only when it is `PASS`, its format version is `v2`, and its hash matches the task's current review input — a `v1` PASS was produced under the five-axis rubric and was never evaluated on Fidelity, and a hash mismatch means the spec changed after the judgment. Displayed at the top of Section 6 as a single percentage. <70% indicates broad quality debt.
+
+   Immediately after v4.0.0 this score drops sharply, because every pre-upgrade Ready task carries a `v1` verdict. That is the migration surfacing itself, not a regression — the score recovers as `--deep` and the daily sweep re-review those tasks. Say so when reporting it, rather than presenting the drop as new quality debt.
 
 ## Step 4: Render Report
 
