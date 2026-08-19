@@ -206,6 +206,21 @@ Fallback (user disengages — "that's enough", "just go with it", etc.):
 
 **Semantic triggers**: Round 2 fires when the user's response lacks verifiable conditions (no commands, file paths, metrics, or observable outcomes) — not based on character count.
 
+### What kind of question the agent asks
+
+Rounds 2 and 3 ask the user things. There are exactly two kinds of question, and confusing them is how a false premise becomes an issuer-approved specification: a gap about an unverified fact was once posed as a preference question carrying a `(Recommended)` option, the user picked the recommendation, and the guess became the spec.
+
+| Type | When | Form |
+|---|---|---|
+| **Fact question** | A premise is unverified ("does this store already have the v2 endpoint enabled?") | Yes / No / Unknown, in the issuer's vocabulary. **No `(Recommended)`** — recommending an answer to a question of fact invites the user to ratify a guess. `Unknown` is a real answer, not permission to proceed. |
+| **Means question** | The goal is clear, several routes exist, the user named none, and the routes differ materially | Each route with its risks, benefits, drawbacks, and reversibility, presented neutrally. **No `(Recommended)`.** State that the list may be incomplete and always offer an explicit "needs investigation / not in this list" choice. |
+
+**Escalate a route choice only when it is material** — when the routes differ in the resulting deliverable or outcome, in reversibility, in impact visible outside the system being changed, or in order of magnitude of cost or duration. Equivalent, reversible procedural choices are execute-time; do not ask about them. Without this test, brainstorming turns every task into a quiz and users disengage into the fallback above, which is worse than an occasional wrong-but-reversible choice.
+
+When a skill or document prescribes exactly **one** route, this is not a question: present the route and cite its source.
+
+**When the user cannot close a gap here**, do not fill it with a plausible value. Five exits apply — surface the routes and let the user pick; leave a fact question unresolved with the task resting in Backlog under `[NEEDS-REFINE]`; split the question into a consultation task and block this one on it; write the unknown as a *verification step in the Execution Plan* rather than an assertion; or ask the user for an approved decision rule that delegates bounded authority ("if X then A, otherwise B; stop and escalate if Y"). If none applies, the task correctly stays in Backlog — an unresolved dependency, not a deadlock.
+
 ## Execution Plan Generation
 
 After AC is finalized, generate the Execution Plan:
