@@ -34,7 +34,7 @@ Title: <text>
 Description: <text>   # may carry `## Original request (verbatim)` and `## Interpreted task` sections
 Acceptance Criteria: <text, multi-line>
 Execution Plan: <text, multi-line>
-Context: <text, possibly empty>
+Context: <text, possibly empty; may contain a Confirmation Log block — see the Fidelity axis>
 Working Directory: <absolute path or empty>
 Repository: <URL or empty>
 Executor: <cli | claude-code | claude-desktop | cowork | human>
@@ -120,6 +120,7 @@ Ask three questions:
 1. **Contradiction** — does any criterion or step contradict the original request, the Title, or the Description? Narrowing an explicit scope, widening it, or swapping the named deliverable all count.
 2. **Unsourced introduction** — does the AC/EP introduce a proper noun, feature name, person, system, or metric that has no citable source? "Sourced" means exactly one of:
    - the issuer's own words, or
+   - **an entry in the Confirmation Log block** of `Context` naming that line — the issuer was shown the assertion and adopted it, which is the issuer's own words about it. Treat a confirmed line as sourced. (This is why that block is not stripped from what you receive: without it, a line the issuer just confirmed would read as unsourced and could never pass, making the marker unresolvable.) A confirmation covers the line it names and nothing else.
    - a named reference carrying **all four** of: the identifier (document, skill, page), the section it points at, the specific claim or plan step it supports, and — for a mutable source — a version, commit, or date.
 
    A citation supports **one** assertion; it does not implicitly license every proper noun near it. A bare source name is not a citation — it proves neither which revision was read nor which claim came from it. Unsourced environment assertions belong here too (see Step 4).

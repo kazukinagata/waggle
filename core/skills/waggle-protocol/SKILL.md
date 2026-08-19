@@ -287,12 +287,18 @@ Normalization, applied to each component before joining:
 - Trailing whitespace at the **end of the component** is removed. Internal whitespace and blank lines are preserved exactly.
 - The joined string is encoded as UTF-8 with no trailing newline.
 
-**Reviewer-visible `Context`** means `Context` with every managed block removed — the
-Quality Review Findings block and the Confirmation Log block. The removal must be
-byte-identical to the strip performed before the spec is handed to the Reviewer:
-the hash covers exactly what the Reviewer read, no more and no less. This is what
-lets a managed block be written, replaced, or deleted without invalidating the verdict,
-while an issuer's edit to their own `Context` prose does invalidate it.
+**Reviewer-visible `Context`** means `Context` with the Quality Review Findings block
+removed. That block is the pipeline's own prior output, so the Reviewer must not read it
+and the hash must not cover it. The removal must be byte-identical to the strip performed
+before the spec is handed to the Reviewer: the hash covers exactly what the Reviewer read,
+no more and no less. This is what lets the findings block be written, replaced, or deleted
+without invalidating the verdict, while an issuer's edit to their own `Context` prose does
+invalidate it.
+
+The **Confirmation Log block is not stripped** — from either the hash or the review. It
+records issuer decisions rather than pipeline judgments, and the Reviewer needs it: a line
+the issuer confirmed is sourced *by that confirmation*, and a Reviewer who cannot see it
+judges the line unsourced. See § Confirmation Log.
 
 > **v4.0.0 breaking change**: `Context` was previously outside the hash. A citation or
 > constraint in `Context` could be added, changed, or removed while a `PASS` stood.
@@ -352,10 +358,14 @@ When an `[INFERRED]` line is confirmed by the issuer, the prefix is removed (see
 
 - One block per task, inside the `Context` extended field, with exact delimiters.
 - Written when an inferred line is confirmed; each entry names the line and who confirmed it.
-- **Stripped before hashing and before review**, exactly like the findings block. This matters under the v2 hash: `Context` is inside it, so an unmanaged confirmation note would invalidate the verdict at the very moment of confirmation.
-- Graceful degradation: when a provider does not support `Context`, the confirmation is surfaced in conversation only.
+- **Visible to the Reviewer, and inside the review-input hash.** Unlike the findings block, this one is *not* stripped, and that is load-bearing rather than incidental.
+- Graceful degradation: when a provider does not support `Context`, the confirmation is surfaced in conversation only — and a line confirmed there cannot be evidenced to the Reviewer, so fold the confirmed statement into `Description` instead.
 
 Removing an `[INFERRED]` prefix means "the issuer adopted this into the contract", not "the issuer originally said this" — which is exactly the distinction this block preserves. The block format is owned by the `reviewing-quality` skill's reference documentation, kept in sync with this section.
+
+**Why it is not stripped.** Confirming a line removes its `[INFERRED]` prefix and re-runs review. If the Reviewer could not see the confirmation, Fidelity would compare the newly adopted assertion against the original request alone, find no source for it, and flag it — so the only way to resolve an `[INFERRED]` line would produce a spec that can never PASS, and `Ready` would be unreachable for it. A confirmation is the issuer's own words about that line, which is the strongest form of sourcing this protocol recognizes; withholding it from the Reviewer defeats both the marker and the axis.
+
+The symmetric argument — "strip it so confirming a line does not invalidate the verdict" — does not survive contact with the flow. Confirming a line edits `Acceptance Criteria` (the prefix comes off), which invalidates the verdict through the AC component no matter what `Context` does. There was never a verdict to preserve at that moment, so stripping bought nothing and cost the axis its evidence.
 
 ### No Open Questions Field
 

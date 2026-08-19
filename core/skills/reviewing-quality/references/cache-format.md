@@ -32,7 +32,7 @@ Normalization, applied to each component before joining:
 - Trailing whitespace at the **end of the component** removed. Internal whitespace and blank lines preserved exactly.
 - Joined string encoded as UTF-8, no trailing newline.
 
-**Reviewer-visible `Context`** is `Context` with every managed block removed — the Quality Review Findings block (below) and the Confirmation Log block. The removal must be byte-identical to the strip performed before the spec is handed to the Reviewer in Step 4: the hash covers exactly what the Reviewer read.
+**Reviewer-visible `Context`** is `Context` with the Quality Review Findings block (below) removed. The removal must be byte-identical to the strip performed before the spec is handed to the Reviewer in Step 4: the hash covers exactly what the Reviewer read. The **Confirmation Log block is not removed** — it is issuer evidence the Reviewer must see, so it stays in both the review input and the hash.
 
 `irc-6axis` is the rubric identifier. It is inside the hash because a sixth axis changes what `PASS` means — without it, a verdict produced under the five-axis rubric would be indistinguishable from one produced under six.
 
@@ -109,8 +109,9 @@ Rules:
 - **At most one block per task.** Writes replace the existing block in place; the rest of `Context` is preserved verbatim.
 - **Append-only within the block.** A confirmation is a historical fact; entries are not rewritten when the spec changes later.
 - **No hash.** Unlike the findings block, this block does not go stale — it records what happened, not a judgment about current content.
-- **Stripped before hashing and before review**, exactly like the findings block. This is load-bearing: `Context` is inside the v2 hash, so an unmanaged confirmation note would invalidate the verdict at the very moment of confirmation, and the reviewer would read its own pipeline's bookkeeping as issuer-authored background.
-- **Graceful degradation:** when a provider does not support `Context`, surface the confirmation in conversation only.
+- **NOT stripped** — the block stays in the review input and inside the hash. This is the one place the two managed blocks behave differently, and the difference is the point: the findings block is the pipeline's own judgment (the Reviewer must not read it), while this block is the issuer's decision (the Reviewer must). A confirmed line is sourced *by the confirmation*; a Reviewer who cannot see it judges the line unsourced, which would make `[INFERRED]` unresolvable — confirming it would remove the prefix and still fail Fidelity, so the task could never reach Ready.
+- Confirming a line edits `Acceptance Criteria` anyway (the prefix comes off), so the verdict is invalidated through the AC component regardless. Stripping this block to protect the verdict would have protected nothing while costing the axis its evidence.
+- **Graceful degradation:** when a provider does not support `Context`, surface the confirmation in conversation only — and fold the confirmed statement into `Description`, since a confirmation the Reviewer cannot see is not evidence.
 
 Delimiter lines are exact-match anchors:
 

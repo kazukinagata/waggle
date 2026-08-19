@@ -83,7 +83,7 @@ The verdict checks still run where they belong — at the promotion itself, wher
 
 Compute the review-input hash over the normalized review input defined in `references/cache-format.md`: `Title`, `Description`, `Acceptance Criteria`, `Execution Plan`, reviewer-visible `Context`, and the rubric identifier, pipe-joined and normalized exactly as that file specifies.
 
-**Reviewer-visible `Context` means `Context` with the managed blocks removed** — the findings block and the confirmation log. Perform that strip once and use the same result for both the hash here and the spec handed to the Reviewer in Step 4. Two independent strip implementations would drift, and a drift here silently mismatches every hash.
+**Reviewer-visible `Context` means `Context` with the findings block removed** — and only that block. The confirmation log stays: it is issuer evidence the Reviewer must see (Step 4). Perform the strip once and use the same result for both the hash here and the spec handed to the Reviewer, since two independent strip implementations would drift and a drift here silently mismatches every hash.
 
 Read the task's `Quality Verdict` field. Parse using `references/cache-format.md`, and **keep the parsed format version** — the next step branches on it.
 
@@ -103,7 +103,9 @@ In `cache-only` mode, a cache miss returns verdict = `UNREVIEWED` to the caller.
 
 Spawn the `task-quality-reviewer-agent` subagent with the task spec block (Title, Description, AC, EP, Context, Working Directory, Repository, Executor).
 
-Before passing `Context`, strip the managed blocks it contains — the Quality Review Findings block (this skill's own persisted output from a previous round) and the Confirmation Log block. The Reviewer must evaluate the requester's spec, not be steered by its own prior findings or read the pipeline's own bookkeeping as issuer-authored background. This is the **same strip** whose result fed the hash in Step 3; reuse it rather than recomputing.
+Before passing `Context`, strip the Quality Review Findings block it contains — this skill's own persisted output from a previous round. The Reviewer must evaluate the requester's spec, not be steered by its own prior findings. This is the **same strip** whose result fed the hash in Step 3; reuse it rather than recomputing.
+
+**Keep the Confirmation Log block.** It is the opposite case: it records what the issuer confirmed, and a confirmation is the issuer's own words about that line — the strongest form of sourcing the Fidelity axis recognizes. Strip it and the axis has no evidence for a line that was just adopted, so resolving an `[INFERRED]` marker would produce a spec that can never PASS and the task could never reach Ready. Tell the Reviewer what the block is, so it reads the entries as issuer statements rather than as prose someone left in `Context`.
 
 Wait for its return. Parse the structured output to extract:
 - Verdict (`PASS` / `NEEDS_REFINEMENT` / `REJECT` / `INSUFFICIENT_CONTEXT`)

@@ -30,10 +30,11 @@ Four, and each of them changes behavior you may be relying on.
    `Execution Plan`, **reviewer-visible `Context`**, and a rubric identifier. Two
    consequences: **editing `Context` now invalidates a PASS** (it did not before, so a
    citation or constraint could be changed while the verdict stood), and re-review volume
-   goes up. Managed blocks are stripped before hashing, so the findings block and the new
-   confirmation log remain harmless — but for a new reason, since `Context` is now inside
-   the hash rather than outside it. Parsers must return the parsed version instead of
-   discarding it. **Backlog → Ready requires a current `v2` PASS; Ready → In Progress and
+   goes up. The findings block is stripped before hashing and stays harmless — but for a
+   new reason, since `Context` is now inside the hash rather than outside it. The
+   confirmation log is deliberately **not** stripped: it is issuer evidence the reviewer
+   must see, and a confirmed line is sourced by that confirmation. Parsers must return the
+   parsed version instead of discarding it. **Backlog → Ready requires a current `v2` PASS; Ready → In Progress and
    beyond still accept a legacy `v1` PASS** during the migration window, because dispatch
    is cache-only and rejecting `v1` there would strand every existing Ready task. The
    daily sweep and monitoring re-review `v1` Ready+ tasks progressively. Expect the Ready
@@ -76,8 +77,9 @@ Fidelity's false-positive rate on legitimate specs is unmeasured.
   planning runs, since the hash covers `Description`. The verbatim section is optional
   (omitted when the issuer *is* the requester) and read-only to the planning agent.
 - **Confirmation Log** managed block, recording that a line was adopted into the contract
-  rather than originally stated, without invalidating the verdict at the moment of
-  confirmation.
+  rather than originally stated. It is reviewer-visible and inside the hash — a confirmed
+  line is sourced *by* the confirmation, so a reviewer that could not see it would judge a
+  just-confirmed line unsourced and `[INFERRED]` would be unresolvable in practice.
 - **Question taxonomy** (fact vs means, neither carrying a `(Recommended)` option) and
   the **materiality test** that decides when a route choice is escalated at all.
 - **Consultation as a task** reachable from the refine loop, not only from ingest.
