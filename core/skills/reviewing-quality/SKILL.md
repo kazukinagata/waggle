@@ -87,11 +87,15 @@ Compute the review-input hash over the normalized review input defined in `refer
 
 Read the task's `Quality Verdict` field. Parse using `references/cache-format.md`, and **keep the parsed format version** — the next step branches on it.
 
-Evaluate, in order:
+Evaluate on the parsed version, and note that **`v1` is handled differently per mode** — this is the whole of the migration window:
 
-1. Format version is `v1` → **version mismatch**, not a content-staleness result. A `v1` hash was computed over a different input and can never match. Fall through to live evaluation, and when reporting to the caller say the verdict predates the rubric change rather than implying someone edited the spec.
-2. Hash matches (and version is `v2`) → cache hit, return the cached verdict.
-3. Hash mismatch → cache stale, fall through to live evaluation.
+1. **Version `v2`** → compare against the v2 review-input hash. Match → cache hit, return it. Mismatch → cache stale.
+2. **Version `v1`** → the line was hashed over the legacy input (`Title|Description|AC|EP`, no `Context`, no rubric identifier), so it can never match a recomputed v2 hash. Do not read that as content staleness:
+   - In **`cache-only`** mode, validate it against the **legacy v1 hash** instead. A well-formed `v1` PASS whose legacy hash still matches is a **cache hit**: return it, with `format_version: 1`, so dispatch proceeds. This is required, not a courtesy — `cache-only` has no live fallback, so treating `v1` as a miss returns `UNREVIEWED` and strands every task that was already Ready before the upgrade, which is precisely what the migration window exists to prevent. If the legacy hash does *not* match, the spec changed after even that verdict, so it is genuinely stale → cache miss.
+   - In **`live`** and **`live, cache-aware`** modes, a `v1` line is never a hit. Fall through and produce a `v2` verdict. A caller already willing to pay for a live review is exactly where the upgrade should happen, and this is what makes the migration progress rather than sit still.
+3. **Any other version** → cache miss in every mode. Only two versions are defined; the hash behind an unknown one was computed over an unknown input.
+
+When surfacing a `v1` result to the caller, say the verdict predates the rubric change and will be re-reviewed by the daily sweep — not that someone edited the spec.
 
 There is no re-review throttle (the 7-day suppression mechanism was removed in v3.0.0): identical content is already deduplicated by the content hash, and every refine loop is gated on an explicit user choice at the caller, so re-reviews only happen when the user changed the spec and asked for one.
 

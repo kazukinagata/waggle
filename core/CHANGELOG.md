@@ -39,8 +39,12 @@ Four, and each of them changes behavior you may be relying on.
    bare line to `Context` is now a bug. Parsers must return the parsed version instead of
    discarding it. **Backlog → Ready requires a current `v2` PASS; Ready → In Progress and
    beyond still accept a legacy `v1` PASS** during the migration window, because dispatch
-   is cache-only and rejecting `v1` there would strand every existing Ready task. The
-   daily sweep and monitoring re-review `v1` Ready+ tasks progressively. Expect the Ready
+   is cache-only and rejecting `v1` there would strand every existing Ready task — so on
+   the cache-only path a `v1` line stays *usable*, validated against the legacy hash it was
+   produced under rather than the v2 hash it can never match. On any path that performs a
+   live review, `v1` is not a cache hit and a `v2` verdict is produced, so every caller that
+   pays for a review upgrades the task it touches. The daily sweep and monitoring sweep the
+   rest progressively. Expect the Ready
    Health Score to drop sharply right after upgrading and recover as the sweep runs;
    that is the migration surfacing itself, not new quality debt.
 

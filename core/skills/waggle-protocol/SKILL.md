@@ -329,9 +329,13 @@ indistinguishable from one produced under six.
 New verdict producers emit `v2` only; `v1` is never written again.
 
 Dispatch is cache-only and cannot fall back to a live review, so invalidating `v1`
-wholesale would make every existing Ready task undispatchable. The daily health check
-and monitoring re-review `v1` Ready+ tasks progressively instead, which is what makes
-this a migration window rather than a cutover.
+wholesale would make every existing Ready task undispatchable. A `v1` line is therefore
+still *usable* on the cache-only path, validated against the legacy hash it was produced
+under (`Title|Description|AC|EP`) rather than against the v2 hash it can never match. On
+any path that performs a live review, a `v1` line is not a hit and a `v2` verdict is
+produced instead — so every caller that pays for a review upgrades the task it touches,
+and the daily health check and monitoring sweep the rest. That is what makes this a
+migration window rather than a cutover.
 
 Accepted consequence: a task already at Ready keeps dispatching without ever having
 been evaluated on Fidelity, until the daily sweep reaches it.

@@ -90,9 +90,26 @@ Exactly two versions are defined, and **any other version is rejected at every g
 
 New verdict producers emit `v2` only; `v1` is never written again.
 
-A `v1` line's hash was computed over a different input (four components, no `Context`, no rubric identifier), so it can never match a recomputed `v2` hash. Treat a `v1` line as **version-mismatched, not content-stale** — the distinction matters when reporting to the user, because "re-review needed after the format change" is a different message from "someone edited the spec".
+### The legacy v1 hash
 
-Dispatch is cache-only and cannot fall back to a live review, so invalidating `v1` wholesale would make every existing Ready task undispatchable. The daily health check and `monitoring-tasks` re-review `v1` Ready+ tasks progressively instead.
+Retained for the migration window only, so a `v1` line can still be validated:
+
+```
+sha256("<Title>|<Description>|<Acceptance Criteria>|<Execution Plan>")[:8]
+```
+
+Four components, no `Context`, no rubric identifier. A `v1` line can therefore never match a recomputed `v2` hash — so a `v1` line is **version-mismatched, not content-stale**, and the distinction matters when reporting: "re-review needed after the format change" is a different message from "someone edited the spec".
+
+Never *produce* this hash. Compute it only to answer "does this legacy verdict still describe the current spec?".
+
+### How a v1 line is treated, by mode
+
+| Mode | A well-formed `v1` PASS |
+|---|---|
+| `cache-only` | Validate against the **legacy v1 hash**. Match → **cache hit**, usable; the caller dispatches. Mismatch → genuinely stale, cache miss. |
+| `live`, `live, cache-aware` | Never a hit. Produce a `v2` verdict. |
+
+The `cache-only` row is load-bearing. Dispatch is cache-only and cannot fall back to a live review, so treating `v1` as a miss there returns `UNREVIEWED` and makes every task that was already Ready before the upgrade undispatchable — the exact outcome this window exists to prevent. The `live` row is what makes the migration progress: every caller willing to pay for a review upgrades the task it touches, and the daily health check and `monitoring-tasks` sweep the rest progressively.
 
 ## Forward and backward compatibility
 
