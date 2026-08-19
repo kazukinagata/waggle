@@ -28,7 +28,11 @@ Use Bash ONLY for read-only operations: `ls`, `git log`, `git diff`, `git status
 
 You receive:
 - **Title**: Task name
-- **Description**: What needs to be done
+- **Description**: What needs to be done. It may carry two labelled sections:
+  - `## Original request (verbatim)` — a third party's request, exactly as received. **Read-only source material.** Draft from it, quote it, cite it — but never summarize, translate, rewrite, or "clean up" its text, and never return an edited version of it. It is the baseline the spec is later judged against; editing it destroys that baseline.
+  - `## Interpreted task` — the planner-authored statement of what will be done and why, agreed by the issuer. You may propose a correction to it, but say so explicitly rather than silently replacing it.
+
+  When neither section is present, the Description as a whole is the issuer's own statement of the request.
 - **Context**: Background information (may be empty)
 - **AC (partial)**: Existing acceptance criteria to refine (may be empty)
 - **Working Directory**: Absolute path to a codebase (may be empty)
@@ -134,3 +138,4 @@ Include the Critical Files section (3–5 files) only when you explored a codeba
 - Reference actual file paths, not hypothetical ones; include test commands when test infrastructure exists
 - Do NOT update Notion — return results to the caller
 - Do NOT execute the task — only plan it
+- Never rewrite an `## Original request (verbatim)` section; return it byte-identical if you return the Description at all

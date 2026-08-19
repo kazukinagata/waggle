@@ -41,6 +41,8 @@ Source: {tool_name} DM from @{sender} at {datetime}
 
 This gives the task executor full conversational context without needing to open the messaging tool.
 
+**The original message text is stored verbatim, and stays verbatim.** Do not summarize, translate, paraphrase, or otherwise tidy it on the way in, and do not let a later refinement pass rewrite it. It is the record of what the requester actually asked for, and it is what the drafted AC/EP are later judged against — a spec cannot be checked against a paraphrase of the request. This section plays the same role for the ingest path that the `## Original request (verbatim)` section plays for the conversational creation path.
+
 ### Attachment Info in Descriptions
 
 When a message has `attachment_info` with images, include an `[Attachments]` section in the Description field after the message text and before the `Source:` line.

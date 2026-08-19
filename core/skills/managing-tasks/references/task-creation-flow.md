@@ -142,6 +142,24 @@ Proactively gather the following through AskUserQuestion. Do not skip required f
 
 1. **Description**: Ask the user to describe the task in enough detail that a planning agent can research and draft a spec. If the description is vague (under ~50 tokens), ask follow-up questions: "What specifically needs to happen?", "What is the current state vs desired state?"
 
+   **When the request came from someone else, capture their words verbatim.** Ask whether the issuer is relaying a request from a third party. If so, the Description is written with two labelled sections:
+
+   ```
+   ## Original request (verbatim)
+   <the requester's text, exactly as received>
+
+   ## Interpreted task
+   <one or two sentences: what will be done and why>
+   ```
+
+   - The verbatim section is the requester's text, **unmodified** — no summarizing, translating, or rewriting, and the planning agent must not rewrite it either. It is what the Fidelity axis compares the drafted AC/EP against, so a "cleaned up" version defeats its purpose.
+   - It is **optional**: omit it when the issuer *is* the original requester, because then the Description is already the original. Whether to include it, and any masking of personal information inside it, is the issuer's call.
+   - The interpreted section states what will be done and why, explicitly labelled as authored by the planner and agreed by the issuer. It is not a place for requirements the requester did not state.
+
+   **Both sections must be written before the planning agent runs.** The review-input hash covers `Description`, so appending them after a verdict exists invalidates that verdict — and every later one produced against the old Description. This is a sequencing rule, not a formatting preference.
+
+   Placing this in `Description` rather than `Context` is deliberate: `Description` is a Core field, it is where the ingest path already stores the full original message text, and it puts the request and its interpretation side by side, which is the comparison a reader actually needs.
+
 2. **Context**: Ask "Is there any background information, constraints, or related context the executor should know?" (e.g., existing PRs, design docs, prior decisions, Slack threads). May be empty if user says "none".
 
 **Optional (offer, don't require):**
@@ -161,6 +179,7 @@ Before calling the provider's create API, verify ALL of the following have been 
 | # | Field | Confirmed? |
 |---|---|---|
 | 1 | Description (≥50 tokens, specific enough for a planning agent to research) | |
+| 1b | When relaying a third party's request: `## Original request (verbatim)` + `## Interpreted task` sections present in Description **before** planning runs | |
 | 2 | Acceptance Criteria (user-provided seed, or `[DRAFT-AC]` placeholder) | |
 | 3 | Execution Plan (user-provided seed, or `[DRAFT-EP]` placeholder) | |
 | 4 | Context (asked — may be empty if user says "none") | |
@@ -171,7 +190,7 @@ Before calling the provider's create API, verify ALL of the following have been 
 
 After collecting the seed, ask the user via AskUserQuestion:
 
-> **`[Create at Ready]`** — the planning agent will refine the AC/EP and the quality reviewer will validate before creation. Takes ~90 seconds.
+> **`[Create at Ready]`** — the planning agent will refine the AC/EP and the quality reviewer will validate before creation. How long this takes depends on the environment and on how many refine rounds the review triggers.
 >
 > **`[Create at Backlog]`** — create now with the seed as-is. Refine later with `/planning-tasks` before promoting to Ready.
 
@@ -192,7 +211,7 @@ The task can be promoted to Ready later via two routes:
 
 When the user chooses Ready, the planning agent refines the seed and the quality reviewer validates — all before the task is created. On a non-PASS verdict, **the user decides what happens next; never silently create the task.**
 
-1. **Refine**: spawn the `task-planning-agent` with the gathered Title, Description, Context, Executor, and any AC/EP seed text the user provided. The agent judges its own investigation mode (codebase exploration, domain planning, or both) from the task content — a Working Directory / Repository value is an investigation resource for it, not a routing key. The planning agent uses domain knowledge skills available in the session to research and draft agent-quality AC + Execution Plan. When the user provided seed AC/EP, the agent treats it as a starting point — incorporating the user's intent while enriching with specifics the agent discovers.
+1. **Refine**: spawn the `task-planning-agent` with the gathered Title, Description, Context, Executor, and any AC/EP seed text the user provided. When the Description carries an `## Original request (verbatim)` section, tell the agent it is read-only source material: the agent may draft from it but must return it byte-identical. The agent judges its own investigation mode (codebase exploration, domain planning, or both) from the task content — a Working Directory / Repository value is an investigation resource for it, not a routing key. The planning agent uses domain knowledge skills available in the session to research and draft agent-quality AC + Execution Plan. When the user provided seed AC/EP, the agent treats it as a starting point — incorporating the user's intent while enriching with specifics the agent discovers.
 2. **Review**: invoke the `reviewing-quality` skill in `live` mode on the refined spec. The task does not exist yet, so the deferred-write contract applies: hold the returned `verdict_string` and findings block in memory for the create payload.
 3. **Branch on the verdict**:
    - **PASS** → show the refined AC/EP to the user for confirmation.
