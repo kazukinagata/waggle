@@ -4,6 +4,122 @@ All notable changes to the Waggle project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## 4.0.0 — Intent fidelity — 2026-08-19
+
+Three field incidents showed the same failure shape: a task stopped being a record of
+what the issuer asked for. A 300-character external request became a 2,688-character
+task whose executor could not tell which lines were the issuer's. Text pasted as a
+formatting example became requirements — including a feature that does not exist and a
+person from an unrelated case — and it PASSed quality review. This release makes a task
+hold three properties: only statements that are true, whose authorship and verification
+status are distinguishable, and that a human can read.
+
+### Breaking changes
+
+Four, and each of them changes behavior you may be relying on.
+
+1. **`PASS` now means six axes, not five.** The Reviewer gains **Fidelity**: does the
+   AC/EP contradict the original request, introduce a proper noun or person without a
+   citable source, or commit to a material means the issuer never specified without the
+   alternatives having been surfaced. The first five axes all measure *clarity*, so a
+   clearly written fabrication satisfied every one of them. Specs that passed before may
+   not pass now — that is the intent.
+
+2. **Verdict cache format `v2`, with a changed hash definition.** The hash now covers
+   the normalized review input: `Title`, `Description`, `Acceptance Criteria`,
+   `Execution Plan`, **reviewer-visible `Context`**, and a rubric identifier. Two
+   consequences: **editing `Context` now invalidates a PASS** (it did not before, so a
+   citation or constraint could be changed while the verdict stood), and re-review volume
+   goes up. Managed blocks are stripped before hashing, so the findings block and the new
+   confirmation log remain harmless — but for a new reason, since `Context` is now inside
+   the hash rather than outside it. Parsers must return the parsed version instead of
+   discarding it. **Backlog → Ready requires a current `v2` PASS; Ready → In Progress and
+   beyond still accept a legacy `v1` PASS** during the migration window, because dispatch
+   is cache-only and rejecting `v1` there would strand every existing Ready task. The
+   daily sweep and monitoring re-review `v1` Ready+ tasks progressively. Expect the Ready
+   Health Score to drop sharply right after upgrading and recover as the sweep runs;
+   that is the migration surfacing itself, not new quality debt.
+
+3. **`[INFERRED]` is protocol-reserved and blocks Ready.** Its meaning changes from
+   "an inferred line, visible on a Ready task as an audit trail" to "an assertion nobody
+   has resolved yet". Tasks the ingest path individually accepted with inferred lines are
+   now created at **Backlog**, not Ready, and existing tasks carrying the prefix cannot be
+   promoted until the lines are confirmed or removed. `[LOW CONFIDENCE]` is removed
+   entirely; the planning agent's disengagement fallback uses `[NEEDS-REFINE]`.
+
+4. **Ready requires PASS — the documented "Save anyway" promotion is gone.**
+   `schema-and-transitions.md` described an override that promoted a non-PASS verdict to
+   Ready. That override never worked: Layer 1 rejects any supplied non-PASS verdict at
+   Ready and above, and downstream guards deny it too. The documentation was wrong, not
+   the enforcement. "Save anyway" now means Backlog plus the findings block.
+
+### Calibration was NOT measured for this release
+
+`waggle-protocol` § Calibration Requirement states that a release shipping the Reviewer
+MUST measure agreement against hand-labeled samples (recommended bar: ≥80% on 30 tasks),
+and a sixth axis is exactly the change that makes the previous measurement
+non-inheritable. **It was skipped as an explicit one-time exception decided by the
+project owner.** The requirement in the protocol was deliberately left unrelaxed. See
+`docs/calibration-results.md` § v4.0.0 for what is and is not known — in particular,
+Fidelity's false-positive rate on legitimate specs is unmeasured.
+
+### Added
+
+- **Fidelity axis** in `task-quality-reviewer-agent` and the Layer 2 table, with the
+  three questions it asks (contradiction, unsourced introduction, unsurfaced material
+  means), its scoring rule, and its comparison baseline.
+- **Source citation definition**: the issuer's own words, or a named reference carrying
+  identifier, section, the claim it supports, and a version or date for a mutable source.
+  One citation supports one assertion; a bare source name is not a citation.
+- **`## Original request (verbatim)` / `## Interpreted task`** sections in `Description`
+  on the conversational creation path, captured during Description collection — before
+  planning runs, since the hash covers `Description`. The verbatim section is optional
+  (omitted when the issuer *is* the requester) and read-only to the planning agent.
+- **Confirmation Log** managed block, recording that a line was adopted into the contract
+  rather than originally stated, without invalidating the verdict at the moment of
+  confirmation.
+- **Question taxonomy** (fact vs means, neither carrying a `(Recommended)` option) and
+  the **materiality test** that decides when a route choice is escalated at all.
+- **Consultation as a task** reachable from the refine loop, not only from ingest.
+- **Draft Metadata** returned by the planning agent (`requires_issuer_decision`,
+  `unresolved_lines`), so bulk approval can exclude flagged drafts before any review runs.
+- **Self-contained spec** requirement: an executor holding only the task's fields must be
+  able to tell what is required without opening an attachment.
+- Layer 1 rule `verdict_stale_format`. Test suite 38 → 52 cases.
+
+### Changed
+
+- **Bulk approval** in `planning-tasks` Phase 4 excludes drafts carrying an unresolved
+  marker or flagged by the planning agent's metadata. It was the last unguarded bulk path:
+  the reviewer ran in Phase 5, after the batch was already committed.
+- **Monitoring** tested only `Acceptance Criteria` for the substring `[DRAFT`. It now
+  tests all four reserved strings across **both** AC and EP — it was blind to a
+  `[NEEDS-REFINE]` line and to everything sitting in EP.
+- **The daily health check** selected only empty or non-PASS verdicts, so a task whose AC
+  was hand-edited while keeping an old PASS was invisible to it. It now also selects
+  stale-hash and legacy-format candidates.
+- **Delegation and assignment** keep their advisory override, but the prompt now states
+  that assignment is allowed while Ready stays blocked.
+- **Quoted or sample material** is a style exemplar, not a requirement — in the ingest
+  classification guide and the planning agent.
+- **Constructed source links are verified at construction** against thread data already
+  in hand, and recorded as unverified rather than stored when verification fails.
+- The `[Create at Ready]` prompt no longer promises "~90 seconds" (measured: 6m34s).
+
+### Providers
+
+- **waggle-notion 3.7.7** — the `Quality Verdict` column doc named `v1` as the format.
+  Corrected to `v2`, noting that `v1` lines on tasks promoted before core 4.0.0 still
+  exist and remain dispatchable. Documentation only; no schema change.
+- **waggle-sqlite / waggle-turso** — unchanged. Neither restates the cache format.
+
+### Not adopted
+
+An Open Questions field with a relaxed PASS condition; an authorship tag vocabulary in AC
+text; a mandatory "what and why" line inside AC; a `rubric=` trailing token instead of a
+format bump; a batch size cap; one extra link fetch per task before saving. Each is
+recorded with its reasoning in the protocol spec or the relevant skill.
+
 ## Turso is unsupported on Cowork, in both tables — 2026-08-19
 
 The provider compatibility tables disagreed. `provider-contract` § Environment Support
