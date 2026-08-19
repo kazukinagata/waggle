@@ -157,7 +157,7 @@ Reads the **contents** of a Notion files-type page property. The mirror of `noti
 |-----------|------|----------|-------------|
 | `page_id` | string | yes | Notion page UUID to read from |
 | `property_name` | string | yes | files-type property name (e.g., "Attachments") |
-| `names` | string[] | no | Display names to read. **Omit** to read every entry up to `max_files`; an explicitly empty list selects nothing. |
+| `names` | string[] | no | Display names to read. **Omit** to read every entry up to `max_files`; an explicitly empty list selects nothing. Must be an array of non-empty strings — a bare string is rejected rather than ignored, because ignoring it would silently widen the call from one file to `max_files` of them. |
 | `max_files` | number | no | Maximum entries to retrieve (default 5) |
 | `out_dir` | string | no | Directory for downloaded non-text files. Defaults to a **fresh private directory** created per invocation under the system temp dir. |
 | `metadata_only` | boolean | no | List entries without retrieving content (default `false`) |

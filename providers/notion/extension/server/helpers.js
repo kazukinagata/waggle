@@ -244,13 +244,39 @@ export function isTextualMime(mime) {
 
 // Validate notion-read-files-property input. Returns an error message string,
 // or null when valid.
-export function validateReadFilesInput({ page_id, property_name, max_files } = {}) {
+export function validateReadFilesInput({
+  page_id,
+  property_name,
+  names,
+  max_files,
+  out_dir,
+  metadata_only,
+} = {}) {
   if (!page_id) return "page_id is required.";
   if (!property_name) return "property_name is required.";
+  // names is validated rather than coerced. A plausible mistake — names: "spec.pdf"
+  // instead of ["spec.pdf"] — would otherwise be neither an array nor undefined, so
+  // the filter is skipped and the call silently widens from "read this one file" to
+  // "download the first max_files attachments". Widening an operation because its
+  // input was malformed is the wrong direction to fail in; refusing is not.
+  if (names !== undefined && names !== null) {
+    if (!Array.isArray(names)) {
+      return "names must be an array of strings (a bare string is not accepted: use [\"name\"]).";
+    }
+    if (names.some((n) => typeof n !== "string" || n.length === 0)) {
+      return "names must contain only non-empty strings.";
+    }
+  }
   if (max_files !== undefined) {
     if (typeof max_files !== "number" || !Number.isInteger(max_files) || max_files < 1) {
       return "max_files must be a positive integer.";
     }
+  }
+  if (out_dir !== undefined && out_dir !== null && (typeof out_dir !== "string" || out_dir.length === 0)) {
+    return "out_dir must be a non-empty string.";
+  }
+  if (metadata_only !== undefined && metadata_only !== null && typeof metadata_only !== "boolean") {
+    return "metadata_only must be a boolean.";
   }
   return null;
 }

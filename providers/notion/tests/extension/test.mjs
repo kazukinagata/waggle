@@ -336,6 +336,20 @@ check("max_files 0 rejected", /max_files/.test(validateReadFilesInput({ page_id:
 check("max_files non-integer rejected", /max_files/.test(validateReadFilesInput({ page_id: "p", property_name: "A", max_files: 1.5 })));
 check("max_files string rejected", /max_files/.test(validateReadFilesInput({ page_id: "p", property_name: "A", max_files: "3" })));
 check("max_files omitted is fine", validateReadFilesInput({ page_id: "p", property_name: "A" }) === null);
+// names is validated, not coerced. `names: "spec.pdf"` is a plausible mistake, and
+// accepting it skips the filter — silently widening "read this one file" into
+// "download the first max_files attachments". Failing in the widening direction on
+// malformed input is the wrong way round.
+check("bare string names rejected", /names must be an array/.test(validateReadFilesInput({ page_id: "p", property_name: "A", names: "spec.pdf" })));
+check("non-string element rejected", /non-empty strings/.test(validateReadFilesInput({ page_id: "p", property_name: "A", names: ["a", 7] })));
+check("empty-string element rejected", /non-empty strings/.test(validateReadFilesInput({ page_id: "p", property_name: "A", names: ["a", ""] })));
+check("object names rejected", /names must be an array/.test(validateReadFilesInput({ page_id: "p", property_name: "A", names: { 0: "a" } })));
+check("valid names array accepted", validateReadFilesInput({ page_id: "p", property_name: "A", names: ["a.txt"] }) === null);
+check("explicitly empty names array accepted", validateReadFilesInput({ page_id: "p", property_name: "A", names: [] }) === null);
+check("names null treated as omitted", validateReadFilesInput({ page_id: "p", property_name: "A", names: null }) === null);
+check("non-string out_dir rejected", /out_dir/.test(validateReadFilesInput({ page_id: "p", property_name: "A", out_dir: 5 })));
+check("non-boolean metadata_only rejected", /metadata_only/.test(validateReadFilesInput({ page_id: "p", property_name: "A", metadata_only: "yes" })));
+check("valid out_dir and metadata_only accepted", validateReadFilesInput({ page_id: "p", property_name: "A", out_dir: "/tmp/x", metadata_only: true }) === null);
 
 console.log("== read-files constants ==");
 check("inline text cap is 256KB", MAX_INLINE_TEXT_BYTES === 256 * 1024);
