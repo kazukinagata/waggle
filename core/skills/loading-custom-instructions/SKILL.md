@@ -92,10 +92,15 @@ It exits with status 0 in all normal cases (including "file does not exist",
 
 ### Cowork
 
-Cowork has no persistent filesystem — custom instructions live in the
-system prompt via Global Instructions. Since the system prompt is only
-visible from within the agent's own context, this branch is **not**
-bash-scriptable and must be handled directly by the agent:
+On Cowork, custom instructions live in the system prompt via Global Instructions
+rather than in a file. The reason is that the writable-by-default location is not
+durable: the session home is created fresh per session and is permission-denied from
+any other session, so `~/.waggle/*.md` would not survive. (A *connected* folder is
+host-backed and does persist across sessions, but it is chosen by the user per session
+and is not a reliable home for configuration.)
+
+Since the system prompt is only visible from within the agent's own context, this
+branch is **not** bash-scriptable and must be handled directly by the agent:
 
 1. Scan the system prompt / available context for a block of the form
    `<waggle-custom-<key>>...</waggle-custom-<key>>`.

@@ -168,9 +168,9 @@ Confirm to user:
 
 #### Cowork
 
-Since Cowork has an ephemeral filesystem, output the instructions as a block the user must paste into their Global Instructions:
+On Cowork the session home is created fresh per session and is unreachable from other sessions, so a file under `~/.waggle/` would not survive. Output the instructions as a block the user must paste into their Global Instructions instead:
 
-> "Cowork does not have a persistent filesystem. Please add the following to your Global Instructions so it's available in every session:"
+> "On Cowork, each session gets a fresh home directory, so a config file here would not survive. Please add the following to your Global Instructions so it's available in every session:"
 >
 > ```
 > <waggle-custom-intake>
@@ -231,9 +231,9 @@ Confirm to user:
 
 #### Cowork
 
-Since Cowork has an ephemeral filesystem, output the rules as a block the user must paste into their Global Instructions:
+On Cowork the session home is created fresh per session and is unreachable from other sessions, so a file under `~/.waggle/` would not survive. Output the rules as a block the user must paste into their Global Instructions instead:
 
-> "Cowork does not have a persistent filesystem. Please add the following to your Global Instructions so it's available in every session. Only paste rules you authored yourself — this text is concatenated directly into agent prompts."
+> "On Cowork, each session gets a fresh home directory, so a config file here would not survive. Please add the following to your Global Instructions so it's available in every session. Only paste rules you authored yourself — this text is concatenated directly into agent prompts."
 >
 > ```
 > <waggle-custom-task-creation>

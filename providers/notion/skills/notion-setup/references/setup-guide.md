@@ -248,9 +248,9 @@ Replace the placeholders with the actual IDs from Step 4.
 
 ### Cowork
 
-Cowork has no persistent local filesystem, so env-var writes are not durable. Instead, output a paste-ready block and ask the user to add it to their Global Instructions (mirroring the `<waggle-custom-intake>` / `<waggle-custom-task-creation>` pattern):
+On Cowork the session home is created fresh per session and is permission-denied from other sessions, so env-var writes to `~/.claude/settings.json` are not durable. Instead, output a paste-ready block and ask the user to add it to their Global Instructions (mirroring the `<waggle-custom-intake>` / `<waggle-custom-task-creation>` pattern):
 
-> "Cowork does not have a persistent filesystem. To skip the Notion config search on every session, please add the following to your Global Instructions:"
+> "On Cowork, each session gets a fresh home directory, so a config file here would not survive. To skip the Notion config search on every session, please add the following to your Global Instructions:"
 >
 > ```
 > <waggle-config>

@@ -60,6 +60,17 @@ In Cowork, the dashboard is a single Live Artifact (`id = "waggle-tasks"`) that 
 
 3. **Resolve the Notion-query MCP tool name.** Look through your available MCP tools and find the one whose unqualified name is `notion-query` and that comes from the notion-extension MCP (its full name typically looks like `mcp__notion-extension__notion-query`, but the exact prefix depends on the installed extension version's manifest — never hardcode it). Use that exact, full tool name as the 5th argument to the generator below **and** as the value in the `mcp_tools` array when calling `create_artifact` / `update_artifact`. If you cannot find such a tool, surface the failure to the user and stop — the artifact cannot operate without it.
 
+   **Selection rule — more than one Notion query tool is normally present.** A session
+   typically exposes two unrelated families at once: the notion-extension MCP's
+   `notion-query`, and the Notion connector's data-source tools (names like
+   `notion-query-data-sources`, `notion-fetch`). Only the notion-extension one is
+   correct here; the connector's tools take different parameters and are not what the
+   artifact's `callMcpTool` bridge expects. Select by **exact unqualified name equal to
+   `notion-query`** — not by prefix match, not by "the first tool with `notion` and
+   `query` in it", which would match `notion-query-data-sources`. If two tools both have
+   the exact unqualified name `notion-query`, surface the ambiguity to the user and stop
+   rather than guessing.
+
 4. Generate the bundled HTML. The 4th argument is the assignee Notion user ID; the 5th argument is the resolved MCP tool name from Step 3. The bundle will server-side filter to that assignee AND exclude Done/Cancelled at the Notion query layer:
 
    ```bash
@@ -121,7 +132,7 @@ In Cowork, the dashboard is a single Live Artifact (`id = "waggle-tasks"`) that 
 ### Cowork-mode behavior
 
 - The artifact bundles Kanban / List / Calendar / Gantt; the active tab is persisted per-user in `localStorage` (`waggle-tasks-active-tab-v1`).
-- Each artifact reload re-fetches via the resolved notion-query MCP tool (paginated, cap 1000 rows). The fetch is server-side filtered to the baked `assigneeUserId` and always excludes `Status == Done` / `Status == Cancelled`; the bundled `filter-bar.js` narrows further on the client. The status badge reads "Live (Cowork)" when the fetch succeeds. To switch the bound assignee, re-run `/viewing-tasks` with the new person's name — the skill regenerates and calls `update_artifact` with the new scope.
+- Each artifact reload re-fetches via the notion-extension `notion-query` tool resolved in Step 3 — the one baked into `mcp_tools`, not whichever Notion tool the session happens to list first (paginated, cap 1000 rows). The fetch is server-side filtered to the baked `assigneeUserId` and always excludes `Status == Done` / `Status == Cancelled`; the bundled `filter-bar.js` narrows further on the client. The status badge reads "Live (Cowork)" when the fetch succeeds. To switch the bound assignee, re-run `/viewing-tasks` with the new person's name — the skill regenerates and calls `update_artifact` with the new scope.
 - The artifact is **read-only**. Mutating Notion tools are deliberately not declared in `mcp_tools` yet; inline-edit UI will come in a later skill release and will widen `mcp_tools` via `update_artifact`.
 - **Cold-start race (GitHub Issue #55788)**: on either Windows or macOS the artifact's first call to `callMcpTool` may fail with HTTP 400 in a cold-start state. Workaround: ask the user to invoke any Notion MCP tool from the Cowork chat once before opening the artifact, then reload the panel.
 - Custom user-defined views are managed by the `managing-views` skill and registered as separate `waggle-view-<slug>` artifacts.
@@ -130,7 +141,11 @@ In Cowork, the dashboard is a single Live Artifact (`id = "waggle-tasks"`) that 
 
 - **"Cowork runtime unavailable" banner** in the artifact: the cold-start race fired. Reload the panel, or have the user run any Notion MCP tool from chat first.
 - **"Failed to load tasks: ..."**: open DevTools on the artifact panel (right-click → Inspect). Network tab shows the `callMcpTool` request; Console shows any JS errors. Verify the baked `databaseId` matches the active `tasksDatabaseId`.
-- **`Tool call failed: 400` from the artifact (with chat-mode calls succeeding)**: known Cowork-platform issue with extension tool prefixes that contain **underscores**. Isolation testing confirms the bridge accepts prefixes with uppercase letters (e.g. `mcp__EchoUpper__...` works) but rejects prefixes with underscores (e.g. `mcp__echo_lower_only__...` returns 400). The prefix is derived from the extension manifest's `display_name`; a manifest with a `display_name` containing whitespace gets normalized with whitespace converted to `_`, producing a prefix that the Live Artifact bridge currently rejects, even though chat-mode calls work. Mitigation: install notion-extension v0.5.0+ which drops `display_name` and yields a hyphenated `mcp__notion-extension__...` prefix that the bridge accepts. Older v0.4.x installs keep working from chat but not from Live Artifact.
+- **`Tool call failed: 400` from the artifact (with chat-mode calls succeeding)** — *historical observation; does not reproduce in current environments.* It was reported that the Live Artifact bridge rejects extension tool prefixes containing **underscores** while accepting uppercase ones (`mcp__EchoUpper__...` worked, `mcp__echo_lower_only__...` returned 400). The prefix derives from the extension manifest's `display_name`, and a `display_name` containing whitespace normalizes the whitespace to `_`, producing such a prefix.
+
+  The stated mitigation — install notion-extension v0.5.0+, which drops `display_name` and yields a hyphenated `mcp__notion-extension__...` prefix — is already in effect: every Notion tool prefix present in a current session is hyphen-only, so the failure condition no longer arises. Keep the version floor for that reason.
+
+  The underlying claim about the bridge is **untested** and is recorded here as history, not as a live hazard. If a 400 does appear, check the prefix for an underscore before assuming this is the cause, and look for the more common explanations first (the cold-start race above, or a stale baked `databaseId`).
 - **Dashboard shows stale data**: click the Cowork built-in ↻, which re-executes the artifact JS and re-fetches.
 - **Stale artifact (schema changed, wrong team, wrong assignee)**: re-run `/viewing-tasks` — the skill regenerates and calls `update_artifact` with the latest `databaseId` / team / assignee binding.
 - **"My dashboard is empty / shows the wrong person's tasks"**: the baked `assigneeUserId` may not match the user's expectations. Re-run `/viewing-tasks` (defaults to `current_user.id`) or `/viewing-tasks <name>` to scope to someone else. To see everyone, ask for an unscoped regeneration explicitly.

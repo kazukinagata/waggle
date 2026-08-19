@@ -268,7 +268,7 @@ Do not "simplify" this. Each clause carries a specific failure mode:
 Provider configuration is cached per execution environment so bootstrap can skip remote lookups on subsequent sessions:
 
 - **CLI / Claude Desktop**: environment variables in `~/.claude/settings.json` (under the `env` field).
-- **Cowork**: a `<waggle-config>{json}</waggle-config>` block in Global Instructions, since Cowork has no persistent local filesystem.
+- **Cowork**: a `<waggle-config>{json}</waggle-config>` block in Global Instructions. Cowork's session home is created fresh per session and is permission-denied from other sessions, so `~/.claude/settings.json` is not durable there. (A connected folder *is* host-backed and persists across sessions, but the user picks it per session, so it is not a dependable config location.)
 
 The legacy `~/.waggle/config.json` file is deprecated — use the `health-checking` skill to migrate.
 

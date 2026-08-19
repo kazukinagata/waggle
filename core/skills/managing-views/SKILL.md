@@ -57,6 +57,8 @@ In both modes the local HTML at `~/.waggle/views/<slug>.html` remains the canoni
 
 Before any `cowork` operation that calls `generate-cowork-custom-artifact.sh` or `create_artifact` / `update_artifact`, look through your available MCP tools and find the one whose unqualified name is `notion-query` and that comes from the notion-extension MCP. Its full name typically looks like `mcp__notion-extension__notion-query`, but the exact prefix depends on the installed extension version's manifest — never hardcode it. Use that exact, full tool name as the 6th argument to the generator **and** as the value in the `mcp_tools` array when registering the artifact with Cowork. If no such tool is available, surface the failure and stop — the artifact cannot operate without it. Subsequent sections refer to this as "the resolved notion-query tool name".
 
+**Selection rule — more than one Notion query tool is normally present.** A session typically exposes two unrelated families at once: the notion-extension MCP's `notion-query`, and the Notion connector's data-source tools (names like `notion-query-data-sources`, `notion-fetch`). Only the notion-extension one works here. Select by **exact unqualified name equal to `notion-query`** — not by prefix match, and not by "the first tool with `notion` and `query` in it", which would wrongly match `notion-query-data-sources`. If two tools both have the exact unqualified name `notion-query`, surface the ambiguity to the user and stop rather than guessing.
+
 ## Operations
 
 ### Create
