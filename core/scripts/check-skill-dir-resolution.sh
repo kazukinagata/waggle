@@ -43,6 +43,46 @@ COMMENT     = re.compile(r'^\s*#')
 USES_SD     = re.compile(r'\$\{?SKILL_DIR\b')
 FAIL_OPEN   = '# waggle-ci: fail-open'
 
+
+def strip_comment(line):
+    """Drop a trailing shell comment, leaving the code.
+
+    A bare `#` split is wrong here: the resolver itself contains `#` inside
+    `${SKILL_DIR#*/plugin_}`, which is the clause most worth checking. A comment `#`
+    is one that starts a word -- at line start or after whitespace -- while outside
+    quotes and outside `${...}`. Track those three states and cut at the first such
+    `#`, so a fragment hidden in a trailing comment cannot pass for real code.
+    """
+    sq = dq = False
+    depth = 0
+    prev = ' '
+    for i, c in enumerate(line):
+        if sq:
+            if c == "'":
+                sq = False
+        elif dq:
+            if c == '\\':
+                prev = c
+                continue
+            if c == '"':
+                dq = False
+            elif c == '{' and prev == '$':
+                depth += 1
+            elif c == '}' and depth:
+                depth -= 1
+        elif c == "'":
+            sq = True
+        elif c == '"':
+            dq = True
+        elif c == '{' and prev == '$':
+            depth += 1
+        elif c == '}' and depth:
+            depth -= 1
+        elif c == '#' and depth == 0 and (prev.isspace() or i == 0):
+            return line[:i]
+        prev = c
+    return line
+
 # Signature fragments of the canonical resolver body. Substring matches, so cosmetic
 # reflowing is tolerated but omitting a clause is not.
 REQUIRED = [
@@ -84,7 +124,7 @@ for path in sorted(pathlib.Path('.').rglob('*.md')):
         body = '\n'.join(l for _, l in block)
         # Comments must not satisfy the completeness or guard checks: a block that
         # deletes the resolver but describes it in a comment is still gutted.
-        code = '\n'.join(l for _, l in block if not COMMENT.match(l))
+        code = '\n'.join(strip_comment(l) for _, l in block if not COMMENT.match(l))
         assigns = [(n, m) for n, l in block for m in [CANONICAL.match(l)] if m]
 
         # (1) no unresolved use
@@ -119,7 +159,8 @@ for path in sorted(pathlib.Path('.').rglob('*.md')):
         if FAIL_OPEN in body:
             continue
 
-        guard_lines = [n for n, l in block if GUARD in l and not COMMENT.match(l)]
+        guard_lines = [n for n, l in block
+                       if not COMMENT.match(l) and GUARD in strip_comment(l)]
         if not guard_lines:
             flag(path, first_assign,
                  'no fail-closed guard (expected %s), and the block does not declare '
@@ -132,9 +173,10 @@ for path in sorted(pathlib.Path('.').rglob('*.md')):
         guard = guard_lines[0]
         resolver_frags = [frag for _, frag in REQUIRED] + [GUARD]
         for n, l in block:
-            if n >= guard or not USES_SD.search(l):
-                continue
             if CANONICAL.match(l) or COMMENT.match(l):
+                continue
+            l = strip_comment(l)
+            if n >= guard or not USES_SD.search(l):
                 continue
             if any(frag in l for frag in resolver_frags):
                 continue

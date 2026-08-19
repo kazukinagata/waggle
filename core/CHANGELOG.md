@@ -110,7 +110,10 @@ it, and CI enforces it in this repository.
      use, so nothing runs against an unchecked path. This catches a block that keeps
      the assignment but drops a clause, including the `#`-for-`##` substitution that
      would silently produce a broken path. Comments do not count toward completeness or
-     the guard, so a resolver deleted but *described* in a comment is still caught.
+     the guard — whole-line *and* trailing — so a resolver deleted but *described* in a
+     comment is still caught. Trailing comments are cut with a small shell-aware
+     scanner rather than a `#` split, because the resolver legitimately contains `#`
+     inside `${SKILL_DIR#*/plugin_}`, which is the clause most worth checking.
      Uses inside the resolver's own tests are recognised as such, so only the real
      invocation is subject to the ordering rule.
 
