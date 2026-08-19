@@ -266,6 +266,20 @@ check("compat IPv6 private -> refused", !isAllowedDownloadUrl("https://[::10.0.0
 check("real public IPv6 -> allowed", isAllowedDownloadUrl("https://[2606:4700::1111]/a"));
 check("febf is still link-local -> refused", !isAllowedDownloadUrl("https://[febf::1]/a"));
 check("fe70 is NOT link-local -> allowed", isAllowedDownloadUrl("https://[fe70::1]/a"));
+// NAT64 (RFC 6052 64:ff9b::/96, RFC 8215 64:ff9b:1::/48) is the fourth prefix that
+// carries an embedded IPv4 address. It is UNWRAPPED, not blocked: on an IPv6-only
+// network DNS64 hands back 64:ff9b::<v4> for a legitimate public IPv4 host, so
+// refusing the prefix would break downloads there. What must not pass is loopback
+// or the metadata address wearing it.
+check("NAT64 loopback -> refused", !isAllowedDownloadUrl("https://[64:ff9b::7f00:1]/a"));
+check("NAT64 loopback (dotted) -> refused", !isAllowedDownloadUrl("https://[64:ff9b::127.0.0.1]/a"));
+check("NAT64 metadata IP -> refused", !isAllowedDownloadUrl("https://[64:ff9b::169.254.169.254]/a"));
+check("NAT64 private -> refused", !isAllowedDownloadUrl("https://[64:ff9b::10.0.0.1]/a"));
+check("NAT64 local-use /48 loopback -> refused", !isAllowedDownloadUrl("https://[64:ff9b:1::7f00:1]/a"));
+check("NAT64 public IPv4 -> allowed (must not break IPv6-only networks)", isAllowedDownloadUrl("https://[64:ff9b::8.8.8.8]/a"));
+check("NAT64 local-use public -> allowed", isAllowedDownloadUrl("https://[64:ff9b:1::8.8.8.8]/a"));
+// A prefix that merely looks similar must not be swept up.
+check("64:ff9c:: is not NAT64 -> allowed", isAllowedDownloadUrl("https://[64:ff9c::7f00:1]/a"));
 check("IPv6 unspecified -> refused", !isAllowedDownloadUrl("https://[::]/a"));
 check("fe80-febf link-local range -> refused", !isAllowedDownloadUrl("https://[feb0::1]/a"));
 check("multicast -> refused", !isAllowedDownloadUrl("https://224.0.0.1/a"));
@@ -286,6 +300,9 @@ check("resolved IPv6 public -> allowed", !isBlockedAddress("2606:4700::1111"));
 check("172.32 is public -> allowed", !isBlockedAddress("172.32.0.1"));
 check("empty/undefined -> blocked (fail closed)", isBlockedAddress("") && isBlockedAddress(undefined));
 check("resolved compat-IPv6 metadata -> blocked", isBlockedAddress("::a9fe:a9fe"));
+check("resolved NAT64 loopback -> blocked", isBlockedAddress("64:ff9b::7f00:1"));
+check("resolved NAT64 public -> allowed", !isBlockedAddress("64:ff9b::8.8.8.8"));
+check("uncompressed NAT64 loopback -> blocked", isBlockedAddress("0064:ff9b:0:0:0:0:7f00:1"));
 check("resolved mapped-IPv6 loopback -> blocked", isBlockedAddress("::ffff:7f00:1"));
 check("zone id ignored", isBlockedAddress("fe80::1%eth0"));
 // A hostname is not an address: this predicate returns false and assertPublicHost

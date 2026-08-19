@@ -81,7 +81,7 @@ able to tell what is required without opening an attachment. This tool makes an 
 the reviewer judges the spec, not the attachment. The norm ships in core 4.0.0 alongside this,
 deliberately — the tool is the complement, not the substitute.
 
-Extension test suite 67 → 215 cases. **The extension must be repacked
+Extension test suite 67 → 226 cases. **The extension must be repacked
 (`npx @anthropic-ai/mcpb pack .`) and reinstalled** before the new tool appears.
 
 ## Turso is unsupported on Cowork, in both tables — 2026-08-19

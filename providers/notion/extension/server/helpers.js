@@ -357,8 +357,10 @@ export function filterByNames(entries, names) {
 // IPv4-compatible form `::127.0.0.1` to `::7f00:1` — neither of which matches a
 // naive `::ffff:` or `f[cd]`/`fe80`/`ff` test, so loopback and the cloud metadata
 // address both sailed through. Expanding to eight groups and testing the numbers
-// covers every spelling of every one of these at once, including the ones nobody
-// has thought of yet.
+// covers every spelling of every one of these at once. The prefixes that carry an
+// embedded IPv4 address are enumerated explicitly below rather than claimed to be
+// exhaustive — NAT64 was the fourth one found in this filter, and there is no
+// reason to assume it is the last.
 
 function isBlockedIpv4(a, b, c, d) {
   if ([a, b, c, d].some((o) => !Number.isInteger(o) || o < 0 || o > 255)) return true;
@@ -418,14 +420,27 @@ export function isBlockedAddress(addr) {
 
   const g = expandIpv6(host);
   if (g) {
-    // An IPv4 address embedded in the low 32 bits: IPv4-mapped (`::ffff:a.b.c.d`)
-    // and IPv4-compatible (`::a.b.c.d`) alike. `::` and `::1` land here too and are
-    // caught by the a === 0 rule. Judge it by the IPv4 rules, since that is the host
-    // it names.
-    const embedded =
-      g[0] === 0 && g[1] === 0 && g[2] === 0 && g[3] === 0 && g[4] === 0 &&
-      (g[5] === 0 || g[5] === 0xffff);
-    if (embedded) {
+    // An IPv4 address carried in the low 32 bits. Judge it by the IPv4 rules,
+    // because that is the host the address names. Three prefixes put it there:
+    //
+    //   ::a.b.c.d        IPv4-compatible   (high 96 zero, group 5 == 0)
+    //   ::ffff:a.b.c.d   IPv4-mapped       (high 96 zero, group 5 == 0xffff)
+    //   64:ff9b::/96     NAT64 well-known  (RFC 6052), plus the RFC 8215
+    //   64:ff9b:1::/48   local-use range
+    //
+    // `::` and `::1` land in the first case and are caught by the a === 0 rule.
+    //
+    // NAT64 is unwrapped rather than blocked outright: on an IPv6-only network a
+    // DNS64 resolver returns 64:ff9b::<v4> for a perfectly legitimate public IPv4
+    // host, so refusing the prefix would break downloads there. What must not pass
+    // is 64:ff9b::7f00:1 — loopback wearing that prefix — and unwrapping catches it
+    // for the same reason it catches ::ffff:7f00:1.
+    const lowZero = g[3] === 0 && g[4] === 0 && g[5] === 0;
+    const embeddedV4 =
+      (g[0] === 0 && g[1] === 0 && g[2] === 0 && g[3] === 0 && g[4] === 0 &&
+       (g[5] === 0 || g[5] === 0xffff)) ||
+      (g[0] === 0x0064 && g[1] === 0xff9b && (g[2] === 0 || g[2] === 1) && lowZero);
+    if (embeddedV4) {
       return isBlockedIpv4((g[6] >> 8) & 0xff, g[6] & 0xff, (g[7] >> 8) & 0xff, g[7] & 0xff);
     }
     if ((g[0] & 0xfe00) === 0xfc00) return true;   // fc00::/7  unique-local
