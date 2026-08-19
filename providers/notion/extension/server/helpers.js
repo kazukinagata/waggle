@@ -425,24 +425,41 @@ export function isBlockedAddress(addr) {
     //
     //   ::a.b.c.d        IPv4-compatible   (high 96 zero, group 5 == 0)
     //   ::ffff:a.b.c.d   IPv4-mapped       (high 96 zero, group 5 == 0xffff)
-    //   64:ff9b::/96     NAT64 well-known  (RFC 6052), plus the RFC 8215
-    //   64:ff9b:1::/48   local-use range
+    //   64:ff9b::/96     NAT64 well-known prefix (RFC 6052 §2.1)
     //
     // `::` and `::1` land in the first case and are caught by the a === 0 rule.
     //
-    // NAT64 is unwrapped rather than blocked outright: on an IPv6-only network a
-    // DNS64 resolver returns 64:ff9b::<v4> for a perfectly legitimate public IPv4
-    // host, so refusing the prefix would break downloads there. What must not pass
-    // is 64:ff9b::7f00:1 — loopback wearing that prefix — and unwrapping catches it
-    // for the same reason it catches ::ffff:7f00:1.
-    const lowZero = g[3] === 0 && g[4] === 0 && g[5] === 0;
+    // The NAT64 well-known prefix is unwrapped rather than blocked: on an IPv6-only
+    // network a DNS64 resolver returns 64:ff9b::<v4> for a perfectly legitimate
+    // public IPv4 host, so refusing the prefix would break downloads there. What
+    // must not pass is 64:ff9b::7f00:1 — loopback wearing that prefix — and
+    // unwrapping catches it for the same reason it catches ::ffff:7f00:1.
+    //
+    // Only /96 is unwrapped, and that is deliberate. RFC 6052 §2.2 stores the v4
+    // address contiguously in the low 32 bits ONLY at /96; at every shorter prefix
+    // length it is split around a mandatory-zero octet at bit 64. The well-known
+    // prefix is defined at /96 (§2.1), so /96 is the only length that can appear
+    // here without a network-specific prefix we could not know anyway.
     const embeddedV4 =
       (g[0] === 0 && g[1] === 0 && g[2] === 0 && g[3] === 0 && g[4] === 0 &&
        (g[5] === 0 || g[5] === 0xffff)) ||
-      (g[0] === 0x0064 && g[1] === 0xff9b && (g[2] === 0 || g[2] === 1) && lowZero);
+      (g[0] === 0x0064 && g[1] === 0xff9b && g[2] === 0 && g[3] === 0 && g[4] === 0 && g[5] === 0);
     if (embeddedV4) {
       return isBlockedIpv4((g[6] >> 8) & 0xff, g[6] & 0xff, (g[7] >> 8) & 0xff, g[7] & 0xff);
     }
+
+    // RFC 8215 reserves 64:ff9b:1::/48 for LOCAL-USE NAT64. Blocked wholesale
+    // rather than decoded.
+    //
+    // Two reasons. It is a /48, so the embedded v4 address is split around the u
+    // octet — loopback under it is 64:ff9b:1:7f00:0:100::, not 64:ff9b:1::7f00:1 —
+    // and an earlier version of this code reused the /96 shape here, which meant a
+    // genuinely encoded loopback fell straight through as allowed while only a
+    // hand-written form no real gateway produces was caught. And the prefix is
+    // local-use by definition: it is not globally routed, so unlike the well-known
+    // prefix there is no legitimate public host behind it to preserve access to.
+    // Refusing the range is both simpler and more correct than decoding it.
+    if (g[0] === 0x0064 && g[1] === 0xff9b && g[2] === 0x0001) return true;
     if ((g[0] & 0xfe00) === 0xfc00) return true;   // fc00::/7  unique-local
     if ((g[0] & 0xffc0) === 0xfe80) return true;   // fe80::/10 link-local
     if ((g[0] & 0xff00) === 0xff00) return true;   // ff00::/8  multicast

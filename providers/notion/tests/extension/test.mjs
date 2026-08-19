@@ -275,9 +275,20 @@ check("NAT64 loopback -> refused", !isAllowedDownloadUrl("https://[64:ff9b::7f00
 check("NAT64 loopback (dotted) -> refused", !isAllowedDownloadUrl("https://[64:ff9b::127.0.0.1]/a"));
 check("NAT64 metadata IP -> refused", !isAllowedDownloadUrl("https://[64:ff9b::169.254.169.254]/a"));
 check("NAT64 private -> refused", !isAllowedDownloadUrl("https://[64:ff9b::10.0.0.1]/a"));
-check("NAT64 local-use /48 loopback -> refused", !isAllowedDownloadUrl("https://[64:ff9b:1::7f00:1]/a"));
 check("NAT64 public IPv4 -> allowed (must not break IPv6-only networks)", isAllowedDownloadUrl("https://[64:ff9b::8.8.8.8]/a"));
-check("NAT64 local-use public -> allowed", isAllowedDownloadUrl("https://[64:ff9b:1::8.8.8.8]/a"));
+
+// RFC 8215's local-use prefix 64:ff9b:1::/48 is blocked WHOLESALE, not decoded.
+//
+// An earlier version of these tests asserted "64:ff9b:1::7f00:1" and got a pass —
+// but that is not how a /48 is encoded. RFC 6052 §2.2 stores the v4 address
+// contiguously in the low 32 bits only at /96; at /48 it is split around a
+// mandatory-zero octet at bit 64, so loopback is 64:ff9b:1:7f00:0:100::. The old
+// tests therefore only proved that a hand-written form nothing produces was caught,
+// while a real encoding fell through as allowed. These use the real encodings.
+check("RFC 8215 /48, real loopback encoding -> refused", !isAllowedDownloadUrl("https://[64:ff9b:1:7f00:0:100::]/a"));
+check("RFC 8215 /48, real metadata encoding -> refused", !isAllowedDownloadUrl("https://[64:ff9b:1:a9fe:0:a9fe::]/a"));
+check("RFC 8215 /48, real public encoding -> also refused (local-use is not routed)", !isAllowedDownloadUrl("https://[64:ff9b:1:808:0:808::]/a"));
+check("RFC 8215 /48, hand-written suffix form -> refused too", !isAllowedDownloadUrl("https://[64:ff9b:1::7f00:1]/a"));
 // A prefix that merely looks similar must not be swept up.
 check("64:ff9c:: is not NAT64 -> allowed", isAllowedDownloadUrl("https://[64:ff9c::7f00:1]/a"));
 check("IPv6 unspecified -> refused", !isAllowedDownloadUrl("https://[::]/a"));
