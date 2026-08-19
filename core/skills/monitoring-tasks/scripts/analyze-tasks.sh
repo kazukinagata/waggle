@@ -76,11 +76,25 @@ def extract_task:
       elif (($ep_text // "") | test("\\[(DRAFT-AC|DRAFT-EP|NEEDS-REFINE|INFERRED)\\]"; "i")) then "Execution Plan"
       else null end
     ),
-    # Verdict shape only: the verdict word and the format version. Deliberately NOT
-    # the content hash — see the Ready Health Score note in SKILL.md.
-    verdict_is_pass: (($verdict_text // "") | test("^PASS\\b")),
+    # Verdict shape only: is the line well-formed, is it a PASS, which format
+    # version. Deliberately NOT the content hash — see the Ready Health Score note
+    # in SKILL.md.
+    #
+    # The full cache-line shape is required before the verdict word or the version
+    # is trusted, using the same pattern Layer 1 enforces (lowercase 8-hex hash and
+    # all). Reading "PASS" and "v2" out of a line independently would count a
+    # hand-typed `PASS hash=nope @x v2` as healthy — and a verdict typed into the
+    # provider UI is exactly the bypass this report exists to surface.
+    has_verdict: ((($verdict_text // "") | test("\\S"))),
+    verdict_wellformed: (($verdict_text // "") | test("^(PASS|NEEDS_REFINEMENT|REJECT)\\s+hash=[0-9a-f]{8}\\s+@\\S+\\s+v[0-9]+(\\s+\\S+=\\S+)*\\s*$")),
+    verdict_is_pass: (
+      (($verdict_text // "") | test("^(PASS|NEEDS_REFINEMENT|REJECT)\\s+hash=[0-9a-f]{8}\\s+@\\S+\\s+v[0-9]+(\\s+\\S+=\\S+)*\\s*$"))
+      and (($verdict_text // "") | test("^PASS\\b"))
+    ),
     verdict_version: (
-      (($verdict_text // "") | capture("^\\S+\\s+hash=\\S+\\s+@\\S+\\s+v(?<v>[0-9]+)\\b") | .v | tonumber)? // null
+      if (($verdict_text // "") | test("^(PASS|NEEDS_REFINEMENT|REJECT)\\s+hash=[0-9a-f]{8}\\s+@\\S+\\s+v[0-9]+(\\s+\\S+=\\S+)*\\s*$"))
+      then ((($verdict_text // "") | capture("\\s+v(?<v>[0-9]+)\\b") | .v | tonumber)? // null)
+      else null end
     ),
     # Quality debt signals:
     # - Reserved placeholder: AC *or* EP contains any protocol-reserved string,
@@ -300,10 +314,18 @@ def executor_counts:
     # Ready tasks carrying a current-format PASS, over all Ready tasks.
     # Shape only: PASS and format v2. Hash freshness is NOT evaluated here — see
     # the note in SKILL.md for why this script must not reimplement the hash.
+    # The three buckets partition ready_total exactly. A well-shaped PASS carrying
+    # an unknown version (v3, v0) belongs in the unhealthy bucket, not outside all
+    # of them: validation rejects unknown versions, so leaving it uncounted would
+    # hide a direct provider edit behind buckets that no longer sum.
     ready_total: ($tasks_aged | map(select(.status == "Ready")) | length),
     ready_v2_pass: ($tasks_aged | map(select(.status == "Ready" and .verdict_is_pass and .verdict_version == 2)) | length),
     ready_legacy_v1_pass: ($tasks_aged | map(select(.status == "Ready" and .verdict_is_pass and .verdict_version == 1)) | length),
-    ready_non_pass_or_missing: ($tasks_aged | map(select(.status == "Ready" and ((.verdict_is_pass | not) or (.verdict_version == null)))) | length),
+    ready_non_pass_or_missing: ($tasks_aged | map(select(.status == "Ready" and (((.verdict_is_pass | not) or (.verdict_version == null)) or ((.verdict_version != 1) and (.verdict_version != 2))))) | length),
+    # Sub-count of the unhealthy bucket, not a fourth bucket: a Ready task whose
+    # verdict field is non-empty but does not parse at all. Worth naming separately
+    # because it means someone typed into the field.
+    ready_malformed_verdict: ($tasks_aged | map(select(.status == "Ready" and .has_verdict and (.verdict_wellformed | not))) | length),
     score_pct: (
       ($tasks_aged | map(select(.status == "Ready")) | length) as $t
       | if $t == 0 then null
