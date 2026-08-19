@@ -82,6 +82,9 @@ for path in sorted(pathlib.Path('.').rglob('*.md')):
         in_shell = False
 
         body = '\n'.join(l for _, l in block)
+        # Comments must not satisfy the completeness or guard checks: a block that
+        # deletes the resolver but describes it in a comment is still gutted.
+        code = '\n'.join(l for _, l in block if not COMMENT.match(l))
         assigns = [(n, m) for n, l in block for m in [CANONICAL.match(l)] if m]
 
         # (1) no unresolved use
@@ -108,14 +111,15 @@ for path in sorted(pathlib.Path('.').rglob('*.md')):
 
         # (3) complete and fail-closed
         for label, frag in REQUIRED:
-            if frag not in body:
+            if frag not in code:
                 flag(path, first_assign,
                      'resolver is incomplete -- missing %s' % label, frag)
 
+        # FAIL_OPEN is itself a comment, so it is matched against the full body.
         if FAIL_OPEN in body:
             continue
 
-        guard_lines = [n for n, l in block if GUARD in l]
+        guard_lines = [n for n, l in block if GUARD in l and not COMMENT.match(l)]
         if not guard_lines:
             flag(path, first_assign,
                  'no fail-closed guard (expected %s), and the block does not declare '

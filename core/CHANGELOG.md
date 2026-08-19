@@ -109,8 +109,10 @@ it, and CI enforces it in this repository.
      resolver body — both tiers — and a fail-closed guard, with the guard *before* the
      use, so nothing runs against an unchecked path. This catches a block that keeps
      the assignment but drops a clause, including the `#`-for-`##` substitution that
-     would silently produce a broken path. Uses inside the resolver's own tests are
-     recognised as such, so only the real invocation is subject to the ordering rule.
+     would silently produce a broken path. Comments do not count toward completeness or
+     the guard, so a resolver deleted but *described* in a comment is still caught.
+     Uses inside the resolver's own tests are recognised as such, so only the real
+     invocation is subject to the ordering rule.
 
   A site that must fail *open* instead — a best-effort convenience step, never a check
   or a write — declares itself with a `# waggle-ci: fail-open` comment. There is one:
