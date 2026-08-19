@@ -17,6 +17,7 @@ import {
   MAX_UPLOAD_BYTES,
   READABLE_MIME_TYPES,
   apiErrorDetail,
+  attachmentFilename,
   collectImageBlocks,
   describeFileEntry,
   filterByBlockIds,
@@ -27,7 +28,7 @@ import {
   isTextualMime,
   mimeForAttachment,
   mimeFromFilename,
-  safeFilename,
+  readCapped,
   scrubUrls,
   toWritableFiles,
   validateReadFilesInput,
@@ -358,7 +359,9 @@ async function handleReadFilesProperty(args) {
   const described = selected.map((entry, i) => describeFileEntry(entry, all.indexOf(entry) >= 0 ? all.indexOf(entry) : i));
 
   if (metadata_only) {
-    return {
+    // Same __content shape as the retrieval path: the dispatcher reads only that,
+    // so returning a bare object here answered with content: undefined.
+    const metaSummary = {
       ok: true,
       page_id,
       property_name,
@@ -367,14 +370,29 @@ async function handleReadFilesProperty(args) {
       files: described,
       skipped,
     };
+    return { __content: [{ type: "text", text: JSON.stringify(metaSummary) }] };
+  }
+
+  // If ANY selected hosted entry has an expired (or nearly expired) signed URL,
+  // re-retrieve the page once and remap every selected entry from the fresh list.
+  // Refreshing inside the loop only fixed the entry being looked at, so a second
+  // expired attachment in the same call was still reported as expired even though a
+  // usable URL had just been fetched.
+  if (selected.some((e) => hostedUrl(e) !== null && isExpired(e, Date.now()))) {
+    page = await notion.pages.retrieve({ page_id });
+    const fresh = page.properties?.[property_name]?.files ?? [];
+    selected = selected.map((entry, i) => {
+      const idx = described[i].index;
+      const byName = entry.name != null ? fresh.find((f) => f.name === entry.name) : undefined;
+      return byName ?? fresh[idx] ?? entry;
+    });
   }
 
   const results = [];
   const textParts = [];
-  let refreshed = false;
 
   for (let i = 0; i < selected.length; i += 1) {
-    let entry = selected[i];
+    const entry = selected[i];
     const meta = described[i];
 
     if (meta.source === "external") {
@@ -387,17 +405,6 @@ async function handleReadFilesProperty(args) {
     if (meta.source === "unknown") {
       results.push({ ...meta, retrieved: false, reason: `unrecognized entry type "${entry.type}"` });
       continue;
-    }
-
-    // Refresh the page once if any signed URL has expired (or is about to).
-    // Fetching a stale URL yields a 403 that reads like a permissions problem
-    // and is not one, so it is cheaper to re-mint than to explain.
-    if (isExpired(entry, Date.now()) && !refreshed) {
-      page = await notion.pages.retrieve({ page_id });
-      const fresh = page.properties?.[property_name]?.files ?? [];
-      const match = fresh.find((f) => f.name === entry.name) ?? fresh[meta.index];
-      if (match) entry = match;
-      refreshed = true;
     }
 
     const url = hostedUrl(entry);
@@ -422,23 +429,21 @@ async function handleReadFilesProperty(args) {
     try {
       downloaded = await downloadAttachment(url);
     } catch (error) {
+      if (error?.code === "attachment_too_large") {
+        results.push({
+          ...meta,
+          retrieved: false,
+          size_bytes: error.sizeBytes ?? null,
+          reason: `exceeds the ${MAX_DOWNLOAD_BYTES} byte download cap`,
+        });
+        continue;
+      }
       // Strip the URL from anything the fetch layer put in the message.
       results.push({ ...meta, retrieved: false, reason: `download failed: ${scrubUrls(error.message)}` });
       continue;
     }
 
     const mime = downloaded.mime || mimeForAttachment(meta.name);
-    if (downloaded.bytes.length > MAX_DOWNLOAD_BYTES) {
-      results.push({
-        ...meta,
-        retrieved: false,
-        mime_type: mime,
-        size_bytes: downloaded.bytes.length,
-        reason: `exceeds the ${MAX_DOWNLOAD_BYTES} byte download cap`,
-      });
-      continue;
-    }
-
     if (isTextualMime(mime)) {
       const truncated = downloaded.bytes.length > MAX_INLINE_TEXT_BYTES;
       const slice = truncated ? downloaded.bytes.subarray(0, MAX_INLINE_TEXT_BYTES) : downloaded.bytes;
@@ -459,7 +464,10 @@ async function handleReadFilesProperty(args) {
 
     const dir = out_dir ? resolve(out_dir) : join(tmpdir(), `notion-attachments-${page_id}`);
     await mkdir(dir, { recursive: true });
-    const filePath = join(dir, safeFilename(meta.name, meta.index));
+    // attachmentFilename prefixes the entry index: display names are not unique on a
+    // Notion files property, so two attachments with the same name would otherwise
+    // resolve to one path and the second would overwrite the first.
+    const filePath = join(dir, attachmentFilename(meta.name, meta.index));
     await writeFile(filePath, downloaded.bytes);
     results.push({
       ...meta,
@@ -500,8 +508,11 @@ async function downloadAttachment(url) {
       continue;
     }
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    const buffer = Buffer.from(await response.arrayBuffer());
-    return { bytes: buffer, mime: response.headers.get("content-type") };
+
+    // readCapped enforces the limit while reading rather than after buffering — see
+    // its comment for why that ordering is the whole point.
+    const bytes = await readCapped(response, MAX_DOWNLOAD_BYTES);
+    return { bytes, mime: response.headers.get("content-type") };
   }
   throw new Error("too many redirects");
 }

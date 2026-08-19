@@ -363,3 +363,70 @@ export function safeFilename(name, index) {
 export function scrubUrls(text) {
   return String(text ?? "").replace(/\bhttps?:\/\/\S+/gi, "[url redacted]");
 }
+
+// Error marking an attachment that exceeds the download cap. Distinguishable from
+// a transport failure so the caller reports the cap rather than a generic failure.
+export function tooLargeError(maxBytes, sizeBytes) {
+  const error = new Error(`attachment exceeds the ${maxBytes} byte cap`);
+  error.code = "attachment_too_large";
+  error.sizeBytes = sizeBytes;
+  return error;
+}
+
+// Read a fetch Response body into a Buffer, enforcing maxBytes *while reading*.
+//
+// The cap has to be applied before the bytes are held, not after. Buffering the
+// whole body and checking its length afterwards lets an oversized attachment
+// exhaust this process's memory despite the advertised limit — the check would run
+// only once the damage was done. Content-Length is consulted first because it lets
+// us refuse without reading anything, but it is optional and self-reported, so the
+// streaming limit is what actually enforces the cap.
+export async function readCapped(response, maxBytes) {
+  // A missing header must read as "unknown", not as zero: Number(null) is 0, which
+  // is finite, so a naive conversion makes an absent Content-Length look like a
+  // declared length of 0 — and the no-stream fallback below would then buffer an
+  // unbounded body believing it had been told the size was safe.
+  const rawLength = response.headers?.get?.("content-length");
+  const declared = rawLength == null || rawLength === "" ? Number.NaN : Number(rawLength);
+  if (Number.isFinite(declared) && declared > maxBytes) throw tooLargeError(maxBytes, declared);
+
+  const body = response.body;
+  if (!body || typeof body.getReader !== "function") {
+    // No stream: buffering is only safe when a declared length says it is.
+    if (!Number.isFinite(declared)) {
+      throw new Error("response has neither a readable stream nor a Content-Length");
+    }
+    const buffer = Buffer.from(await response.arrayBuffer());
+    if (buffer.length > maxBytes) throw tooLargeError(maxBytes, buffer.length);
+    return buffer;
+  }
+
+  const reader = body.getReader();
+  const chunks = [];
+  let total = 0;
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      total += value.byteLength;
+      if (total > maxBytes) {
+        await reader.cancel().catch(() => {});
+        throw tooLargeError(maxBytes, total);
+      }
+      chunks.push(Buffer.from(value));
+    }
+  } finally {
+    reader.releaseLock?.();
+  }
+  return Buffer.concat(chunks);
+}
+
+// Path-safe, collision-resistant filename for a downloaded attachment. The entry
+// index prefixes the name because display names are not unique on a Notion files
+// property: two attachments called "spec.pdf" would otherwise resolve to one path,
+// so the second download would overwrite the first and both results would point at
+// the same file. It also makes clobbering an unrelated pre-existing file in a
+// caller-supplied out_dir far less likely.
+export function attachmentFilename(name, index) {
+  return `${String(index).padStart(2, "0")}-${safeFilename(name, index)}`;
+}

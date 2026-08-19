@@ -181,15 +181,15 @@ A Notion-hosted entry resolves to a pre-signed storage URL. Possession *is* auth
 
 - **The URL is never returned.** Not in the result, not in an error message, not in a log line. Entries are identified by name and index. Download errors are scrubbed of any URL before they surface, because the fetch layer routinely embeds the failing URL in its own messages.
 - **The Notion token is never sent to it.** The URL points at Notion's storage host, not `api.notion.com`; the signature is the authorization, and attaching a bearer token would hand the integration credential to a host with no business holding it.
-- **Expiry is checked before fetching**, with a 60s skew so a download does not fail mid-transfer. An expired URL triggers **one** page re-retrieval to mint a fresh one, rather than a 403 that reads like a permissions problem and is not one.
+- **Expiry is checked before fetching**, with a 60s skew so a download does not fail mid-transfer. If any selected entry has an expired URL, the page is re-retrieved **once** and *every* selected entry is remapped from the fresh list — refreshing only the entry being looked at left a second expired attachment in the same call reported as expired despite a usable URL having just been fetched.
 - **Redirects are followed manually**, up to 5 hops, re-checking each: https only, and never to a loopback, private, link-local, or CGNAT address. The first URL comes from Notion; a redirect target does not.
 - **Display names never decide the path.** A name like `../../etc/passwd` is reduced to its basename before it is joined with `out_dir`.
 
 ### Delivery
 
 - **Text-bearing** (`text/*`, `application/json`, `application/xml`, yaml): returned inline as content, capped at 256KB with truncation reported in the summary. A 40MB log must not silently become 40MB of context.
-- **Everything else**: written under `out_dir`; only the local path is returned. A PDF or spreadsheet inlined as bytes costs tokens without conveying the file.
-- Entries over 50MB, unrecognized entry types, and requested `names` that match nothing are listed in `skipped` with a reason instead of being silently dropped.
+- **Everything else**: written under `out_dir`; only the local path is returned. A PDF or spreadsheet inlined as bytes costs tokens without conveying the file. The filename is prefixed with the entry index (`00-spec.pdf`), because display names are not unique on a Notion files property — two entries called `spec.pdf` would otherwise resolve to one path and the second download would overwrite the first.
+- Entries over 50MB, unrecognized entry types, and requested `names` that match nothing are reported with a reason instead of being silently dropped. The size cap is enforced **while reading** — refused up front on a declared `Content-Length`, and otherwise stopped mid-stream — so an oversized attachment cannot exhaust the extension process's memory on its way to being rejected.
 
 The response is a JSON summary followed by one text part per inline file:
 

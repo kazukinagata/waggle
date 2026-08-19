@@ -9,6 +9,7 @@ import {
   MAX_UPLOAD_BYTES,
   READABLE_MIME_TYPES,
   apiErrorDetail,
+  attachmentFilename,
   collectImageBlocks,
   describeFileEntry,
   filterByBlockIds,
@@ -20,6 +21,7 @@ import {
   mimeForAttachment,
   mimeFromFilename,
   normalizeId,
+  readCapped,
   safeFilename,
   scrubUrls,
   toWritableFiles,
@@ -292,6 +294,80 @@ check("max_files omitted is fine", validateReadFilesInput({ page_id: "p", proper
 console.log("== read-files constants ==");
 check("inline text cap is 256KB", MAX_INLINE_TEXT_BYTES === 256 * 1024);
 check("download cap is 50MB", MAX_DOWNLOAD_BYTES === 50 * 1024 * 1024);
+
+console.log("== attachmentFilename ==");
+// Display names are not unique on a Notion files property. Two entries called
+// "spec.pdf" must not resolve to one path, or the second download overwrites the
+// first and both results point at the same file.
+check("index prefixes the name", attachmentFilename("spec.pdf", 0) === "00-spec.pdf");
+check("same name, different index -> different path", attachmentFilename("spec.pdf", 0) !== attachmentFilename("spec.pdf", 1));
+check("traversal still stripped", attachmentFilename("../../etc/passwd", 3) === "03-passwd");
+check("empty name still gets a filename", attachmentFilename("", 4) === "04-attachment-4");
+check("index zero-padded for sort order", attachmentFilename("a.bin", 7).startsWith("07-"));
+
+console.log("== readCapped ==");
+// Build a Response-like object with a real ReadableStream body.
+function fakeResponse(chunks, headers = {}) {
+  const encoded = chunks.map((c) => (typeof c === "string" ? Buffer.from(c) : c));
+  let i = 0;
+  return {
+    headers: { get: (k) => headers[k.toLowerCase()] ?? null },
+    body: {
+      getReader: () => ({
+        read: async () => (i < encoded.length ? { done: false, value: encoded[i++] } : { done: true }),
+        cancel: async () => {},
+        releaseLock: () => {},
+      }),
+    },
+    arrayBuffer: async () => Buffer.concat(encoded),
+  };
+}
+async function throws(fn, code) {
+  try {
+    await fn();
+    return false;
+  } catch (error) {
+    return code ? error.code === code : true;
+  }
+}
+
+const smallBody = await readCapped(fakeResponse(["hello ", "world"]), 1024);
+check("streams a small body", smallBody.toString() === "hello world");
+check("no content-length needed when a stream is present", smallBody.length === 11);
+
+// A declared length over the cap is refused before a byte is read.
+check(
+  "declared content-length over cap -> attachment_too_large",
+  await throws(() => readCapped(fakeResponse(["x"], { "content-length": "999999" }), 10), "attachment_too_large")
+);
+
+// The streaming limit is what actually enforces the cap: Content-Length is optional
+// and self-reported, so a body that lies about (or omits) its size must still be
+// stopped mid-read rather than buffered in full and measured afterwards.
+check(
+  "stream exceeding cap with no content-length -> attachment_too_large",
+  await throws(() => readCapped(fakeResponse(["aaaaa", "bbbbb", "ccccc"]), 8), "attachment_too_large")
+);
+check(
+  "stream exceeding cap while UNDER-declaring its length -> still stopped",
+  await throws(() => readCapped(fakeResponse(["aaaaa", "bbbbb"], { "content-length": "2" }), 8), "attachment_too_large")
+);
+// Exactly at the cap is allowed; one byte over is not.
+check("body exactly at the cap is accepted", (await readCapped(fakeResponse(["12345678"]), 8)).length === 8);
+check(
+  "body one byte over the cap is rejected",
+  await throws(() => readCapped(fakeResponse(["123456789"]), 8), "attachment_too_large")
+);
+// No stream and no length: there is no safe way to buffer, so refuse rather than
+// read an unbounded body.
+check(
+  "no stream and no content-length -> refused, not buffered",
+  await throws(() => readCapped({ headers: { get: () => null }, arrayBuffer: async () => Buffer.from("x") }, 10))
+);
+check(
+  "no stream but a safe content-length -> buffered",
+  (await readCapped({ headers: { get: (k) => (k === "content-length" ? "3" : null) }, arrayBuffer: async () => Buffer.from("abc") }, 10)).toString() === "abc"
+);
 
 console.log("");
 console.log(`PASS=${PASS} FAIL=${FAIL}`);
