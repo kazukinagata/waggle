@@ -118,16 +118,20 @@ Record `blocked_review_result` — e.g., "2 unblocked → Ready, 3 still blocked
 
 Catch tasks that reached Ready (or beyond) without going through the v2.8.0 quality gates — typically Notion UI direct edits, legacy tasks created before the upgrade, or bypassed paths.
 
-1. Query Ready / In Progress / In Review tasks owned by the user where any of the following holds:
-   - `Quality Verdict` is empty, or
-   - the cached `verdict` is `NEEDS_REFINEMENT` / `REJECT`, or
-   - the cached verdict's **format version is not `v2`** (a legacy `v1` line was produced under the five-axis rubric and never evaluated on Fidelity), or
-   - the cached verdict's **hash does not match** the task's current review input (a hand-edited spec holding an old PASS).
+1. Query **all** Ready / In Progress / In Review tasks owned by the user, skipping only those tagged `worthiness:calendar-like` or `worthiness:info-only` (already classified as non-task).
 
-   The last two are what make this a migration rather than a cutover: `v1` Ready+ tasks keep dispatching, and this sweep re-reviews them progressively. Without them a task whose AC was edited in the provider UI while keeping an old PASS is invisible to this check — a selection on "empty or non-PASS" alone never sees it.
-   - Skip tasks tagged `worthiness:calendar-like` or `worthiness:info-only` (already classified as non-task).
-2. If 0 results: set `quality_health_result = "skipped (all Ready+ tasks have a current v2 PASS verdict)"` and proceed to Step 3.
-3. Invoke the `reviewing-quality` skill in **live, cache-aware** mode for the selected tasks (batch). The skill internally fans out 5 Reviewer agents per chunk and writes verdicts to `Quality Verdict` automatically. Most tasks return quickly from cache; only the truly unreviewed ones pay the live LLM cost.
+   **Do not narrow this query by verdict.** It is tempting to select only tasks whose `Quality Verdict` is empty or non-PASS, and that is what the pre-v4.0.0 version did — but it makes the two cases this sweep exists for invisible:
+
+   - a task whose spec was hand-edited in the provider UI while keeping a matching-looking PASS, and
+   - a task holding a legacy `v1` PASS.
+
+   Neither is detectable from a provider query. Deciding the first requires reading several fields, stripping the machine-written `Context` blocks, normalizing, and computing SHA-256 — none of which a query language does. Filtering on the verdict *string* would exclude exactly the tasks that look healthy and are not.
+
+2. Hand the whole set to the `reviewing-quality` skill in **live, cache-aware** mode (batch). That skill owns the normalization and the hash, so it — not this one, and not the provider query — decides which tasks are current. Passing everything is cheap: a task with a current `v2` PASS returns from cache with no LLM call, so the cost scales with the number of *stale* tasks, not with the size of the board. The skill fans out 5 Reviewer agents per chunk and writes the new verdicts itself.
+
+   This is also the deliberate reason not to recompute the hash here. One implementation of it exists; a second one, kept in step by hand, would drift, and a drifted hash reports fresh tasks as stale and stale tasks as fresh rather than failing loudly.
+
+3. If the batch reports every task as a current cache hit: set `quality_health_result = "skipped (all Ready+ tasks have a current v2 PASS verdict)"` and proceed to Step 3.
 4. After the batch returns, sort by `verdict` and present **the 5 oldest non-PASS tasks** (avoid choice overload):
    ```
    Ready+ tasks with quality concerns (showing 5 oldest of N):
