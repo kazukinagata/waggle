@@ -15,13 +15,19 @@ Waggle runs in three runtime environments. Provider plugins MAY need to adjust b
      `mcp__cowork__request_cowork_directory`) or
      `mcp__cowork-onboarding__*`
   3. Legacy: `CLAUDE_CODE_IS_COWORK=1` is set on the host. **Note:** Bash
-     subshells in Cowork run in an isolated sandbox that does not inherit
-     host env vars, so `echo "$CLAUDE_CODE_IS_COWORK"` typically returns
-     empty even on Cowork. This signal is a **positive hint when present**,
-     never a negative result when absent.
+     runs in a separate environment on Cowork and does not inherit the host's
+     `CLAUDE_*` variables, so `echo "$CLAUDE_CODE_IS_COWORK"` returns
+     empty even on Cowork — confirmed for every `CLAUDE_*` variable. This
+     signal is a **positive hint when present**, never a negative result
+     when absent. The rule is not absolute for *all* variables: temp-directory
+     variables such as `TMPDIR` are present, so absence of a variable is not by
+     itself proof of the environment.
 - **Skill discovery**: Provider skills appear in the `<available_skills>` system prompt block with `<name>`, `<description>`, and `<location>` tags
 - **Parallel execution**: Scheduled Tasks
-- **Characteristics**: Cloud-hosted agent environment. No local filesystem persistence between sessions. MCP tools are available.
+- **Characteristics**: the agent loop runs natively on the host; code execution
+  happens in an isolated Linux VM. Persistence is two-layered — the session home is
+  per-session and unreachable from other sessions, while a connected folder is
+  host-backed and does survive across sessions. MCP tools are available.
 
 ### Claude Desktop
 
@@ -64,12 +70,18 @@ may also be set on Cowork.
 ### Why three signals
 
 The legacy `CLAUDE_CODE_IS_COWORK=1` heuristic alone is not reliable. Bash
-subshells in Cowork run in an isolated sandbox that does not inherit host
-environment variables, so `echo "$CLAUDE_CODE_IS_COWORK"` returns empty even
+runs in a separate environment on Cowork that does not inherit the host's
+`CLAUDE_*` variables, so `echo "$CLAUDE_CODE_IS_COWORK"` returns empty even
 when the host process is in Cowork mode. Falling through to CLI would
 silently break: provider discovery would look for the wrong files, the
 default executor recommendation would be wrong, and parallel execution
-would suggest tmux (which is not available on Cowork).
+would suggest tmux parallelism, which Waggle does not offer on Cowork.
+
+**On tmux specifically:** `tmux` *is* installed in Cowork's execution VM — the
+long-standing claim that it is unavailable was wrong. Waggle still does not offer tmux
+parallelism there, for a different reason: whether a pane created inside the VM is
+visible to the user is unverified, and a parallel mode whose panes nobody can see is
+worse than no parallel mode. Do not enable it on the strength of tmux merely existing.
 
 Signals 1 and 2 are LLM-introspection — the agent inspects its own system
 prompt and available-tools list, which are not affected by the Bash sandbox.
@@ -84,7 +96,7 @@ env-var check.
 |---|---|---|---|---|
 | Notion | Yes | Yes | Yes | Requires Notion MCP tools in all environments |
 | Turso | Yes | Yes | Yes | Requires `TURSO_URL` and `TURSO_AUTH_TOKEN` env vars |
-| SQLite | Yes | Yes | No | Local file not accessible from Cowork |
+| SQLite | Yes | Yes | No | `sqlite3` is absent from Cowork's execution VM, and a local DB file on the host is not reachable from it |
 
 ## Provider Considerations by Environment
 
@@ -94,12 +106,42 @@ MCP tools (e.g., `notion-update-page`) are available in all three environments. 
 
 ### Script Execution
 
-Bash scripts can run in CLI and Claude Desktop. In Cowork, script execution depends on the agent's sandbox capabilities. Providers SHOULD prefer MCP tools over scripts when possible for maximum compatibility.
+Bash scripts run in all three environments, but not always in the same filesystem as
+the agent loop.
+
+- **CLI / Claude Desktop**: the agent loop and Bash share one filesystem. A path the
+  agent has is a path the shell can open.
+- **Cowork**: two privileged environments. The agent loop runs natively on the host
+  (Read, Grep, Glob, Skill, MCP); code execution happens in an isolated Linux VM
+  (Bash). The same plugin therefore exists at unrelated paths in each, and only the
+  `plugin_<id>/skills/<name>` tail is common to them. Scripts themselves are present
+  and executable in the VM — mounted read-only under
+  `/sessions/<session>/mnt/.remote-plugins/`, byte-identical to the host copy — so the
+  constraint is addressing, not availability.
+
+Consequently a skill MUST resolve `${CLAUDE_SKILL_DIR}` in the shell before invoking a
+bundled script, in the same shell invocation, and MUST fail closed if resolution does
+not land on the expected file. See the `provider-contract` skill,
+§ Resolving the Skill Directory, for the canonical resolver.
+
+Tool availability in the Cowork VM, as measured: `tmux` and `jq` are present;
+`sqlite3` is not.
+
+Providers MAY still prefer MCP tools over scripts, since an MCP tool needs no path
+resolution at all.
 
 ### File System Access
 
 - **CLI / Claude Desktop**: Full local filesystem access. SQLite databases, local config files, and script execution all work.
-- **Cowork**: Limited filesystem. Local-only providers (SQLite) are not supported. Cloud-backed providers (Notion, Turso) work via API/MCP tools.
+- **Cowork**: two layers, with different persistence.
+  - The **session home** is created fresh per session, and another session's home is
+    permission-denied. Nothing written there survives or is shared.
+  - A **connected folder** is host-backed and mounted into the VM, so writes there do
+    survive across sessions. Concurrent access to one connected folder from two
+    sessions is untested — do not rely on it for locking.
+
+  Local-only providers (SQLite) are not supported regardless: `sqlite3` is not
+  installed in the VM. Cloud-backed providers (Notion, Turso) work via API/MCP tools.
 
 ### Environment Variables
 

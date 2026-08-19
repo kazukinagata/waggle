@@ -59,13 +59,39 @@ The only stable public contract is the frontmatter (name + description); agents 
 
 Plugin-level subagents under `agents/` (e.g. `task-planning-agent`, `task-quality-reviewer-agent`, `task-agent`) are **not** skill internals — they are a stable public interface of the plugin, and any skill may spawn them by name (multiple skills already do). Renaming an agent is a breaking change to that interface and requires updating every referencing skill in the same commit.
 
-A skill is always free to reference its own files. For self-references, use the official Claude Code runtime variable `${CLAUDE_SKILL_DIR}`, which the runtime automatically resolves to the directory containing the current skill's SKILL.md:
-
-```bash
-bash ${CLAUDE_SKILL_DIR}/scripts/my-script.sh
-```
+A skill is always free to reference its own files. For self-references, use the official Claude Code runtime variable `${CLAUDE_SKILL_DIR}`, which the runtime resolves to the directory containing the current skill's SKILL.md.
 
 Avoid `${CLAUDE_PLUGIN_ROOT}/skills/<self-name>/scripts/...` for self-references — it hardcodes the skill name and breaks silently on rename or relocation.
+
+**Reading** a bundled file with Read, Glob, or Grep needs nothing further — those tools operate in the agent loop's own filesystem, which is where `${CLAUDE_SKILL_DIR}` points.
+
+**Executing** a bundled file through the shell does. `${CLAUDE_SKILL_DIR}` is substituted when the skill loads, and the value is an agent-loop path; on runtimes where code execution happens elsewhere (Cowork runs the agent loop natively on the host and Bash in an isolated Linux VM) that path does not exist for the shell. So `bash ${CLAUDE_SKILL_DIR}/scripts/my-script.sh` is **forbidden** — it fails there every time, and the observed failure mode is worse than an error: the agent cannot find the script, silently substitutes an improvised equivalent, and a deterministic check never runs.
+
+Resolve the directory in shell first, with the canonical three-tier resolver defined in the `provider-contract` skill (§ Resolving the Skill Directory) — convert the path, then a scoped search, then fail closed:
+
+```bash
+SCRIPT=scripts/my-script.sh; SKILL_DIR="${CLAUDE_SKILL_DIR}"
+if [ ! -d "$SKILL_DIR" ]; then _S="${PWD%%/mnt/*}"; _R="$_S/mnt/.remote-plugins"
+  case "$SKILL_DIR" in */plugin_*) _P="plugin_${SKILL_DIR#*/plugin_}"; SKILL_DIR="$_R/$_P"
+    if [ ! -f "$SKILL_DIR/$SCRIPT" ]; then _M=$(find "$_R/${_P%%/*}" -path "*/$SCRIPT" 2>/dev/null)
+      [ "$(printf %s "$_M" | grep -c .)" = 1 ] && SKILL_DIR="${_M%/$SCRIPT}"; fi ;;
+  esac
+fi
+[ -f "$SKILL_DIR/$SCRIPT" ] || { echo "waggle: skill directory unresolved; $SCRIPT not found. Operation not performed." >&2; exit 1; }
+bash "$SKILL_DIR/$SCRIPT"
+```
+
+Copy it whole. An abbreviated version is worse than none — the elided clauses are the ones that keep a failure from becoming a wrongly-resolved path.
+
+Three rules apply wherever it is used, and `provider-contract` is the normative source for all of them:
+
+- Resolution and invocation MUST sit in the **same** Bash call. Each Bash call is a fresh process, so a resolver placed once at the top of a section does not apply to the commands below it.
+- The block is a **template**: `SCRIPT` names *this* script. A block copied between skills with another skill's script name resolves the wrong directory.
+- Failure MUST **fail closed**: report that the operation was not performed. Never reimplement a bundled script's logic in the model — an improvised validator does not error, it returns a plausible answer.
+
+The rule covers every shell command that reaches a bundled file, not just `bash` — `cd`, `source`, and command substitution alike.
+
+Never feed a shell-emitted path back into a later shell command. On Cowork, listing files under a connected folder from the shell prints host paths, not the VM paths the shell itself can open. Recompute paths instead of round-tripping them through command output.
 
 ```
 User-invocable skill
@@ -130,6 +156,8 @@ user-invocable: true|false
 - Each skill must be self-contained: scripts and resources live within the skill's own directory
 - Cross-skill interaction is natural-language-only: "Invoke the `<skill>` skill" is the single allowed pattern. Hardcoded file paths, line numbers, internal function names, and internal reference files of other skills are forbidden. Shared logic that is reused across 2+ skills should live in a `user-invocable: false` shared skill, invoked via natural language. For smaller duplication (a few lines of regex or configuration), prefer inline duplication over cross-skill coupling.
 - For self-references within a skill, use `${CLAUDE_SKILL_DIR}` (the official Claude Code runtime variable for the current skill's directory) — not hardcoded `${CLAUDE_PLUGIN_ROOT}/skills/<self>/...` paths.
+- Reading a bundled file with Read / Glob / Grep needs nothing further. **Executing or reading one through the shell** (`bash`, `cd`, `source`, command substitution) MUST first resolve the directory with the canonical resolver — see `provider-contract` § Resolving the Skill Directory. `bash ${CLAUDE_SKILL_DIR}/scripts/foo.sh` is forbidden; resolution and invocation must sit in the same Bash call, and failure must fail closed rather than fall back to model-improvised logic. CI enforces the absence of unresolved shell uses.
+- Never feed a shell-emitted path back into a later shell command — on Cowork the shell prints host paths it cannot itself open. Recompute instead.
 - Provider-specific logic belongs in `providers/{name}/`
 - The `CLAUDE_PLUGIN_ROOT` variable points to the plugin root at runtime; `${CLAUDE_SKILL_DIR}` points to the current skill's own directory
 - **Output discipline**: skills run as multi-step pipelines, but the user only needs outcomes — without an explicit directive the agent narrates every step transition and relays protocol internals (provider detection, schema checks, cache state). Every user-invocable workflow skill carries an `## Output Discipline` section (limiting user-facing text to prompts, errors/warnings, outcome-changing intermediate results, and the final summary); every shared (`user-invocable: false`) skill carries a `**Silent operation:**` line. New skills must include the matching block. Pure specification skills (`waggle-protocol`, `provider-contract`) are exempt — they are documents, not pipelines.

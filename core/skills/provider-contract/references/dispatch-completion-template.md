@@ -63,7 +63,11 @@ On completion, perform the following:
 3. If the update script fails, ignore the error and complete execution
 ```
 
-Note: The script paths above are absolute paths resolved at dispatch time. The SKILL.md uses `${CLAUDE_SKILL_DIR}`, which the runtime substitutes for the skill's absolute directory when the provider SKILL.md is loaded via the Skill tool — before the template is ever copied into a dispatch prompt. The dispatched agent therefore receives a literal absolute path and never has to resolve the variable itself.
+Note: The script paths above are absolute paths resolved at dispatch time, and that is a hard requirement — a dispatched agent runs in its own session and can resolve neither `${CLAUDE_SKILL_DIR}` nor the dispatcher's `$SKILL_DIR` shell variable.
+
+The provider SKILL.md references its scripts through `${CLAUDE_SKILL_DIR}`, which the runtime substitutes when the SKILL.md is loaded. That substituted value is an **agent-loop** path, and on runtimes where code execution happens in a different filesystem it is not the path the dispatched agent's shell needs. So the dispatcher does not copy the substituted value straight into the template. It runs the provider's canonical resolver block (see the `provider-contract` skill, § Resolving the Skill Directory) and injects the resolved `$SKILL_DIR/$SCRIPT` value as a literal.
+
+Assert that neither `${CLAUDE_*}` nor `$SKILL_DIR` / `$SCRIPT` survives into the emitted template. If resolution fails, do not dispatch a template with an unresolved or empty path — fail closed and report that the task was not dispatched.
 
 ## Writing Your On Completion Template
 
@@ -71,4 +75,4 @@ In your provider SKILL.md, write the template with `<page-id>` or `<task-id>` as
 
 If your provider uses MCP tools (like Notion), reference the tool name directly — MCP tools are available to dispatched agents.
 
-If your provider uses scripts, reference them with `${CLAUDE_SKILL_DIR}` in the SKILL.md. The Skill tool automatically resolves this to the absolute path when the SKILL.md is loaded. The scripts themselves MUST use the `SCRIPT_DIR` pattern internally, not `${CLAUDE_PLUGIN_ROOT}`.
+If your provider uses scripts, reference them with `${CLAUDE_SKILL_DIR}` in the SKILL.md, and wrap every shell invocation in the canonical resolver (see the `provider-contract` skill, § Resolving the Skill Directory) — the substituted value is an agent-loop path and is not always reachable from the shell. In the template itself, write a placeholder such as `<absolute_path_to_foo_sh>`; Waggle core replaces it with the resolved absolute path at dispatch time. Never emit `${CLAUDE_SKILL_DIR}` or `$SKILL_DIR` into a dispatch template. The scripts themselves MUST use the `SCRIPT_DIR` pattern internally, not `${CLAUDE_PLUGIN_ROOT}`.

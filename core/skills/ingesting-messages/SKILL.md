@@ -284,8 +284,22 @@ For each item retrieved from a custom source, first detect whether it is a stub 
 
 ```bash
 echo '<item_json>' > /tmp/item.json
-bash "${CLAUDE_SKILL_DIR}/scripts/detect-stub-import.sh" /tmp/item.json
+SCRIPT=scripts/detect-stub-import.sh; SKILL_DIR="${CLAUDE_SKILL_DIR}"
+if [ ! -d "$SKILL_DIR" ]; then _S="${PWD%%/mnt/*}"; _R="$_S/mnt/.remote-plugins"
+  case "$SKILL_DIR" in */plugin_*) _P="plugin_${SKILL_DIR#*/plugin_}"; SKILL_DIR="$_R/$_P"
+    if [ ! -f "$SKILL_DIR/$SCRIPT" ]; then _M=$(find "$_R/${_P%%/*}" -path "*/$SCRIPT" 2>/dev/null)
+      [ "$(printf %s "$_M" | grep -c .)" = 1 ] && SKILL_DIR="${_M%/$SCRIPT}"; fi ;;
+  esac
+fi
+[ -f "$SKILL_DIR/$SCRIPT" ] || { echo "waggle: skill directory unresolved; $SCRIPT not found. Stub detection not performed." >&2; exit 1; }
+bash "$SKILL_DIR/$SCRIPT" /tmp/item.json
 ```
+
+The resolver lines are required: `${CLAUDE_SKILL_DIR}` expands to a path in the agent
+loop's filesystem, which the shell cannot always reach. See the `provider-contract`
+skill for the rationale. Resolution and invocation must stay in the same Bash call.
+If the block reports the directory unresolved, skip stub enrichment for this item and
+treat it as a non-stub — do not hand-roll the detector.
 
 The output JSON has this shape:
 
@@ -417,7 +431,7 @@ This entire step is **opt-in and gated**. If any of the prerequisites below fail
 
 5. **No clarification has been sent to this thread in the last 24 hours**. This is the idempotency check: query the Active Threads record for the matching `{channel_id}:{thread_root_ts}` and check its `Clarification Sent At` field. If the timestamp is within the past 24 hours, skip this message (do not re-send, do not create a duplicate hearing task — the user is already waiting on the previous clarification).
 
-6. **Concurrency lock**. Before composing the reply, create a lock file at `~/.waggle/locks/clarification-{channel_id}-{thread_root_ts}.lock` with the current timestamp. If the lock file already exists and its mtime is within the last 60 seconds, another ingest run is racing on the same thread — skip this message and let the other run finish. Stale locks (mtime > 60 seconds) are treated as abandoned and overwritten. The lock is released after Step 2.3e completes (success or fallback). On Cowork, the filesystem is ephemeral and runs are single-tenant, so the lock is effectively a no-op there; it remains useful for CLI and Claude Desktop runs that may race.
+6. **Concurrency lock**. Before composing the reply, create a lock file at `~/.waggle/locks/clarification-{channel_id}-{thread_root_ts}.lock` with the current timestamp. If the lock file already exists and its mtime is within the last 60 seconds, another ingest run is racing on the same thread — skip this message and let the other run finish. Stale locks (mtime > 60 seconds) are treated as abandoned and overwritten. The lock is released after Step 2.3e completes (success or fallback). On Cowork the lock is effectively a no-op, and it stays that way — but for a different reason than "the filesystem is ephemeral". The lock lives under the session home, which is created fresh per session and is permission-denied from any other session, so a competing run cannot see this lock and this run cannot see theirs. Concurrent access through a *connected* folder is untested, so do not relocate the lock there hoping to make it effective. The lock remains useful for CLI and Claude Desktop runs that may race.
 
 If **all six prerequisites pass**, proceed to Step 2.3a. Otherwise fall through to Step 3 Category A flow.
 

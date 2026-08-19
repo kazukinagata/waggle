@@ -1,6 +1,6 @@
 {
   "name": "waggle-sqlite",
-  "version": "2.4.1",
+  "version": "2.4.2",
   "description": "SQLite provider for waggle. Local zero-config task management.",
   "author": { "name": "Kazuki Nagata" },
   "license": "MIT"

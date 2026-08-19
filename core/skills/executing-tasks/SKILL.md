@@ -169,9 +169,18 @@ When generating the dispatch prompt for each task, replace the `<ON_COMPLETION_B
 2. Replace placeholders in the template with actual values:
    - `<task_id>` → the actual task page ID / row ID
    - `<db_path>` → the actual database path (SQLite/Turso providers)
-   - Provider-specific script paths (e.g. Turso's exec helper) are the provider's responsibility: the provider's On Completion Template documents any `${CLAUDE_SKILL_DIR}` substitutions the dispatcher must resolve. The dispatcher resolves those paths to absolute paths before injection.
+   - Provider-specific script paths (e.g. Turso's exec helper) are the provider's responsibility: the provider's On Completion Template documents any `${CLAUDE_SKILL_DIR}` substitutions the dispatcher must resolve. To obtain each absolute path, run the **printing** variant of the resolver — the one that ends in `printf '%s\n' "$SKILL_DIR/$SCRIPT"` rather than in an invocation — and capture its stdout. The `provider-contract` skill defines it under § Resolving the Skill Directory. Do not run the ordinary resolver block for this: it ends by executing the script, and its shell variables are gone once that Bash call exits, so there is nothing left to read the path out of. If it exits non-zero, the path is unresolved — do not emit a template.
 3. Inject the rendered block into the dispatch prompt, replacing `<ON_COMPLETION_BLOCK>`
-4. **All paths MUST be absolute** — no `${CLAUDE_SKILL_DIR}` or `${CLAUDE_PLUGIN_ROOT}` should remain in the final dispatch prompt
+4. **All paths MUST be absolute** — no `${CLAUDE_SKILL_DIR}`, no `${CLAUDE_PLUGIN_ROOT}`, and no `$SKILL_DIR` or `$SCRIPT` reference should remain in the final dispatch prompt. `$SKILL_DIR` is a shell variable of the *dispatcher's* resolver block; a dispatched agent runs in its own session where that variable is unset, so leaving it in silently expands to an empty path.
+5. **Assert it.** Before dispatching, scan the parts waggle itself generates — the rendered On Completion block and any generated launcher script — for surviving **shell variable references**: `$SKILL_DIR` / `${SKILL_DIR}`, `$SCRIPT` / `${SCRIPT}`, `$CLAUDE_SKILL_DIR` / `${CLAUDE_SKILL_DIR}`, `$CLAUDE_PLUGIN_ROOT` / `${CLAUDE_PLUGIN_ROOT}`. If any survives, the substitution in step 2 was incomplete — fix it rather than dispatching, because a dispatched agent runs in its own session where all of them are unset.
+
+   Match the variable *reference* forms above, not the bare words. `SCRIPT` and `SKILL_DIR` are ordinary identifiers that can legitimately appear in a task's description, acceptance criteria, or quoted code, and a bare-word scan would refuse to dispatch a perfectly valid task. For the same reason, scope the scan to the generated block and launcher rather than the whole prompt — user-authored task content is not waggle's substitution to police.
+
+   **Precondition: a resolved path only travels where the filesystem does.** Substituting the resolved absolute path is correct when the dispatching and receiving agent share a filesystem — a tmux pane, a subagent, or a Claude Desktop Scheduled Task on the same machine. It is **not** correct across Cowork sessions: the resolved path there lives under `/sessions/<session>/mnt/...`, which is scoped to *this* session, so a receiving session cannot open it. Injecting it would produce a completion command that silently fails, leaving the task stuck In Progress with no error recorded.
+
+   So on Cowork, do not dispatch a script-based completion instruction to another session. Either use a provider whose completion path is MCP-based (an MCP tool needs no path and is available to the receiving agent directly), or have the receiving agent invoke the provider skill itself and follow its documented recipe — which resolves the directory in *its own* session, where the answer is valid.
+
+   No current configuration hits this: the only Cowork-supported provider completes through MCP tools with no script path, and both script-using providers are unsupported on Cowork. Stated here so that changing either of those facts does not silently reintroduce the failure.
 
 ## Fallback: Sequential Execution
 

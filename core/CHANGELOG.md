@@ -4,6 +4,163 @@ All notable changes to the Waggle project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## Skill-directory resolution before shell invocation — 2026-08-19
+
+`${CLAUDE_SKILL_DIR}` is substituted when a skill loads, and the value is a path in
+the **agent loop's** filesystem. Where code execution happens in that same filesystem
+— CLI and Claude Desktop — the path is directly usable. On Cowork it is not: the agent
+loop runs natively on the host while Bash runs in an isolated Linux VM, and the host
+path does not exist there. So every `bash ${CLAUDE_SKILL_DIR}/scripts/foo.sh` failed on
+Cowork with "No such file or directory", while Read, Glob, and Grep reached the same
+path without trouble.
+
+The failure mode was worse than an error. The agent could not find the script, silently
+substituted an improvised equivalent, and a deterministic check never ran — nothing
+surfaced to the user. `provider-contract` mandated the unresolved form, so this had
+spread by design rather than by accident: 55 direct `bash ${CLAUDE_SKILL_DIR}/...`
+invocations, and 61 shell-context occurrences in 11 files once the non-`bash` forms
+(`cd`, command substitution) are counted.
+
+### New requirement for provider authors
+
+**`provider-contract` gains a requirement.** A provider SKILL.md may no longer invoke a
+bundled script as `bash ${CLAUDE_SKILL_DIR}/scripts/foo.sh`. Every shell invocation MUST
+first resolve the skill directory, in the same shell invocation, using the canonical
+resolver in `provider-contract` § Resolving the Skill Directory, and MUST fail closed
+when resolution does not land on the expected file. The § also adds a rule against
+feeding a shell-emitted path back into a later shell command.
+
+Third-party providers written the old way keep working on CLI and Claude Desktop and
+were already broken on Cowork, so **nothing regresses** — but the MUST is new, and a
+provider that wants to work on Cowork has to adopt it. The compliance checklist covers
+it, and CI enforces it in this repository.
+
+- **`waggle` 3.0.2 → 3.0.3**, **`waggle-notion` 3.7.5 → 3.7.6**,
+  **`waggle-sqlite` / `waggle-turso` 2.4.1 → 2.4.2** (PATCH — the protocol semantics
+  are unchanged and CLI / Claude Desktop behaviour is byte-for-byte identical):
+
+#### Fixed
+
+- **Bundled scripts were unreachable from the shell on Cowork** (all three provider
+  SKILL.mds, `validating-fields`, `viewing-tasks`, `managing-views`,
+  `monitoring-tasks`, `ingesting-messages`, `loading-custom-instructions`,
+  `executing-tasks/tmux-parallel.md`): every shell invocation now resolves the skill
+  directory in three tiers. (1) **Convert the path** — deterministic, no search; the
+  host path carries the `plugin_<id>/skills/<name>` tail, the one segment common to
+  all three paths a plugin occupies, so the plugin is identified exactly. This
+  matters: skill directory names are not unique across plugins, so a name-keyed
+  search could not have disambiguated them. (2) **Scoped search** under
+  `.remote-plugins`, narrowed by plugin id, accepted only on exactly one candidate —
+  insurance against a change in mount layout. (3) **Fail closed** — the script does
+  not run and the caller reports that the operation was not performed.
+
+  CLI and Claude Desktop are unaffected: the `[ ! -d ]` discriminator holds there, so
+  the rewrite branch is never entered. If a future runtime stops substituting the
+  variable, it expands to empty and the snippet degrades to fail-closed rather than
+  to a wrong path.
+
+- **`validating-fields` could report a passing gate that never ran**: the fail-closed
+  path honours the skill's own contract — exit 0, with the outcome in the JSON. It
+  returns `valid: false` with a `skill_dir_unresolved` error, so a caller inspecting
+  `.valid` blocks the transition instead of proceeding. Reimplementing the rules in
+  the model is explicitly forbidden: an improvised validator does not error, it
+  returns `valid: true`, which is the silent-wrong-answer the gate exists to prevent.
+
+- **Dispatch prompts could carry an unresolvable path** (`executing-tasks`,
+  `provider-contract/references/dispatch-completion-template.md`, `turso-provider`):
+  dispatch generation substitutes the resolved literal absolute path, and now asserts
+  that neither `${CLAUDE_*}` nor `$SKILL_DIR` / `$SCRIPT` survives into the emitted
+  prompt or launcher. A dispatched agent runs in its own session where those are
+  unset, so a surviving `$SKILL_DIR` expands to an empty path.
+
+#### Changed
+
+- **`provider-contract`** gains § Resolving the Skill Directory as the normative
+  source: the canonical resolver, why each clause of it is required, and the rules for
+  applying it (same shell invocation; the block is a template parameterised by *this*
+  script's path; fail closed, never model-improvised). Script Path Convention rule 3
+  is rewritten and a rule 5 added; the compliance checklist gains five items.
+- **`CLAUDE.md`** carries the same rule, so the contract and the contributor
+  documentation no longer disagree. It also distinguishes reading a bundled file
+  (Read / Glob / Grep — nothing further needed) from reaching one through the shell
+  (`bash`, `cd`, `source`, command substitution — resolution required).
+- **Repeated invocations collapsed into one block plus an argument table** — the
+  turso and sqlite filter recipes, the notion relation examples. These were one recipe
+  with N argument sets, not N recipes; every place a command is actually issued still
+  carries a complete resolver block.
+
+#### Added
+
+- **CI: `skill-dir-resolution`** (`core/scripts/check-skill-dir-resolution.sh`,
+  `.github/workflows/skill-dir-resolution.yml`) enforces the resolution contract. The
+  fenced shell block is the unit of checking, because each Bash call is a fresh process
+  — a resolver in an earlier block does not carry over, which is precisely the failure
+  the guard exists to catch. Three properties per block:
+
+  1. **No unresolved use.** `${CLAUDE_SKILL_DIR}` may appear only as
+     `SCRIPT=<path>; SKILL_DIR="${CLAUDE_SKILL_DIR}"`. This is an allowlist of one
+     form, not a denylist of commands: a denylist would have to enumerate every way a
+     path reaches the shell — `bash`, `cd`, `source`, `cat`, shell `grep`, `<`
+     redirection, `awk -f`, `PATH` injection, or executing the path with no leading
+     command word — and would pass whichever form it forgot.
+  2. **Self-contained.** A block that uses `"$SKILL_DIR"` must itself assign it, and
+     assign it before first use.
+  3. **Complete and fail-closed.** A block that assigns it must carry the whole
+     resolver body — both tiers — and a fail-closed guard, with the guard *before* the
+     use, so nothing runs against an unchecked path. This catches a block that keeps
+     the assignment but drops a clause, including the `#`-for-`##` substitution that
+     would silently produce a broken path. Comments do not count toward completeness or
+     the guard — whole-line *and* trailing — so a resolver deleted but *described* in a
+     comment is still caught. Trailing comments are cut with a small shell-aware
+     scanner rather than a `#` split, because the resolver legitimately contains `#`
+     inside `${SKILL_DIR#*/plugin_}`, which is the clause most worth checking.
+     Uses inside the resolver's own tests are recognised as such, so only the real
+     invocation is subject to the ordering rule.
+
+  A site that must fail *open* instead — a best-effort convenience step, never a check
+  or a write — declares itself with a `# waggle-ci: fail-open` comment. There is one:
+  the terminal auto-open in `executing-tasks/tmux-parallel.md`.
+
+  Only fenced shell blocks are inspected, so prose naming a forbidden pattern and
+  comments inside a block still pass.
+
+#### Documentation — Cowork claims corrected
+
+Same measurement run. Behaviour is unchanged everywhere; only reasons and facts change.
+
+- **tmux is installed in Cowork's VM** — the "not available" claim was wrong. Waggle
+  still does not offer tmux parallelism there, because whether a pane created inside
+  the VM is visible to the user is unverified. Recorded so nobody enables it on the
+  strength of tmux merely existing.
+- **"Cowork has no persistent filesystem" is not unconditionally true**: the session
+  home is per-session and permission-denied from other sessions, while a connected
+  folder is host-backed and survives across sessions. Each site now names the layer
+  that actually applies — the session home in every case, hence no behaviour change.
+- **The ingest lock stays a no-op on Cowork**, but for the right reason: it lives
+  under the session home, which a competing session cannot reach. Not "because the
+  filesystem is ephemeral". Concurrent access through a connected folder is untested.
+- **SQLite stays unsupported on Cowork**, now with the concrete reason: `sqlite3` is
+  absent from the VM. The setup guide's "verify sqlite3 is available" step can never
+  pass there.
+- **Measured tool availability** in the VM: `tmux` and `jq` present, `sqlite3` absent.
+  This settles the standing "jq may be missing" concern for Cowork; the general no-jq
+  fallbacks stay, being correct for CLI.
+- **Environment variables**: confirmed absent for every `CLAUDE_*` variable, so
+  detection is sound — but the rule is not absolute, since temp-directory variables
+  such as `TMPDIR` are present.
+- **The Live Artifact underscore-prefix 400** is reframed as a historical observation.
+  Its mitigation (notion-extension v0.5.0+, hyphen-only prefix) is already in effect,
+  so the failure condition does not arise; the version floor is kept for that reason.
+  The underlying claim is marked untested.
+- **"The resolved notion-query MCP tool" was singular but two families are present**
+  at once — the notion-extension `notion-query` and the Notion connector's data-source
+  tools. `viewing-tasks` and `managing-views` now state the selection rule: match the
+  exact unqualified name `notion-query`, never a prefix or substring match (which
+  would wrongly pick `notion-query-data-sources`), and stop on real ambiguity.
+
+Verified against the measurements and left alone: the Cowork detection signals, and
+the absence of an artifact delete API.
+
 ## Cross-skill references replaced with skill-name references — 2026-08-18
 
 Follow-up to the `core/` move. Six places pointed at another skill's files by

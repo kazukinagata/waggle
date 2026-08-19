@@ -2,7 +2,11 @@
 
 ## Step 1: Prerequisites
 
-Verify sqlite3 and jq are available:
+Verify sqlite3 and jq are available.
+
+**This step can never pass on Cowork.** `sqlite3` is not installed in Cowork's execution
+VM, which is why the SQLite provider is unsupported there. If the environment is Cowork,
+do not run the check — say so and point the user at the Notion or Turso provider.
 
 ```bash
 command -v sqlite3 && echo "sqlite3: OK" || echo "sqlite3: NOT FOUND"

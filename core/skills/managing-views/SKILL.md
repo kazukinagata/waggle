@@ -57,6 +57,8 @@ In both modes the local HTML at `~/.waggle/views/<slug>.html` remains the canoni
 
 Before any `cowork` operation that calls `generate-cowork-custom-artifact.sh` or `create_artifact` / `update_artifact`, look through your available MCP tools and find the one whose unqualified name is `notion-query` and that comes from the notion-extension MCP. Its full name typically looks like `mcp__notion-extension__notion-query`, but the exact prefix depends on the installed extension version's manifest — never hardcode it. Use that exact, full tool name as the 6th argument to the generator **and** as the value in the `mcp_tools` array when registering the artifact with Cowork. If no such tool is available, surface the failure and stop — the artifact cannot operate without it. Subsequent sections refer to this as "the resolved notion-query tool name".
 
+**Selection rule — more than one Notion query tool is normally present.** A session typically exposes two unrelated families at once: the notion-extension MCP's `notion-query`, and the Notion connector's data-source tools (names like `notion-query-data-sources`, `notion-fetch`). Only the notion-extension one works here. Select by **exact unqualified name equal to `notion-query`** — not by prefix match, and not by "the first tool with `notion` and `query` in it", which would wrongly match `notion-query-data-sources`. If two tools both have the exact unqualified name `notion-query`, surface the ambiguity to the user and stop rather than guessing.
+
 ## Operations
 
 ### Create
@@ -73,13 +75,28 @@ When the user asks to create a custom view (e.g., "create a view showing blocked
 - **`cowork`**: resolve `tasksDatabaseId` (and optional `current_team`) from `headless_config`. Determine the assignee to scope the view to — default to `current_user.id`; if the user explicitly asked for another person's view ("Alice's blocked tasks"), resolve via the `looking-up-members` skill and pass that Notion user ID. Also resolve the notion-query MCP tool name (see "Resolving the Notion-query MCP tool name" above) — required as the 6th argument. The generator bakes the assignee + a fixed `Status != Done`/`Cancelled` exclusion into the live-fetch adapter so the artifact's Notion query is scoped at the source:
 
   ```bash
-  bash "${CLAUDE_SKILL_DIR}/scripts/generate-cowork-custom-artifact.sh" \
+  SCRIPT=scripts/generate-cowork-custom-artifact.sh; SKILL_DIR="${CLAUDE_SKILL_DIR}"
+  if [ ! -d "$SKILL_DIR" ]; then _S="${PWD%%/mnt/*}"; _R="$_S/mnt/.remote-plugins"
+    case "$SKILL_DIR" in */plugin_*) _P="plugin_${SKILL_DIR#*/plugin_}"; SKILL_DIR="$_R/$_P"
+      if [ ! -f "$SKILL_DIR/$SCRIPT" ]; then _M=$(find "$_R/${_P%%/*}" -path "*/$SCRIPT" 2>/dev/null)
+        [ "$(printf %s "$_M" | grep -c .)" = 1 ] && SKILL_DIR="${_M%/$SCRIPT}"; fi ;;
+    esac
+  fi
+  [ -f "$SKILL_DIR/$SCRIPT" ] || { echo "waggle: skill directory unresolved; $SCRIPT not found. Artifact not generated." >&2; exit 1; }
+  bash "$SKILL_DIR/$SCRIPT" \
     "<slug>" "<tasksDatabaseId>" \
     "<current_team.id or empty>" "<current_team.name or empty>" \
     "<assignee notion user id, e.g. current_user.id>" \
     "<the resolved notion-query tool name>" \
     > /tmp/waggle-view-<slug>.html
   ```
+
+  The leading eight lines resolve the skill directory for the runtime the shell is
+  actually running in — on Cowork the agent loop and Bash do not share a filesystem,
+  so `${CLAUDE_SKILL_DIR}` alone is not reachable from the shell. See the
+  `provider-contract` skill for the rationale. Resolution and invocation must stay in
+  the same Bash call. If the block reports the directory unresolved, stop and tell the
+  user the view could not be generated — do not hand-write the artifact HTML.
 
   Pass an empty string for the 5th argument only if the user explicitly asked for an unscoped view across all assignees; the status exclusion still applies. Then call:
 
@@ -161,13 +178,28 @@ When the user asks to regenerate or update a custom view:
 - **`cowork`**: re-run the cowork generator, then `list_artifacts` and dispatch on whether the artifact already exists — `update_artifact` if so, `create_artifact` if not. The fallback to `create_artifact` matters when the user previously deleted the view (which only sets a stub HTML) or when the local file exists but was never registered. **Assignee binding caveat**: Cowork's `list_artifacts` does not return the `assigneeUserId` baked into a previously-registered artifact, so the original scoping is irrecoverable at regenerate time. If the user originally scoped this custom view to someone other than themselves (e.g., Alice) and then asks for a plain "regenerate" without naming the assignee, the default below silently re-scopes to `current_user.id`. When in doubt, confirm with the user before defaulting — or have them re-state the assignee on the regenerate command (`/managing-views regenerate <slug> for Alice`). By default pass `current_user.id` as the 5th positional, or the Notion user ID of an explicitly-named person via the `looking-up-members` skill. Also resolve the notion-query MCP tool name (see "Resolving the Notion-query MCP tool name" above) for the 6th positional:
 
   ```bash
-  bash "${CLAUDE_SKILL_DIR}/scripts/generate-cowork-custom-artifact.sh" \
+  SCRIPT=scripts/generate-cowork-custom-artifact.sh; SKILL_DIR="${CLAUDE_SKILL_DIR}"
+  if [ ! -d "$SKILL_DIR" ]; then _S="${PWD%%/mnt/*}"; _R="$_S/mnt/.remote-plugins"
+    case "$SKILL_DIR" in */plugin_*) _P="plugin_${SKILL_DIR#*/plugin_}"; SKILL_DIR="$_R/$_P"
+      if [ ! -f "$SKILL_DIR/$SCRIPT" ]; then _M=$(find "$_R/${_P%%/*}" -path "*/$SCRIPT" 2>/dev/null)
+        [ "$(printf %s "$_M" | grep -c .)" = 1 ] && SKILL_DIR="${_M%/$SCRIPT}"; fi ;;
+    esac
+  fi
+  [ -f "$SKILL_DIR/$SCRIPT" ] || { echo "waggle: skill directory unresolved; $SCRIPT not found. Artifact not generated." >&2; exit 1; }
+  bash "$SKILL_DIR/$SCRIPT" \
     "<slug>" "<tasksDatabaseId>" \
     "<current_team.id or empty>" "<current_team.name or empty>" \
     "<assignee notion user id, e.g. current_user.id>" \
     "<the resolved notion-query tool name>" \
     > /tmp/waggle-view-<slug>.html
   ```
+
+  The leading eight lines resolve the skill directory for the runtime the shell is
+  actually running in — on Cowork the agent loop and Bash do not share a filesystem,
+  so `${CLAUDE_SKILL_DIR}` alone is not reachable from the shell. See the
+  `provider-contract` skill for the rationale. Resolution and invocation must stay in
+  the same Bash call. If the block reports the directory unresolved, stop and tell the
+  user the view could not be generated — do not hand-write the artifact HTML.
 
   Call `mcp__cowork__list_artifacts()` and check whether the response includes an entry with `id == "waggle-view-<slug>"`.
 

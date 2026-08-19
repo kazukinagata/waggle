@@ -167,23 +167,137 @@ Bash scripts in the provider plugin MUST follow these rules:
 
 2. MUST NOT use `${CLAUDE_PLUGIN_ROOT}` in bash scripts. This variable is only available in the SKILL.md instruction context, not in shell execution.
 
-3. SKILL.md instructions MUST reference their own scripts using `${CLAUDE_SKILL_DIR}`:
-   ```
-   bash ${CLAUDE_SKILL_DIR}/scripts/query-tasks.sh ...
-   ```
-   `${CLAUDE_SKILL_DIR}` is the official Claude Code runtime variable for the current skill's own directory; it resolves correctly regardless of working directory and is robust to skill rename/relocation. Never hardcode `${CLAUDE_PLUGIN_ROOT}/skills/<this-skill-name>/...` — that pattern silently breaks on rename.
+3. SKILL.md instructions MUST reference their own scripts through `${CLAUDE_SKILL_DIR}` **and MUST resolve it before use** — see § Resolving the Skill Directory below. Calling `bash ${CLAUDE_SKILL_DIR}/scripts/foo.sh` directly is forbidden: it fails on every runtime whose shell does not share a filesystem with the agent loop. Never hardcode `${CLAUDE_PLUGIN_ROOT}/skills/<this-skill-name>/...` either — that pattern silently breaks on rename.
 
 4. Scripts that call other scripts within the plugin MUST use `SCRIPT_DIR`-relative paths:
    ```bash
    source "${SCRIPT_DIR}/helpers.sh"
    ```
 
+5. MUST NOT feed a shell-emitted path back into a later shell command. On Cowork,
+   listing files under a connected folder from the shell prints *host* paths, not the
+   VM paths the shell itself can open. A path a shell printed may be unusable by the
+   next shell. Always recompute a path from `${CLAUDE_SKILL_DIR}` (or from the
+   connected-folder root) rather than round-tripping one through command output.
+
+## Resolving the Skill Directory
+
+`${CLAUDE_SKILL_DIR}` is substituted into a bash code block when the skill is loaded,
+and the value is a path in the **agent loop's** filesystem. On runtimes where code
+execution happens in the same filesystem — CLI and Claude Desktop — that path is
+directly usable. On Cowork it is not: the agent loop runs natively on the host while
+Bash runs in an isolated Linux VM, and the host path does not exist there. The
+substituted value is a literal, not a shell lookup — `CLAUDE_SKILL_DIR` is absent
+from the VM's environment.
+
+Providers MUST therefore resolve the directory in shell before invoking a bundled
+script, and MUST fail closed when resolution does not land on the expected file.
+
+### The canonical resolver
+
+Parameterise `SCRIPT` with the path of the script being invoked, relative to the
+skill directory. Everything else is copied verbatim.
+
+```bash
+SCRIPT=scripts/query-tasks.sh; SKILL_DIR="${CLAUDE_SKILL_DIR}"
+if [ ! -d "$SKILL_DIR" ]; then _S="${PWD%%/mnt/*}"; _R="$_S/mnt/.remote-plugins"
+  case "$SKILL_DIR" in */plugin_*) _P="plugin_${SKILL_DIR#*/plugin_}"; SKILL_DIR="$_R/$_P"
+    if [ ! -f "$SKILL_DIR/$SCRIPT" ]; then _M=$(find "$_R/${_P%%/*}" -path "*/$SCRIPT" 2>/dev/null)
+      [ "$(printf %s "$_M" | grep -c .)" = 1 ] && SKILL_DIR="${_M%/$SCRIPT}"; fi ;;
+  esac
+fi
+[ -f "$SKILL_DIR/$SCRIPT" ] || { echo "waggle: skill directory unresolved; $SCRIPT not found. Operation not performed." >&2; exit 1; }
+bash "$SKILL_DIR/$SCRIPT" '<where_clause>' '<order_clause>'
+```
+
+Three tiers, in order:
+
+1. **Convert the path.** Deterministic; no search. The host path carries the
+   `plugin_<id>/skills/<name>` tail, which is the one segment common to every route,
+   so the plugin is identified exactly.
+2. **Scoped search.** Only if tier 1 misses the expected file. Searches under
+   `.remote-plugins` alone, narrowed to the plugin id taken from the host path, and
+   accepts the result only when exactly one candidate carries the script. Insurance
+   against a change in mount layout.
+3. **Fail closed.** The script is not run and the caller reports that the operation
+   was not performed.
+
+### Why each line is what it is
+
+Do not "simplify" this. Each clause carries a specific failure mode:
+
+- `SKILL_DIR="${CLAUDE_SKILL_DIR}"` is a literal after substitution. If a future
+  runtime stops substituting, the shell expands it to the empty string, every check
+  below fails, and the snippet degrades to fail-closed rather than to a wrong path.
+- `[ ! -d "$SKILL_DIR" ]` discriminates runtimes without naming one. On CLI and
+  Claude Desktop the directory exists, the branch is skipped, and behaviour is
+  byte-for-byte unchanged. Do not replace this with a `-f` test on the script — the
+  `-d` test is what guarantees the untouched path.
+- `${PWD%%/mnt/*}` yields the session root whether the working directory is the root
+  itself or sits under the mount. `%%` (longest match) is required.
+- The `case */plugin_*)` guard rewrites only a path that actually contains a
+  `plugin_` segment. An unexpected shape is left alone and fails closed instead of
+  being fabricated.
+- `${SKILL_DIR#*/plugin_}` uses `#` (shortest match), so the cut lands on the
+  *first* `/plugin_` — the plugin root. `##` would cut at the last one and produce a
+  broken path. The literal `plugin_` is prepended because the cut consumes it.
+- Naming the script once, in `SCRIPT`, keeps the `-f` guard and the invocation from
+  ever disagreeing.
+
+### Obtaining the resolved path without running the script
+
+Dispatch generation needs the resolved *path*, not the script's output. The canonical
+block ends by executing the script, and its shell variables die when the Bash call
+exits, so a caller cannot read `$SKILL_DIR` out of it afterwards. Use the same resolver
+with a printing final line instead:
+
+```bash
+SCRIPT=scripts/turso-exec.sh; SKILL_DIR="${CLAUDE_SKILL_DIR}"
+if [ ! -d "$SKILL_DIR" ]; then _S="${PWD%%/mnt/*}"; _R="$_S/mnt/.remote-plugins"
+  case "$SKILL_DIR" in */plugin_*) _P="plugin_${SKILL_DIR#*/plugin_}"; SKILL_DIR="$_R/$_P"
+    if [ ! -f "$SKILL_DIR/$SCRIPT" ]; then _M=$(find "$_R/${_P%%/*}" -path "*/$SCRIPT" 2>/dev/null)
+      [ "$(printf %s "$_M" | grep -c .)" = 1 ] && SKILL_DIR="${_M%/$SCRIPT}"; fi ;;
+  esac
+fi
+[ -f "$SKILL_DIR/$SCRIPT" ] || { echo "waggle: skill directory unresolved; $SCRIPT not found. Operation not performed." >&2; exit 1; }
+printf '%s\n' "$SKILL_DIR/$SCRIPT"
+```
+
+Capture stdout and inject that literal into the dispatch template. The resolver body is
+identical — only the last line differs — so the path is validated by the same
+fail-closed guard before it is printed; an unresolved directory prints nothing and exits
+non-zero, and a template must not be emitted in that case.
+
+This is the one sanctioned exception to "never feed a shell-emitted path back into a
+later shell command", and it is narrow: the path goes into *another agent's prompt*, not
+into a later shell command in this session, and only where the dispatcher and the
+receiver share a filesystem. See § On Completion Template for that precondition.
+
+### Rules for applying it
+
+- **Resolution and invocation MUST sit in the same shell invocation.** Every Bash
+  call is a fresh process, so a resolver placed once at the top of a document
+  section does not apply to the commands below it.
+- **The snippet is a template.** `SCRIPT` is filled with *this* script's path. A
+  block copied between skills with another skill's script name resolves the wrong
+  directory.
+- **Never reimplement a script's logic in the model** when resolution fails. Report
+  that the operation was not performed. A deterministic check replaced by an
+  improvised one returns a plausible answer instead of an error, which is worse than
+  no answer.
+- **Reading** a bundled reference file with Read, Glob, or Grep needs no resolution —
+  those tools reach the agent loop's own filesystem. The rule is narrow: do not read
+  or execute a bundled file *through the shell* without resolving first.
+- **Dispatch generation** substitutes the resolved literal absolute path; neither
+  `${CLAUDE_*}` nor `$SKILL_DIR` may survive into a dispatch prompt. See § On
+  Completion Template.
+
 ## Config Storage
 
 Provider configuration is cached per execution environment so bootstrap can skip remote lookups on subsequent sessions:
 
 - **CLI / Claude Desktop**: environment variables in `~/.claude/settings.json` (under the `env` field).
-- **Cowork**: a `<waggle-config>{json}</waggle-config>` block in Global Instructions, since Cowork has no persistent local filesystem.
+- **Cowork**: a `<waggle-config>{json}</waggle-config>` block in Global Instructions. Cowork's session home is created fresh per session and is permission-denied from other sessions, so `~/.claude/settings.json` is not durable there. (A connected folder *is* host-backed and persists across sessions, but the user picks it per session, so it is not a dependable config location.)
 
 The legacy `~/.waggle/config.json` file is deprecated — use the `health-checking` skill to migrate.
 
@@ -228,7 +342,17 @@ Use this checklist to verify a provider plugin meets all requirements before rel
 ### Script Conventions
 - [ ] All bash scripts use `SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"` pattern
 - [ ] No `${CLAUDE_PLUGIN_ROOT}` in bash scripts
-- [ ] SKILL.md uses `${CLAUDE_SKILL_DIR}` for its own script references
+- [ ] SKILL.md references its own scripts through `${CLAUDE_SKILL_DIR}`
+- [ ] Every shell invocation of a bundled script applies the canonical resolver from
+  § Resolving the Skill Directory, in the same shell invocation, with `SCRIPT` set to
+  that script's own path
+- [ ] Inside a shell block, `${CLAUDE_SKILL_DIR}` appears **only** in the resolver's
+  `SKILL_DIR=` assignment — every downstream use is `"$SKILL_DIR"`. This covers every
+  way a path reaches the shell (`bash`, `cd`, `source`, `cat`, shell `grep`, `<`
+  redirection, or executing the path directly), not just the obvious ones
+- [ ] Resolution failure fails closed — the script is not run and no model-improvised
+  substitute is used
+- [ ] No shell-emitted path is fed back into a later shell command
 
 ### Schema Support
 - [ ] All 15 Core fields supported with correct types

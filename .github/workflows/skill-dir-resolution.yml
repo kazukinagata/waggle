@@ -1,0 +1,21 @@
+name: skill-dir-resolution
+
+on:
+  pull_request:
+    paths:
+      - "**/*.md"
+      - "core/scripts/check-skill-dir-resolution.sh"
+      - ".github/workflows/skill-dir-resolution.yml"
+  push:
+    branches: [main]
+    paths:
+      - "**/*.md"
+      - "core/scripts/check-skill-dir-resolution.sh"
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Reject unresolved ${CLAUDE_SKILL_DIR} shell invocations
+        run: bash core/scripts/check-skill-dir-resolution.sh

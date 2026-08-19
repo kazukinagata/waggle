@@ -218,38 +218,38 @@ If no path is available, warn the user. The warning depends on environment:
 ### Path 1: Bash Script (CLI, requires NOTION_TOKEN)
 
 ```bash
-bash ${CLAUDE_SKILL_DIR}/scripts/update-relations.sh \
+SCRIPT=scripts/update-relations.sh; SKILL_DIR="${CLAUDE_SKILL_DIR}"
+if [ ! -d "$SKILL_DIR" ]; then _S="${PWD%%/mnt/*}"; _R="$_S/mnt/.remote-plugins"
+  case "$SKILL_DIR" in */plugin_*) _P="plugin_${SKILL_DIR#*/plugin_}"; SKILL_DIR="$_R/$_P"
+    if [ ! -f "$SKILL_DIR/$SCRIPT" ]; then _M=$(find "$_R/${_P%%/*}" -path "*/$SCRIPT" 2>/dev/null)
+      [ "$(printf %s "$_M" | grep -c .)" = 1 ] && SKILL_DIR="${_M%/$SCRIPT}"; fi ;;
+  esac
+fi
+[ -f "$SKILL_DIR/$SCRIPT" ] || { echo "waggle: skill directory unresolved; $SCRIPT not found. Operation not performed." >&2; exit 1; }
+bash "$SKILL_DIR/$SCRIPT" \
   <page_id> <property_name> <mode> [page_id_1] [page_id_2] ...
 ```
+
+The leading eight lines resolve the skill directory for the runtime the shell is
+actually running in; the `provider-contract` skill defines the canonical resolver and
+explains why each clause is required. Resolution and invocation must stay in the same
+Bash call. If the block reports the directory unresolved, warn the user that the
+relation update did not happen and stop — do not hand-roll a Notion API call in its
+place.
 
 - **mode `replace`**: Set the relation to exactly the provided IDs (zero IDs = clear)
 - **mode `append`**: Merge with existing values (dedup)
 
 #### Examples
 
-**Set Blocked By to multiple tasks:**
-```bash
-bash ${CLAUDE_SKILL_DIR}/scripts/update-relations.sh \
-  "<page_id>" "Blocked By" replace "<blocker_id_1>" "<blocker_id_2>"
-```
+Same block; only the arguments change.
 
-**Append a blocker:**
-```bash
-bash ${CLAUDE_SKILL_DIR}/scripts/update-relations.sh \
-  "<page_id>" "Blocked By" append "<new_blocker_id>"
-```
-
-**Set Parent Task (single value):**
-```bash
-bash ${CLAUDE_SKILL_DIR}/scripts/update-relations.sh \
-  "<page_id>" "Parent Task" replace "<parent_id>"
-```
-
-**Clear a relation:**
-```bash
-bash ${CLAUDE_SKILL_DIR}/scripts/update-relations.sh \
-  "<page_id>" "Blocked By" replace
-```
+| Purpose | Arguments |
+|---|---|
+| Set Blocked By to multiple tasks | `"<page_id>" "Blocked By" replace "<blocker_id_1>" "<blocker_id_2>"` |
+| Append a blocker | `"<page_id>" "Blocked By" append "<new_blocker_id>"` |
+| Set Parent Task (single value) | `"<page_id>" "Parent Task" replace "<parent_id>"` |
+| Clear a relation | `"<page_id>" "Blocked By" replace` |
 
 ### Path 2: Desktop Extension (notion-update-relation MCP tool, Claude Desktop / Cowork)
 
@@ -289,7 +289,15 @@ v1.2.0 or later.
 ### Path 1: Bash Script (CLI, requires NOTION_TOKEN)
 
 ```bash
-bash ${CLAUDE_SKILL_DIR}/scripts/attach-file.sh \
+SCRIPT=scripts/attach-file.sh; SKILL_DIR="${CLAUDE_SKILL_DIR}"
+if [ ! -d "$SKILL_DIR" ]; then _S="${PWD%%/mnt/*}"; _R="$_S/mnt/.remote-plugins"
+  case "$SKILL_DIR" in */plugin_*) _P="plugin_${SKILL_DIR#*/plugin_}"; SKILL_DIR="$_R/$_P"
+    if [ ! -f "$SKILL_DIR/$SCRIPT" ]; then _M=$(find "$_R/${_P%%/*}" -path "*/$SCRIPT" 2>/dev/null)
+      [ "$(printf %s "$_M" | grep -c .)" = 1 ] && SKILL_DIR="${_M%/$SCRIPT}"; fi ;;
+  esac
+fi
+[ -f "$SKILL_DIR/$SCRIPT" ] || { echo "waggle: skill directory unresolved; $SCRIPT not found. Operation not performed." >&2; exit 1; }
+bash "$SKILL_DIR/$SCRIPT" \
   <page_id> <property_name> <mode> [--file <path>]... [--url <name> <url>]...
 ```
 
@@ -344,8 +352,18 @@ If no path is available, warn the user. The warning depends on environment:
 **Upload** — append an image to a page body from a local file or an external URL:
 
 ```bash
-bash ${CLAUDE_SKILL_DIR}/scripts/upload-image.sh <page_id> </path/to/image.png> ["caption"]
-bash ${CLAUDE_SKILL_DIR}/scripts/upload-image.sh <page_id> --url <https://example.com/image.png> ["caption"]
+SCRIPT=scripts/upload-image.sh; SKILL_DIR="${CLAUDE_SKILL_DIR}"
+if [ ! -d "$SKILL_DIR" ]; then _S="${PWD%%/mnt/*}"; _R="$_S/mnt/.remote-plugins"
+  case "$SKILL_DIR" in */plugin_*) _P="plugin_${SKILL_DIR#*/plugin_}"; SKILL_DIR="$_R/$_P"
+    if [ ! -f "$SKILL_DIR/$SCRIPT" ]; then _M=$(find "$_R/${_P%%/*}" -path "*/$SCRIPT" 2>/dev/null)
+      [ "$(printf %s "$_M" | grep -c .)" = 1 ] && SKILL_DIR="${_M%/$SCRIPT}"; fi ;;
+  esac
+fi
+[ -f "$SKILL_DIR/$SCRIPT" ] || { echo "waggle: skill directory unresolved; $SCRIPT not found. Operation not performed." >&2; exit 1; }
+# from a local file:
+bash "$SKILL_DIR/$SCRIPT" <page_id> </path/to/image.png> ["caption"]
+# or from an external URL:
+bash "$SKILL_DIR/$SCRIPT" <page_id> --url <https://example.com/image.png> ["caption"]
 ```
 
 Prints `{ok, page_id, block_id, image_type}` on success.
@@ -353,7 +371,15 @@ Prints `{ok, page_id, block_id, image_type}` on success.
 **Download** — save all page-body images to local files:
 
 ```bash
-bash ${CLAUDE_SKILL_DIR}/scripts/download-images.sh <page_id> [output_dir]
+SCRIPT=scripts/download-images.sh; SKILL_DIR="${CLAUDE_SKILL_DIR}"
+if [ ! -d "$SKILL_DIR" ]; then _S="${PWD%%/mnt/*}"; _R="$_S/mnt/.remote-plugins"
+  case "$SKILL_DIR" in */plugin_*) _P="plugin_${SKILL_DIR#*/plugin_}"; SKILL_DIR="$_R/$_P"
+    if [ ! -f "$SKILL_DIR/$SCRIPT" ]; then _M=$(find "$_R/${_P%%/*}" -path "*/$SCRIPT" 2>/dev/null)
+      [ "$(printf %s "$_M" | grep -c .)" = 1 ] && SKILL_DIR="${_M%/$SCRIPT}"; fi ;;
+  esac
+fi
+[ -f "$SKILL_DIR/$SCRIPT" ] || { echo "waggle: skill directory unresolved; $SCRIPT not found. Operation not performed." >&2; exit 1; }
+bash "$SKILL_DIR/$SCRIPT" <page_id> [output_dir]
 ```
 
 Prints a JSON manifest `{images: [{block_id, path, mime_type, source_type, caption}]}` (default `output_dir`: `${TMPDIR:-/tmp}/notion-images/<page_id>`). View the images by reading the saved files with the Read tool.
@@ -494,9 +520,23 @@ In these environments `NOTION_TOKEN` is not exposed to the shell, so the bash sc
 Call the query script for server-side filtering:
 
 ```bash
-bash ${CLAUDE_SKILL_DIR}/scripts/query-tasks.sh \
+SCRIPT=scripts/query-tasks.sh; SKILL_DIR="${CLAUDE_SKILL_DIR}"
+if [ ! -d "$SKILL_DIR" ]; then _S="${PWD%%/mnt/*}"; _R="$_S/mnt/.remote-plugins"
+  case "$SKILL_DIR" in */plugin_*) _P="plugin_${SKILL_DIR#*/plugin_}"; SKILL_DIR="$_R/$_P"
+    if [ ! -f "$SKILL_DIR/$SCRIPT" ]; then _M=$(find "$_R/${_P%%/*}" -path "*/$SCRIPT" 2>/dev/null)
+      [ "$(printf %s "$_M" | grep -c .)" = 1 ] && SKILL_DIR="${_M%/$SCRIPT}"; fi ;;
+  esac
+fi
+[ -f "$SKILL_DIR/$SCRIPT" ] || { echo "waggle: skill directory unresolved; $SCRIPT not found. Operation not performed." >&2; exit 1; }
+bash "$SKILL_DIR/$SCRIPT" \
   "<tasksDatabaseId>" '<filter_json>' '<sort_json>'
 ```
+
+The leading eight lines resolve the skill directory for the runtime the shell is
+actually running in; see the `provider-contract` skill for why each clause is required.
+Resolution and invocation must stay in the same Bash call. If the block reports the
+directory unresolved, halt per "Error Handling for Query Path" below — do not fall back
+to `notion-search` and do not improvise an API call.
 
 The script returns `{"results": [...]}` with full page objects including all properties.
 
@@ -615,7 +655,9 @@ For single-task detail views (update, status change), use the full page object.
 
 To retrieve all tasks (e.g. for view server data push), use the detected query path with no filter:
 
-- **Path 1 (CLI)**: `bash ${CLAUDE_SKILL_DIR}/scripts/query-tasks.sh "<tasksDatabaseId>"` (no filter/sort args)
+- **Path 1 (CLI)**: the query-script block from "Path 1" above with `"<tasksDatabaseId>"`
+  as the only argument (no filter/sort args). Keep the resolver lines — they are part of
+  the invocation, not an optional preamble.
 - **Path 2 (Claude Desktop / Cowork)**: call `mcp__notion-extension__notion-query` with `database_id: <tasksDatabaseId>` and no `filter` / `sorts`
 - If neither Path 1 nor Path 2 is available: halt per "Error Handling for Query Path" above.
 
@@ -626,7 +668,20 @@ No post-processing needed (no Blocked By filter, no sort required).
 When querying ANY Notion database (not just the Tasks DB — e.g., Intake Log, external databases), use the same per-environment detection as the Tasks DB query:
 
 **CLI:**
-1. `NOTION_TOKEN` env var available → call the bash script: `bash ${CLAUDE_SKILL_DIR}/scripts/query-tasks.sh "<database_id>" '<filter_json>' '<sort_json>'`
+1. `NOTION_TOKEN` env var available → call the bash script, resolving the skill
+   directory in the same Bash call:
+
+   ```bash
+   SCRIPT=scripts/query-tasks.sh; SKILL_DIR="${CLAUDE_SKILL_DIR}"
+   if [ ! -d "$SKILL_DIR" ]; then _S="${PWD%%/mnt/*}"; _R="$_S/mnt/.remote-plugins"
+     case "$SKILL_DIR" in */plugin_*) _P="plugin_${SKILL_DIR#*/plugin_}"; SKILL_DIR="$_R/$_P"
+       if [ ! -f "$SKILL_DIR/$SCRIPT" ]; then _M=$(find "$_R/${_P%%/*}" -path "*/$SCRIPT" 2>/dev/null)
+         [ "$(printf %s "$_M" | grep -c .)" = 1 ] && SKILL_DIR="${_M%/$SCRIPT}"; fi ;;
+     esac
+   fi
+   [ -f "$SKILL_DIR/$SCRIPT" ] || { echo "waggle: skill directory unresolved; $SCRIPT not found. Operation not performed." >&2; exit 1; }
+   bash "$SKILL_DIR/$SCRIPT" "<database_id>" '<filter_json>' '<sort_json>'
+   ```
 2. Otherwise → halt and surface the error per "Error Handling for Query Path" above. Do not fall back to notion-search.
 
 **Claude Desktop / Cowork:**
