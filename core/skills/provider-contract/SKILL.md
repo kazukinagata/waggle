@@ -199,7 +199,7 @@ Parameterise `SCRIPT` with the path of the script being invoked, relative to the
 skill directory. Everything else is copied verbatim.
 
 ```bash
-SCRIPT=scripts/query-tasks.sh; SKILL_DIR="${CLAUDE_SKILL_DIR}"
+SCRIPT=scripts/my-script.sh; SKILL_DIR="${CLAUDE_SKILL_DIR}"
 if [ ! -d "$SKILL_DIR" ]; then _S="${PWD%%/mnt/*}"; _R="$_S/mnt/.remote-plugins"
   case "$SKILL_DIR" in */plugin_*) _P="plugin_${SKILL_DIR#*/plugin_}"; SKILL_DIR="$_R/$_P"
     if [ ! -f "$SKILL_DIR/$SCRIPT" ]; then _M=$(find "$_R/${_P%%/*}" -path "*/$SCRIPT" 2>/dev/null)
@@ -207,7 +207,7 @@ if [ ! -d "$SKILL_DIR" ]; then _S="${PWD%%/mnt/*}"; _R="$_S/mnt/.remote-plugins"
   esac
 fi
 [ -f "$SKILL_DIR/$SCRIPT" ] || { echo "waggle: skill directory unresolved; $SCRIPT not found. Operation not performed." >&2; exit 1; }
-bash "$SKILL_DIR/$SCRIPT" '<where_clause>' '<order_clause>'
+bash "$SKILL_DIR/$SCRIPT" '<arg>' '<arg>'
 ```
 
 Three tiers, in order:
@@ -252,7 +252,7 @@ exits, so a caller cannot read `$SKILL_DIR` out of it afterwards. Use the same r
 with a printing final line instead:
 
 ```bash
-SCRIPT=scripts/turso-exec.sh; SKILL_DIR="${CLAUDE_SKILL_DIR}"
+SCRIPT=scripts/my-script.sh; SKILL_DIR="${CLAUDE_SKILL_DIR}"
 if [ ! -d "$SKILL_DIR" ]; then _S="${PWD%%/mnt/*}"; _R="$_S/mnt/.remote-plugins"
   case "$SKILL_DIR" in */plugin_*) _P="plugin_${SKILL_DIR#*/plugin_}"; SKILL_DIR="$_R/$_P"
     if [ ! -f "$SKILL_DIR/$SCRIPT" ]; then _M=$(find "$_R/${_P%%/*}" -path "*/$SCRIPT" 2>/dev/null)

@@ -27,6 +27,12 @@ The SQLite row in `provider-contract` picked up the measured reason its counterp
 `environment-detection.md` already had: the execution VM has no `sqlite3` binary, on
 top of the host DB file being unreachable from it.
 
+The two resolver examples in `provider-contract` § Resolving the Skill Directory named
+concrete provider scripts. A contract document naming another skill's internal file is
+the coupling the project convention forbids, and it invited copying the example
+verbatim — the one mistake the `SCRIPT` variable exists to prevent. Both now use the
+same neutral placeholder as the contributor documentation.
+
 Documentation only. No skill behaviour, protocol semantics, or script changes.
 
 - **`waggle` 3.0.3 → 3.0.4** (PATCH)
