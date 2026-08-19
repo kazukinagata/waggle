@@ -345,52 +345,97 @@ export function filterByNames(entries, names) {
 // attacker-influenceable in a way the original URL is not. https only, and no
 // private, loopback, or link-local destination — a download has no business
 // reaching a host that is only reachable from inside this network.
-// Is this IP address one a download must never reach? Accepts IPv4 and IPv6
-// literals, including IPv4-mapped IPv6 (`::ffff:127.0.0.1`) — a mapped literal
-// reaches the same host as the bare IPv4 one, so checking only the IPv6 prefixes
-// would let `https://[::ffff:127.0.0.1]/` through to loopback.
+// --- address classification -------------------------------------------------
+//
+// One predicate decides whether a download may reach an address, and it is used
+// both for a literal in the URL and for an address a hostname resolves to, so the
+// two cannot drift apart.
+//
+// IPv6 is expanded and inspected numerically rather than matched as a string. Two
+// rounds of prefix-matching bugs came from doing it textually: `::ffff:127.0.0.1`
+// is normalized by the URL parser to `::ffff:7f00:1`, and the un-prefixed
+// IPv4-compatible form `::127.0.0.1` to `::7f00:1` — neither of which matches a
+// naive `::ffff:` or `f[cd]`/`fe80`/`ff` test, so loopback and the cloud metadata
+// address both sailed through. Expanding to eight groups and testing the numbers
+// covers every spelling of every one of these at once, including the ones nobody
+// has thought of yet.
+
+function isBlockedIpv4(a, b, c, d) {
+  if ([a, b, c, d].some((o) => !Number.isInteger(o) || o < 0 || o > 255)) return true;
+  if (a === 0 || a === 10 || a === 127) return true;      // this-host, private, loopback
+  if (a === 192 && b === 168) return true;                // private
+  if (a === 172 && b >= 16 && b <= 31) return true;       // private
+  if (a === 169 && b === 254) return true;                // link-local, incl. metadata
+  if (a === 100 && b >= 64 && b <= 127) return true;      // CGNAT
+  if (a >= 224) return true;                              // multicast / reserved
+  return false;
+}
+
+// Expand an IPv6 literal to eight 16-bit groups, or null if it is not one.
+// Handles `::` compression and a trailing embedded dotted quad.
+export function expandIpv6(input) {
+  let host = String(input ?? "").trim().toLowerCase().replace(/^\[|\]$/g, "");
+  if (!host.includes(":")) return null;
+  host = host.replace(/%[^\]]*$/, ""); // drop any zone id
+
+  // A trailing dotted quad becomes the final two groups.
+  const dotted = /:(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(host);
+  if (dotted) {
+    const o = dotted.slice(1).map(Number);
+    if (o.some((n) => n > 255)) return null;
+    host = `${host.slice(0, dotted.index)}:${(((o[0] << 8) | o[1]) >>> 0).toString(16)}:${(((o[2] << 8) | o[3]) >>> 0).toString(16)}`;
+  }
+
+  const halves = host.split("::");
+  if (halves.length > 2) return null;
+  const head = halves[0] ? halves[0].split(":") : [];
+  const tail = halves.length === 2 ? (halves[1] ? halves[1].split(":") : []) : [];
+  let groups;
+  if (halves.length === 2) {
+    const fill = 8 - head.length - tail.length;
+    if (fill < 0) return null;
+    groups = [...head, ...Array(fill).fill("0"), ...tail];
+  } else {
+    groups = head;
+  }
+  if (groups.length !== 8) return null;
+  const nums = groups.map((g) => (g === "" ? 0 : parseInt(g, 16)));
+  if (nums.some((n) => !Number.isInteger(n) || Number.isNaN(n) || n < 0 || n > 0xffff)) return null;
+  if (groups.some((g) => g !== "" && !/^[0-9a-f]{1,4}$/.test(g))) return null;
+  return nums;
+}
+
+// Is this IP address one a download must never reach?
 //
 // Exported because the same rules apply to a literal in the URL and to an address
 // the hostname resolves to; one predicate for both keeps them from diverging.
 export function isBlockedAddress(addr) {
   if (!addr) return true;
-  let host = String(addr).toLowerCase().replace(/^\[|\]$/g, "");
-  if (host === "::" || host === "::1") return true;
-
-  // IPv4-mapped IPv6. Both spellings must be handled: the dotted form
-  // (`::ffff:127.0.0.1`) and the hextet form (`::ffff:7f00:1`), because the URL
-  // parser normalizes the former into the latter — so a check that only knew the
-  // dotted spelling would pass `https://[::ffff:127.0.0.1]/` straight to loopback.
-  if (host.startsWith("::ffff:")) {
-    const rest = host.slice(7);
-    const hextets = /^([0-9a-f]{1,4}):([0-9a-f]{1,4})$/.exec(rest);
-    if (hextets) {
-      const hi = parseInt(hextets[1], 16);
-      const lo = parseInt(hextets[2], 16);
-      host = `${(hi >> 8) & 0xff}.${hi & 0xff}.${(lo >> 8) & 0xff}.${lo & 0xff}`;
-    } else {
-      host = rest;
-    }
-  }
+  const host = String(addr).trim().toLowerCase().replace(/^\[|\]$/g, "");
 
   const v4 = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(host);
-  if (v4) {
-    const [a, b] = [Number(v4[1]), Number(v4[2])];
-    if (v4.slice(1).some((o) => Number(o) > 255)) return true;
-    if (a === 0 || a === 10 || a === 127) return true;          // this-host, private, loopback
-    if (a === 192 && b === 168) return true;                     // private
-    if (a === 172 && b >= 16 && b <= 31) return true;            // private
-    if (a === 169 && b === 254) return true;                     // link-local (incl. metadata)
-    if (a === 100 && b >= 64 && b <= 127) return true;           // CGNAT
-    if (a >= 224) return true;                                   // multicast / reserved
+  if (v4) return isBlockedIpv4(...v4.slice(1).map(Number));
+
+  const g = expandIpv6(host);
+  if (g) {
+    // An IPv4 address embedded in the low 32 bits: IPv4-mapped (`::ffff:a.b.c.d`)
+    // and IPv4-compatible (`::a.b.c.d`) alike. `::` and `::1` land here too and are
+    // caught by the a === 0 rule. Judge it by the IPv4 rules, since that is the host
+    // it names.
+    const embedded =
+      g[0] === 0 && g[1] === 0 && g[2] === 0 && g[3] === 0 && g[4] === 0 &&
+      (g[5] === 0 || g[5] === 0xffff);
+    if (embedded) {
+      return isBlockedIpv4((g[6] >> 8) & 0xff, g[6] & 0xff, (g[7] >> 8) & 0xff, g[7] & 0xff);
+    }
+    if ((g[0] & 0xfe00) === 0xfc00) return true;   // fc00::/7  unique-local
+    if ((g[0] & 0xffc0) === 0xfe80) return true;   // fe80::/10 link-local
+    if ((g[0] & 0xff00) === 0xff00) return true;   // ff00::/8  multicast
     return false;
   }
-  // IPv6: loopback handled above.
-  if (/^f[cd]/.test(host)) return true;      // unique-local, fc00::/7
-  if (/^fe[89ab]/.test(host)) return true;   // link-local, fe80::/10
-  if (/^ff/.test(host)) return true;         // multicast, ff00::/8 — the IPv4 side
-                                             // already rejected 224.0.0.0/4, and
-                                             // ff02::1 is the same kind of target
+
+  // Neither a v4 nor a v6 literal: not an address, so not this function's call.
+  // A hostname is judged by what it resolves to (see assertPublicHost).
   return false;
 }
 

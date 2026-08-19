@@ -16,6 +16,7 @@ import {
   filterByNames,
   hostedUrl,
   isAllowedDownloadUrl,
+  expandIpv6,
   isBlockedAddress,
   isExpired,
   isTextualMime,
@@ -253,6 +254,18 @@ check("mapped IPv6 loopback (hextet) -> refused", !isAllowedDownloadUrl("https:/
 check("mapped IPv6 private -> refused", !isAllowedDownloadUrl("https://[::ffff:10.0.0.1]/a"));
 check("mapped IPv6 metadata IP -> refused", !isAllowedDownloadUrl("https://[::ffff:169.254.169.254]/a"));
 check("mapped IPv6 public -> allowed", isAllowedDownloadUrl("https://[::ffff:8.8.8.8]/a"));
+// IPv4-COMPATIBLE (no ffff group) is the sibling of the mapped form, and the URL
+// parser normalizes it the same way: [::127.0.0.1] -> ::7f00:1, and
+// [::169.254.169.254] -> ::a9fe:a9fe. Two rounds of prefix-matching bugs came from
+// testing these as strings, which is why IPv6 is now expanded and judged numerically.
+check("compat IPv6 loopback (dotted) -> refused", !isAllowedDownloadUrl("https://[::127.0.0.1]/a"));
+check("compat IPv6 loopback (hextet) -> refused", !isAllowedDownloadUrl("https://[::7f00:1]/a"));
+check("compat IPv6 metadata IP -> refused", !isAllowedDownloadUrl("https://[::169.254.169.254]/a"));
+check("compat IPv6 metadata IP (hextet) -> refused", !isAllowedDownloadUrl("https://[::a9fe:a9fe]/a"));
+check("compat IPv6 private -> refused", !isAllowedDownloadUrl("https://[::10.0.0.1]/a"));
+check("real public IPv6 -> allowed", isAllowedDownloadUrl("https://[2606:4700::1111]/a"));
+check("febf is still link-local -> refused", !isAllowedDownloadUrl("https://[febf::1]/a"));
+check("fe70 is NOT link-local -> allowed", isAllowedDownloadUrl("https://[fe70::1]/a"));
 check("IPv6 unspecified -> refused", !isAllowedDownloadUrl("https://[::]/a"));
 check("fe80-febf link-local range -> refused", !isAllowedDownloadUrl("https://[feb0::1]/a"));
 check("multicast -> refused", !isAllowedDownloadUrl("https://224.0.0.1/a"));
@@ -272,6 +285,25 @@ check("resolved IPv6 unique-local -> blocked", isBlockedAddress("fd12:3456::1"))
 check("resolved IPv6 public -> allowed", !isBlockedAddress("2606:4700::1111"));
 check("172.32 is public -> allowed", !isBlockedAddress("172.32.0.1"));
 check("empty/undefined -> blocked (fail closed)", isBlockedAddress("") && isBlockedAddress(undefined));
+check("resolved compat-IPv6 metadata -> blocked", isBlockedAddress("::a9fe:a9fe"));
+check("resolved mapped-IPv6 loopback -> blocked", isBlockedAddress("::ffff:7f00:1"));
+check("zone id ignored", isBlockedAddress("fe80::1%eth0"));
+// A hostname is not an address: this predicate returns false and assertPublicHost
+// decides by resolving it. Returning true here would refuse every real download.
+check("hostname is not judged here", !isBlockedAddress("prod-files.notion-static.com"));
+
+console.log("== expandIpv6 ==");
+check("full form", expandIpv6("2001:db8:0:0:0:0:0:1")?.length === 8);
+check("compressed", JSON.stringify(expandIpv6("::1")) === JSON.stringify([0, 0, 0, 0, 0, 0, 0, 1]));
+check("all-zero", JSON.stringify(expandIpv6("::")) === JSON.stringify([0, 0, 0, 0, 0, 0, 0, 0]));
+check("dotted tail folded into two groups", JSON.stringify(expandIpv6("::ffff:127.0.0.1")) === JSON.stringify([0, 0, 0, 0, 0, 0xffff, 0x7f00, 1]));
+check("compat dotted tail", JSON.stringify(expandIpv6("::127.0.0.1")) === JSON.stringify([0, 0, 0, 0, 0, 0, 0x7f00, 1]));
+check("brackets tolerated", expandIpv6("[::1]") !== null);
+check("plain IPv4 is not IPv6", expandIpv6("127.0.0.1") === null);
+check("two :: is invalid", expandIpv6("::1::2") === null);
+check("too many groups is invalid", expandIpv6("1:2:3:4:5:6:7:8:9") === null);
+check("non-hex group is invalid", expandIpv6("::zz") === null);
+check("dotted octet over 255 is invalid", expandIpv6("::ffff:999.1.1.1") === null);
 check("file: -> refused", !isAllowedDownloadUrl("file:///etc/passwd"));
 
 console.log("== safeFilename ==");
