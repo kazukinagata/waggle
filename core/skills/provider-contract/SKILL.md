@@ -244,6 +244,35 @@ Do not "simplify" this. Each clause carries a specific failure mode:
 - Naming the script once, in `SCRIPT`, keeps the `-f` guard and the invocation from
   ever disagreeing.
 
+### Obtaining the resolved path without running the script
+
+Dispatch generation needs the resolved *path*, not the script's output. The canonical
+block ends by executing the script, and its shell variables die when the Bash call
+exits, so a caller cannot read `$SKILL_DIR` out of it afterwards. Use the same resolver
+with a printing final line instead:
+
+```bash
+SCRIPT=scripts/turso-exec.sh; SKILL_DIR="${CLAUDE_SKILL_DIR}"
+if [ ! -d "$SKILL_DIR" ]; then _S="${PWD%%/mnt/*}"; _R="$_S/mnt/.remote-plugins"
+  case "$SKILL_DIR" in */plugin_*) _P="plugin_${SKILL_DIR#*/plugin_}"; SKILL_DIR="$_R/$_P"
+    if [ ! -f "$SKILL_DIR/$SCRIPT" ]; then _M=$(find "$_R/${_P%%/*}" -path "*/$SCRIPT" 2>/dev/null)
+      [ "$(printf %s "$_M" | grep -c .)" = 1 ] && SKILL_DIR="${_M%/$SCRIPT}"; fi ;;
+  esac
+fi
+[ -f "$SKILL_DIR/$SCRIPT" ] || { echo "waggle: skill directory unresolved; $SCRIPT not found. Operation not performed." >&2; exit 1; }
+printf '%s\n' "$SKILL_DIR/$SCRIPT"
+```
+
+Capture stdout and inject that literal into the dispatch template. The resolver body is
+identical — only the last line differs — so the path is validated by the same
+fail-closed guard before it is printed; an unresolved directory prints nothing and exits
+non-zero, and a template must not be emitted in that case.
+
+This is the one sanctioned exception to "never feed a shell-emitted path back into a
+later shell command", and it is narrow: the path goes into *another agent's prompt*, not
+into a later shell command in this session, and only where the dispatcher and the
+receiver share a filesystem. See § On Completion Template for that precondition.
+
 ### Rules for applying it
 
 - **Resolution and invocation MUST sit in the same shell invocation.** Every Bash

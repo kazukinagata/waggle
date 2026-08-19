@@ -255,10 +255,10 @@ cannot be used as a parent (2-level limit).
 
 - **Task ID**: the hex string ID from the `id` column
 - **Update instruction**: an instruction handed to *another* agent, so it must carry a
-  literal absolute path — not `${CLAUDE_SKILL_DIR}`, and not `$SKILL_DIR`. Resolve
-  `scripts/turso-exec.sh` with the canonical resolver first (see § Invoking Bundled
-  Scripts), then inject the resolved value in place of
-  `<absolute_path_to_turso_exec_sh>`:
+  literal absolute path — not `${CLAUDE_SKILL_DIR}`, and not `$SKILL_DIR`. Obtain it by
+  running the **printing** variant of the resolver for `scripts/turso-exec.sh` (defined
+  in the `provider-contract` skill) and capturing its stdout, then inject that value in
+  place of `<absolute_path_to_turso_exec_sh>`:
 
   "Run: `bash \"<absolute_path_to_turso_exec_sh>\" \"UPDATE tasks SET agent_output = '<result>', status = 'Done', updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now') WHERE id = '<task_id>';\"`"
 
@@ -266,7 +266,7 @@ cannot be used as a parent (2-level limit).
 
 ## On Completion Template
 
-The following template is injected into dispatch prompts by `executing-tasks`. Placeholders are resolved at dispatch time. `<absolute_path_to_turso_exec_sh>` is resolved at dispatch generation time to the absolute path of `scripts/turso-exec.sh` **as the dispatched agent's shell will see it** — obtained by running the canonical resolver (see § Invoking Bundled Scripts) and injecting the resulting `$SKILL_DIR/$SCRIPT` value literally. Assert that no `${CLAUDE_*}` variable and no `$SKILL_DIR` reference survives into the emitted template.
+The following template is injected into dispatch prompts by `executing-tasks`. Placeholders are resolved at dispatch time. `<absolute_path_to_turso_exec_sh>` is resolved at dispatch generation time to the absolute path of `scripts/turso-exec.sh` **as the dispatched agent's shell will see it** — obtained by running the **printing** variant of the resolver (the one ending in `printf '%s\n' "$SKILL_DIR/$SCRIPT"`, defined in the `provider-contract` skill) and injecting its captured stdout literally. The ordinary block in § Invoking Bundled Scripts ends by executing the script, so it cannot supply the path. Assert that no `${CLAUDE_*}` variable and no `$SKILL_DIR` reference survives into the emitted template.
 
 ```
 Task ID: <task_id>
