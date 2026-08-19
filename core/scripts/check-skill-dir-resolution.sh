@@ -111,10 +111,32 @@ for path in sorted(pathlib.Path('.').rglob('*.md')):
             if frag not in body:
                 flag(path, first_assign,
                      'resolver is incomplete -- missing %s' % label, frag)
-        if GUARD not in body and FAIL_OPEN not in body:
+
+        if FAIL_OPEN in body:
+            continue
+
+        guard_lines = [n for n, l in block if GUARD in l]
+        if not guard_lines:
             flag(path, first_assign,
-                 'no fail-closed guard before use (expected %s), and the block does '
-                 'not declare "%s"' % (GUARD, FAIL_OPEN))
+                 'no fail-closed guard (expected %s), and the block does not declare '
+                 '"%s"' % (GUARD, FAIL_OPEN))
+            continue
+
+        # The guard must precede the real use. Uses inside the resolver body itself
+        # (its own tests on $SKILL_DIR) are not "use" -- identify them by the clause
+        # signatures, so only the invocation is subject to the ordering rule.
+        guard = guard_lines[0]
+        resolver_frags = [frag for _, frag in REQUIRED] + [GUARD]
+        for n, l in block:
+            if n >= guard or not USES_SD.search(l):
+                continue
+            if CANONICAL.match(l) or COMMENT.match(l):
+                continue
+            if any(frag in l for frag in resolver_frags):
+                continue
+            flag(path, n,
+                 'uses "$SKILL_DIR" at line %d, before the fail-closed guard at line '
+                 '%d -- the operation could run against an unchecked path' % (n, guard))
 
 if problems:
     print("Skill-directory resolution contract violated (%d problem(s)):\n"

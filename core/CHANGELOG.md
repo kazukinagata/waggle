@@ -106,9 +106,11 @@ it, and CI enforces it in this repository.
   2. **Self-contained.** A block that uses `"$SKILL_DIR"` must itself assign it, and
      assign it before first use.
   3. **Complete and fail-closed.** A block that assigns it must carry the whole
-     resolver body — both tiers — and a fail-closed guard. This catches a block that
-     keeps the assignment but drops a clause, including the `#`-for-`##` substitution
-     that would silently produce a broken path.
+     resolver body — both tiers — and a fail-closed guard, with the guard *before* the
+     use, so nothing runs against an unchecked path. This catches a block that keeps
+     the assignment but drops a clause, including the `#`-for-`##` substitution that
+     would silently produce a broken path. Uses inside the resolver's own tests are
+     recognised as such, so only the real invocation is subject to the ordering rule.
 
   A site that must fail *open* instead — a best-effort convenience step, never a check
   or a write — declares itself with a `# waggle-ci: fail-open` comment. There is one:
