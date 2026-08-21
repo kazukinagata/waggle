@@ -78,7 +78,7 @@ run "Ready + empty EP -> invalid" Ready '{"executionPlan":""}' false required_no
 run "Blocked + empty AC -> invalid" Blocked '{"acceptanceCriteria":""}' false required_non_empty
 
 # ---------------------------------------------------------------------------
-# Reserved placeholders (structural rule: any of the three strings blocks Ready+)
+# Reserved placeholders (structural rule: any of the four strings blocks Ready+)
 # ---------------------------------------------------------------------------
 run "Ready + [DRAFT-AC] in AC -> invalid" Ready \
   '{"acceptanceCriteria":"[DRAFT-AC] branch exists for GP and merchant editing"}' false placeholder_present
@@ -92,14 +92,30 @@ run "In Progress + [NEEDS-REFINE] in EP -> invalid" "In Progress" \
   '{"executionPlan":"[NEEDS-REFINE] 1. edit /src/foo.ts 2. npm test"}' false placeholder_present
 run "Backlog + [DRAFT-AC] -> valid (placeholders gate Ready+ only)" Backlog \
   '{"acceptanceCriteria":"[DRAFT-AC] stub"}' true
+# [INFERRED] became protocol-reserved and Ready-blocking in v4.0.0. It marks an
+# unresolved assertion — a line traceable to neither the issuer's words nor a
+# citable source. The ingest path was already writing it onto tasks that reached
+# Ready as an "audit trail"; that is exactly the state this now prevents.
+run "Ready + [INFERRED] in AC -> invalid" Ready \
+  '{"acceptanceCriteria":"[INFERRED] the staging site refreshes hourly"}' false placeholder_present
+run "Ready + [INFERRED] in EP -> invalid" Ready \
+  '{"executionPlan":"1. edit /src/foo.ts 2. [INFERRED] notify the release channel"}' false placeholder_present
+run "In Progress + [INFERRED] in AC -> invalid" "In Progress" \
+  '{"acceptanceCriteria":"[INFERRED] the client uses the v2 endpoint"}' false placeholder_present
+run "Backlog + [INFERRED] -> valid (Backlog is where an unresolved line belongs)" Backlog \
+  '{"acceptanceCriteria":"[INFERRED] the client uses the v2 endpoint"}' true
+# [LOW CONFIDENCE] was never a reserved prefix and is removed in v4.0.0: it must
+# not be treated as one, or every task mentioning the phrase would be blocked.
+run "Ready + [LOW CONFIDENCE] text -> valid (never reserved)" Ready \
+  '{"acceptanceCriteria":"Run npm test; the [LOW CONFIDENCE] label is removed from the dashboard"}' true
 
 # ---------------------------------------------------------------------------
 # Quality Verdict integrity (format + PASS gate)
 # ---------------------------------------------------------------------------
 run "Ready + fabricated mnemonic hash -> invalid" Ready \
   '{"qualityVerdict":"PASS hash=line0612a @2026-06-10T00:00:00Z v1"}' false verdict_format
-run "Ready + well-formed PASS -> valid" Ready \
-  '{"qualityVerdict":"PASS hash=abc12345 @2026-06-10T10:42:00Z v1"}' true
+run "Ready + well-formed v2 PASS -> valid" Ready \
+  '{"qualityVerdict":"PASS hash=abc12345 @2026-06-10T10:42:00Z v2"}' true
 run "Ready + NEEDS_REFINEMENT -> invalid" Ready \
   '{"qualityVerdict":"NEEDS_REFINEMENT hash=abc12345 @2026-06-10T10:42:00Z v1"}' false verdict_not_pass
 run "Ready + REJECT -> invalid" Ready \
@@ -115,11 +131,68 @@ run "Backlog + fabricated hash -> valid (not checked)" Backlog \
 # removed in v3.0.0, but parsers MUST NOT reject unknown trailing keys, so
 # existing DB values keep parsing (the key carries no semantics anymore).
 run "Ready + legacy suppressed-until key tolerated" Ready \
+  '{"qualityVerdict":"PASS hash=abc12345 @2026-06-10T10:42:00Z v2 suppressed-until=2026-06-17T10:42:00Z"}' true
+run "In Progress + legacy suppressed-until key on a v1 line tolerated" "In Progress" \
   '{"qualityVerdict":"PASS hash=abc12345 @2026-06-10T10:42:00Z v1 suppressed-until=2026-06-17T10:42:00Z"}' true
 run "Ready + PASS v2 w/ unknown trailing key -> valid (forward-compat)" Ready \
   '{"qualityVerdict":"PASS hash=abc12345 @2026-06-10T10:42:00Z v2 newkey=foo"}' true
 run "Ready + fabricated hash w/ trailing key -> invalid" Ready \
   '{"qualityVerdict":"PASS hash=line0612a @2026-06-10T00:00:00Z v1 extra=1"}' false verdict_format
+
+# ---------------------------------------------------------------------------
+# Verdict format version and the migration window (v4.0.0)
+#
+# Ready requires v2 — that is where a task first claims "an executor can start
+# without asking back", and a v1 verdict was produced under the five-axis rubric
+# and so was never evaluated on Fidelity. In Progress and beyond still accept v1:
+# dispatch is cache-only and cannot fall back to a live review, so rejecting v1
+# there would strand every already-Ready task.
+# ---------------------------------------------------------------------------
+run "Ready + legacy v1 PASS -> invalid (stale rubric)" Ready \
+  '{"qualityVerdict":"PASS hash=abc12345 @2026-06-10T10:42:00Z v1"}' false verdict_stale_format
+run "In Progress + legacy v1 PASS -> valid (migration window)" "In Progress" \
+  '{"qualityVerdict":"PASS hash=abc12345 @2026-06-10T10:42:00Z v1"}' true
+run "In Progress + v2 PASS -> valid" "In Progress" \
+  '{"qualityVerdict":"PASS hash=abc12345 @2026-06-10T10:42:00Z v2"}' true
+run "Backlog + legacy v1 PASS -> valid (below the gate)" Backlog \
+  '{"qualityVerdict":"PASS hash=abc12345 @2026-06-10T10:42:00Z v1"}' true
+# A v1 line that is also non-PASS fails on the PASS rule, which is checked first —
+# pinning the order so the user is told the actionable thing (refine it), not that
+# the format is stale.
+run "Ready + v1 NEEDS_REFINEMENT -> invalid on verdict_not_pass, not format" Ready \
+  '{"qualityVerdict":"NEEDS_REFINEMENT hash=abc12345 @2026-06-10T10:42:00Z v1"}' false verdict_not_pass
+# A malformed line fails on shape before either rule — version is meaningless on a
+# line that did not parse.
+run "Ready + malformed v2 line -> invalid on verdict_format" Ready \
+  '{"qualityVerdict":"PASS hash=notahex1 @2026-06-10T10:42:00Z v2"}' false verdict_format
+# An unknown future version is not v2, so Ready rejects it rather than assuming
+# forward compatibility on the one field where guessing wrong hides a stale rubric.
+# The re-review path: a caller producing a verdict omits the field, so a legacy v1
+# task is structurally valid and the Reviewer can run and mint a v2 verdict. If
+# this ever fails, the migration window is a dead end — a v1 Ready task would be
+# rejected for being v1 and could never be re-reviewed out of it.
+run "Ready + verdict omitted -> valid (re-review pre-check)" Ready \
+  '{"qualityVerdict":""}' true
+run "Ready + verdict omitted -> only a warning, never verdict_stale_format" Ready \
+  '{"qualityVerdict":""}' true verdict_recommended warnings
+run "Ready + v3 PASS -> invalid (not v2)" Ready \
+  '{"qualityVerdict":"PASS hash=abc12345 @2026-06-10T10:42:00Z v3"}' false verdict_stale_format
+# Exactly two versions are defined. The shape regex accepts any v[0-9]+ because the
+# format requires tolerating unknown TRAILING KEYS, not unknown versions — an
+# unknown version's hash was computed over an unknown input, so accepting it would
+# admit a verdict nobody can recompute.
+run "In Progress + v3 PASS -> invalid (unknown version)" "In Progress" \
+  '{"qualityVerdict":"PASS hash=abc12345 @2026-06-10T10:42:00Z v3"}' false verdict_unknown_version
+run "In Progress + v0 PASS -> invalid (unknown version)" "In Progress" \
+  '{"qualityVerdict":"PASS hash=abc12345 @2026-06-10T10:42:00Z v0"}' false verdict_unknown_version
+run "In Progress + v11 PASS -> invalid (not v1, despite the prefix)" "In Progress" \
+  '{"qualityVerdict":"PASS hash=abc12345 @2026-06-10T10:42:00Z v11"}' false verdict_unknown_version
+run "In Progress + v2 with trailing key -> valid" "In Progress" \
+  '{"qualityVerdict":"PASS hash=abc12345 @2026-06-10T10:42:00Z v2 newkey=foo"}' true
+# The version is read from its position in the line, not by searching for "v2"
+# anywhere in it: a trailing key whose VALUE is v2 must not promote a v1 verdict.
+run "Ready + v1 PASS with a trailing key=v2 -> still invalid" Ready \
+  '{"qualityVerdict":"PASS hash=abc12345 @2026-06-10T10:42:00Z v1 rubric=v2"}' false verdict_stale_format
 
 # ---------------------------------------------------------------------------
 # In Progress: executor + working directory

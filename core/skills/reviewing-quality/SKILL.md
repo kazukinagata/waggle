@@ -60,7 +60,7 @@ For every invocation:
 ### Step 1 — Skip-path checks
 
 If the task's `Tags` contain `worthiness:calendar-like` or `worthiness:info-only`:
-- Apply the **reserved-placeholder check** only (no `[DRAFT-AC]` / `[DRAFT-EP]` / `[NEEDS-REFINE]` placeholder in either field). The Reviewer (Layer 2) is skipped for worthiness-tagged tasks per the protocol Quality Spec.
+- Apply the **reserved-placeholder check** only (no `[DRAFT-AC]` / `[DRAFT-EP]` / `[NEEDS-REFINE]` / `[INFERRED]` placeholder in either field). The Reviewer (Layer 2) is skipped for worthiness-tagged tasks per the protocol Quality Spec.
 - If a placeholder remains → return verdict = `REJECT` with the placeholder as the gap. The user must remove the placeholder before promoting.
 - Otherwise → return verdict = `PASS` (worthiness skip). Do not write a new cache entry; preserve any pre-existing one.
 
@@ -70,19 +70,32 @@ If the task's `Executor` is `human` and the call site is `managing-tasks` pre-Re
 
 Invoke the `validating-fields` skill to run the Layer 1 structural checks on the current task fields. These are language-independent, exactly decidable rules (empty fields, description length, reserved placeholders, verdict-line integrity) — Layer 1 makes no judgment about the meaning of AC/EP text; semantic quality belongs to the Reviewer below.
 
+**Do not pass the task's stored `Quality Verdict` in this call.** Layer 1's verdict checks judge *the verdict travelling in a promotion write* — that it is well-formed, that it is a PASS, and that its format version is current. This step is asking a different question: is the spec structurally sound enough to be worth a Reviewer call? The verdict this run is about to produce does not exist yet, and the one currently stored is exactly what is being replaced.
+
+Passing the stored verdict here would deadlock the thing it is meant to protect. A Ready task holding a legacy `v1` PASS is the migration's whole subject; if Layer 1 rejects it for being `v1`, this step returns `REJECT`, the Reviewer never runs, no `v2` verdict is ever produced, and the task can never leave `v1`. The same trap catches a task holding a stale `NEEDS_REFINEMENT`: it could never be re-reviewed into a PASS. Omit the field and both work.
+
+The verdict checks still run where they belong — at the promotion itself, where `managing-tasks` and the other callers pass the `verdict_string` this skill returned, in the same write that sets the new Status.
+
 - Layer 1 fail (`valid: false`): return verdict = `REJECT` with the structural errors. **Do not** spawn the Reviewer. Cache the verdict so `monitoring-tasks` can list it. The errors name exactly what is missing (a field, a placeholder), so the caller can present a mechanical fix.
 - Layer 1 pass (warnings allowed): continue.
 
 ### Step 3 — Cache lookup (when mode ≠ `live`)
 
-Compute the content hash: first 8 hex chars of `sha256("${Title}|${Description}|${AC}|${EP}")`.
+Compute the review-input hash over the normalized review input defined in `references/cache-format.md`: `Title`, `Description`, `Acceptance Criteria`, `Execution Plan`, reviewer-visible `Context`, and the rubric identifier, pipe-joined and normalized exactly as that file specifies.
 
-Read the task's `Quality Verdict` field. Parse using `references/cache-format.md`.
+**Reviewer-visible `Context` means `Context` with the machine-written blocks removed** — the findings block and the delegation history block. The confirmation log stays: it is issuer evidence the Reviewer must see (Step 4). Perform the strip once and use the same result for both the hash here and the spec handed to the Reviewer, since two independent strip implementations would drift and a drift here silently mismatches every hash.
 
-Evaluate:
+Read the task's `Quality Verdict` field. Parse using `references/cache-format.md`, and **keep the parsed format version** — the next step branches on it.
 
-1. Hash matches → cache hit, return the cached verdict.
-2. Hash mismatch → cache stale, fall through to live evaluation.
+Evaluate on the parsed version, and note that **`v1` is handled differently per mode** — this is the whole of the migration window:
+
+1. **Version `v2`** → compare against the v2 review-input hash. Match → cache hit, return it. Mismatch → cache stale.
+2. **Version `v1`** → the line was hashed over the legacy input (`Title|Description|AC|EP`, no `Context`, no rubric identifier), so it can never match a recomputed v2 hash. Do not read that as content staleness:
+   - In **`cache-only`** mode, validate it against the **legacy v1 hash** instead. A well-formed `v1` PASS whose legacy hash still matches is a **cache hit**: return it, with `format_version: 1`, so dispatch proceeds. This is required, not a courtesy — `cache-only` has no live fallback, so treating `v1` as a miss returns `UNREVIEWED` and strands every task that was already Ready before the upgrade, which is precisely what the migration window exists to prevent. If the legacy hash does *not* match, the spec changed after even that verdict, so it is genuinely stale → cache miss.
+   - In **`live`** and **`live, cache-aware`** modes, a `v1` line is never a hit. Fall through and produce a `v2` verdict. A caller already willing to pay for a live review is exactly where the upgrade should happen, and this is what makes the migration progress rather than sit still.
+3. **Any other version** → cache miss in every mode. Only two versions are defined; the hash behind an unknown one was computed over an unknown input.
+
+When surfacing a `v1` result to the caller, say the verdict predates the rubric change and will be re-reviewed by the daily sweep — not that someone edited the spec.
 
 There is no re-review throttle (the 7-day suppression mechanism was removed in v3.0.0): identical content is already deduplicated by the content hash, and every refine loop is gated on an explicit user choice at the caller, so re-reviews only happen when the user changed the spec and asked for one.
 
@@ -94,7 +107,9 @@ In `cache-only` mode, a cache miss returns verdict = `UNREVIEWED` to the caller.
 
 Spawn the `task-quality-reviewer-agent` subagent with the task spec block (Title, Description, AC, EP, Context, Working Directory, Repository, Executor).
 
-Before passing `Context`, strip any Quality Review Findings block it contains (this skill's own persisted output from a previous round) — the Reviewer must evaluate the requester's spec, not be steered by its own prior findings.
+Before passing `Context`, strip the machine-written blocks it contains: the Quality Review Findings block (this skill's own persisted output from a previous round) and the Delegation History block (audit metadata carrying no requirement). The Reviewer must evaluate the requester's spec, not be steered by its own prior findings or asked to read a handoff log as a requirement. This is the **same strip** whose result fed the hash in Step 3; reuse it rather than recomputing.
+
+**Keep the Confirmation Log block.** It is the opposite case: it records what the issuer confirmed, and a confirmation is the issuer's own words about that line — the strongest form of sourcing the Fidelity axis recognizes. Strip it and the axis has no evidence for a line that was just adopted, so resolving an `[INFERRED]` marker would produce a spec that can never PASS and the task could never reach Ready. Tell the Reviewer what the block is, so it reads the entries as issuer statements rather than as prose someone left in `Context`.
 
 Wait for its return. Parse the structured output to extract:
 - Verdict (`PASS` / `NEEDS_REFINEMENT` / `REJECT` / `INSUFFICIENT_CONTEXT`)
@@ -106,13 +121,13 @@ Treat `INSUFFICIENT_CONTEXT` as `NEEDS_REFINEMENT` for cache/return purposes; su
 
 ### Step 5 — Cache write
 
-Write the verdict to the task's `Quality Verdict` field in the format documented in `references/cache-format.md`. Single line, overwrites the previous entry.
+Write the verdict to the task's `Quality Verdict` field in the format documented in `references/cache-format.md`. Single line, overwrites the previous entry. **Emit `v2` only** — `v1` is never written again, including when re-reviewing a task that currently carries a `v1` line.
 
 **Findings persistence (same write step):** keep the gaps and suggested fixes on the task, not just in chat — they are what the user (or a later session) needs to act on a non-PASS verdict.
 
 - Verdict is `NEEDS_REFINEMENT` or `REJECT` → render a Quality Review Findings block (format in `references/cache-format.md`) from the Reviewer's gaps and fixes (or the Layer 1 structural errors when the Reviewer was not spawned) and upsert it into the task's `Context` field: replace any existing findings block, leave the rest of `Context` untouched. At most one block per task.
 - Verdict is `PASS` → remove any existing findings block from `Context` (the issues are resolved; stale findings would mislead executors).
-- The block carries the same `hash` as the verdict line, so staleness is detectable without extra writes. `Context` is not part of the content hash, so writing the block never invalidates the verdict cache.
+- The block carries the same `hash` as the verdict line, so staleness is detectable without extra writes. The block is stripped before hashing, so writing it never invalidates the verdict cache — note the reason: under v2 `Context` *is* inside the hash, and it is the strip, not the field's exclusion, that keeps the block harmless.
 - Graceful degradation: if the provider/task has no `Context` field, skip findings persistence — the verdict line still caches; gaps/fixes surface in chat only.
 - Creation-time callers: see "Deferred-write contract" above — the block is returned to the caller instead of written.
 
@@ -122,10 +137,11 @@ Return a structured payload:
 
 ```
 verdict: PASS | NEEDS_REFINEMENT | REJECT | UNREVIEWED
-verdict_string: "<verdict> hash=<8hex> @<iso8601> v1" | ""
+verdict_string: "<verdict> hash=<8hex> @<iso8601> v2" | ""
 hash: <8-hex>
+format_version: 1 | 2                                # parsed from the line; never discarded
 cached_at: <iso8601>
-per_axis: { goal: ◯|△|✗, boundary: ◯|△|✗, ... }   # only on live verdicts
+per_axis: { goal: ◯|△|✗, boundary, verifiability, reproducibility, hidden_context, fidelity }   # only on live verdicts; 6 axes
 gaps: [...]                                          # only on non-PASS verdicts
 fixes: [...]                                         # only on non-PASS verdicts
 findings_block: "<rendered block>" | null            # non-PASS only; for deferred-write callers

@@ -41,9 +41,13 @@ Source: {tool_name} DM from @{sender} at {datetime}
 
 This gives the task executor full conversational context without needing to open the messaging tool.
 
+**The original message text is stored verbatim, and stays verbatim.** Do not summarize, translate, paraphrase, or otherwise tidy it on the way in, and do not let a later refinement pass rewrite it. It is the record of what the requester actually asked for, and it is what the drafted AC/EP are later judged against — a spec cannot be checked against a paraphrase of the request. This section plays the same role for the ingest path that the `## Original request (verbatim)` section plays for the conversational creation path.
+
 ### Attachment Info in Descriptions
 
 When a message has `attachment_info` with images, include an `[Attachments]` section in the Description field after the message text and before the `Source:` line.
+
+**The spec must not depend on opening the attachment.** An executor holding only the task's fields has to be able to tell what is required. So the attachment's *description* carries the preconditions it establishes that affect implementation — the observed state, the values, the constraint — not just a pointer to it. "See the attached screenshot" is not a requirement; "the Submit button is hidden behind the address fields at 375px" is. For an attachment carrying **text** (a log, a CSV of target values, a snippet, a config), inline the relevant content into the page body as a code block rather than leaving it reachable only through the file. The original stays attached as the archival copy.
 
 **When images were successfully read:**
 
@@ -109,11 +113,16 @@ Source: slack DM from @alice at 2026-04-10 09:15
    - Blocked By: `[blocker_task_id]` *(relation field — set via `update-relations.sh` after task creation, not in `notion-create-pages` properties)*
    - Executor: Determine from message content — if the required action (after hearing) is clearly code/research/docs, infer executor (cli or cowork based on execution_environment). If unclear or requires human judgment → `human` (default, re-evaluated when unblocked).
    - Assignee: `[current_user]`
-   - Acceptance Criteria: Derive from message content. Fallback: `"[DRAFT — update after hearing] Determine required action from {requester_name}'s response and complete it."`
+   - Acceptance Criteria: Derive from message content. Fallback: `"[DRAFT-AC] Determine required action from {requester_name}'s response and complete it (update after hearing)."` — use the protocol's reserved `[DRAFT-AC]` string, not a free-form `[DRAFT — ...]` variant: only the reserved strings are recognized by the Layer 1 check and by monitoring's debt list, so a near-miss spelling silently escapes both.
 
 ### Category B (Self-Action)
 
-- Status: `Ready`
+- Status: `Ready` — **conditionally**. Ready is the default, not an unconditional outcome. The task is created at `Backlog` instead whenever any of these holds:
+  - the draft still carries an `[INFERRED]` line (an unresolved assertion; Layer 1 rejects the reserved prefix at Ready),
+  - the draft carries any other reserved placeholder (`[DRAFT-AC]` / `[DRAFT-EP]` / `[NEEDS-REFINE]`),
+  - no valid `Quality Verdict` can travel in the same create payload (e.g. the user edited the draft after review and it was not re-reviewed).
+
+  Backlog is a valid resting place. Creating at Ready in any of these cases produces a task that immediately fails its own gate, which is worse than an honest Backlog.
 - Executor: Determine from environment and context:
   - `execution_environment = "cowork"`: Default for AI-executed tasks is `cowork`
   - `execution_environment = "claude-desktop"`: Default for AI-executed tasks is `claude-desktop`

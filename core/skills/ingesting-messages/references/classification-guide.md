@@ -21,6 +21,18 @@ The worthiness dimension answers "should this even be a task?". The category dim
 
 For each classification, attach a one-sentence reason. The reason MUST cite a token, phrase, or pattern from the original message. Speculative classifications (no clear signal) default to `task` — Waggle never silently re-routes a message away from being a task without evidence.
 
+### Quoted or sample material is not a requirement
+
+A message often carries text the sender did **not** write as their request: a pasted example of the format they want, a snippet quoted from somewhere else, a ticket or thread named "for reference", a screenshot's transcribed contents.
+
+Treat such material as a **style exemplar**, not as content of the request. Feature names, proper nouns, product names, and people appearing inside it are **not** adopted as requirements for this task until they are confirmed against this task's own target.
+
+The existing grounding guard does not catch this on its own: it asks only whether a criterion is traceable to the supplied text, and a criterion grounded in pasted *sample* text passes that check while being about something else entirely. This is how a feature that does not exist, and a person's name from an unrelated case, once became requirements on a task and survived review.
+
+Signals that material is an exemplar rather than a request: an explicit label ("例:", "for reference", "like this", "参考まで"), quotation or code-fence formatting, a link introduced as background, or content whose subject differs from the message's own ask.
+
+When in doubt, the material is an exemplar. A missing requirement surfaces as a question; an invented one surfaces as work done against the wrong target.
+
 ### Routing rules
 
 | Worthiness | Phase A.5 (Reviewer) | Phase B (user confirmation) default | Notes |
