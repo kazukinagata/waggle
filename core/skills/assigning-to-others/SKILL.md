@@ -46,3 +46,5 @@ Mode behavior:
 Worthiness:* tagged tasks skip the Reviewer per protocol; their `worthiness:calendar-like` / `worthiness:info-only` classification is intentional, and re-evaluating them at assignment would be noise.
 
 The `[Assign anyway]` override is always available. This gate is advisory, not enforcing — but unlike `executing-tasks` dispatch, it IS willing to pay the live Reviewer cost because delegation is the bypass-catch chokepoint.
+
+When the task carries an unresolved reserved marker (`[DRAFT-AC]` / `[DRAFT-EP]` / `[NEEDS-REFINE]` / `[INFERRED]`), say so in the override prompt: **assignment is allowed, but Ready stays blocked** until the marker is resolved. Reassigning an unresolved task is legitimate — often it is exactly how it gets resolved, by handing it to whoever can answer — so do not block it. Just do not let the prompt imply the recipient can now promote it.

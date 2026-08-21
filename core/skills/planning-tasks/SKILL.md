@@ -145,13 +145,18 @@ Planning results (5 tasks):
 1. [OK]          "API endpoint"  — AC: 4 criteria, Plan: 6 steps
 2. [OK]          "Fix auth bug"  — AC: 3 criteria, Plan: 4 steps
 3. [NEEDS INPUT] "Refactor DB"   — agent needs: "Which tables are affected?"
-4. [OK]          "Write blog"    — AC: 5 criteria, Plan: 7 steps
+4. [DECISION]    "Write blog"    — AC: 5 criteria, Plan: 7 steps — 1 unresolved line; needs your decision
 5. [FAILED]      "Update docs"   — agent error: timeout
 
 [Accept all OK] [Review one by one] [Skip all]
+   └─ "Accept all OK" covers 1 and 2. 4 needs your decision and is reviewed individually.
 ```
 
-- **Accept all OK**: Update all successful tasks via provider, then handle "needs input" tasks interactively
+- **Accept all OK**: Update all successful tasks via provider, then handle "needs input" tasks interactively. **A draft is excluded from "Accept all OK" when it carries an unresolved reserved marker (`[DRAFT-AC]` / `[DRAFT-EP]` / `[NEEDS-REFINE]` / `[INFERRED]`) or when the planning agent reported `requires_issuer_decision: true` in its Draft Metadata.** Excluded drafts route to individual review and are listed in the summary as such — never silently dropped, never silently committed.
+
+  The exclusion signal comes from the **planning agent's metadata**, not from the Reviewer. Phase 5 runs *after* this confirmation, so no human and no reviewer has seen the content when the batch is committed; a review cannot retroactively guard a confirmation that already happened. The ingest path's bulk action already excludes flagged drafts for the same reason, and this was the one unguarded bulk path left.
+
+  Rejected alternatives: expanding every AC/EP before Accept-all (which removes the point of bulk), capping the batch at an arbitrary size, and removing the bulk path.
 - **Review one by one**: Present each task's AC/Plan for individual Accept/Edit/Skip
 - **Skip all**: Leave all tasks unchanged
 
@@ -193,13 +198,28 @@ Round 3 (continue if user is engaged):
   → If user adds more: incorporate and re-present
 
 Fallback (user disengages — "that's enough", "just go with it", etc.):
-  → Accept current state with [LOW CONFIDENCE] tag prepended
+  → Accept current state with the [NEEDS-REFINE] prefix (the protocol's reserved prefix; [LOW CONFIDENCE] was never reserved and is removed in v4.0.0)
   → Move on to next task
 ```
 
 **Key principle**: The agent PROPOSES first, then refines through dialogue. Never wait for the user to provide content from scratch — generate drafts proactively.
 
 **Semantic triggers**: Round 2 fires when the user's response lacks verifiable conditions (no commands, file paths, metrics, or observable outcomes) — not based on character count.
+
+### What kind of question the agent asks
+
+Rounds 2 and 3 ask the user things. There are exactly two kinds of question, and confusing them is how a false premise becomes an issuer-approved specification: a gap about an unverified fact was once posed as a preference question carrying a `(Recommended)` option, the user picked the recommendation, and the guess became the spec.
+
+| Type | When | Form |
+|---|---|---|
+| **Fact question** | A premise is unverified ("does this store already have the v2 endpoint enabled?") | Yes / No / Unknown, in the issuer's vocabulary. **No `(Recommended)`** — recommending an answer to a question of fact invites the user to ratify a guess. `Unknown` is a real answer, not permission to proceed. |
+| **Means question** | The goal is clear, several routes exist, the user named none, and the routes differ materially | Each route with its risks, benefits, drawbacks, and reversibility, presented neutrally. **No `(Recommended)`.** State that the list may be incomplete and always offer an explicit "needs investigation / not in this list" choice. |
+
+**Escalate a route choice only when it is material** — when the routes differ in the resulting deliverable or outcome, in reversibility, in impact visible outside the system being changed, or in order of magnitude of cost or duration. Equivalent, reversible procedural choices are execute-time; do not ask about them. Without this test, brainstorming turns every task into a quiz and users disengage into the fallback above, which is worse than an occasional wrong-but-reversible choice.
+
+When a skill or document prescribes exactly **one** route, this is not a question: present the route and cite its source.
+
+**When the user cannot close a gap here**, do not fill it with a plausible value. Five exits apply — surface the routes and let the user pick; leave a fact question unresolved with the task resting in Backlog under `[NEEDS-REFINE]`; split the question into a consultation task and block this one on it; write the unknown as a *verification step in the Execution Plan* rather than an assertion; or ask the user for an approved decision rule that delegates bounded authority ("if X then A, otherwise B; stop and escalate if Y"). If none applies, the task correctly stays in Backlog — an unresolved dependency, not a deadlock.
 
 ## Execution Plan Generation
 

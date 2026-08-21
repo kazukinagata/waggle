@@ -359,9 +359,23 @@ For each image attachment detected:
 
 ### Message Permalink
 
-For each message that has at least one image with `read_status = "unread"` or `"skipped"`, construct (or extract from the API response) the message permalink so it can be shown to the user:
-- **Slack**: If the message payload includes a `permalink` field, use it directly. Otherwise construct: `https://{workspace}.slack.com/archives/{channel_id}/p{ts_without_dot}` where `ts_without_dot` is the message `ts` with the dot removed.
+For each message that has at least one image with `read_status = "unread"` or `"skipped"`, obtain the message permalink so it can be shown to the user:
+
+- **Prefer a permalink the API supplied** over one you assemble. If the message payload includes a `permalink` field, use it directly and skip the construction below entirely.
+- **Slack (construction fallback)**: `https://{workspace}.slack.com/archives/{channel_id}/p{ts_without_dot}`, where `ts_without_dot` is the message `ts` with the dot removed.
 - **Teams / Discord**: Use the message URL/link from the API response if available.
+
+**Verify a constructed link at construction time.** A permalink assembled from parts is only as good as the parts, and nothing about the resulting string reveals a wrong one — it is well-formed either way. One incident produced a stored link that pointed nowhere, off by 53 minutes: the signature of reading the wrong message's timestamp, not of a broken URL format.
+
+Before storing an assembled link, assert against the thread data **already in hand** — no extra network call:
+
+- the `channel_id` you used is the channel the message actually came from, not the parent thread's channel or a neighbouring message's,
+- the `ts` you used belongs to *this* message, not to its thread parent or an adjacent reply,
+- `ts_without_dot` is the same digits as `ts` with only the `.` removed — no rounding, reformatting, or timezone conversion.
+
+If any assertion fails, or the parts are not available: **record that the reference is unverified** rather than storing a link that silently does not resolve. An honest "no link available" costs a reader one lookup; a link that goes nowhere costs them a search for something that was never there.
+
+Do not fetch the link once more before saving as a substitute for this. That adds a network round trip per task to catch a bug that an assertion on data already in hand catches for free.
 
 ### Output
 
@@ -534,10 +548,15 @@ Generate the following draft fields:
 
 1. **Acceptance Criteria** — 2 to 5 verifiable criteria. Each criterion should name a concrete verification signal: a specific command (e.g. `npm test`, `curl ...`), a file path, a numeric threshold with unit (`<2s`, `200 OK`), an observable state change, or a named confirmation — in whatever language the task is written. Verifiability is judged by the Layer 2 Reviewer (its verifiability axis); Layer 1 only checks structure (non-empty, no reserved placeholder).
 
-2. **Hallucination guard (grounding)**: Every criterion must reference a specific keyword, entity, file path, URL, or metric that appears in the original message text or thread context. If the LLM is inclined to add a criterion that is not grounded in the source text, it must prefix that criterion with `[INFERRED] ` in the AC text. This prefix is persisted in the Notion task (not stripped before save) so that:
-   - The user sees it during the Phase B review and can confirm or remove it.
-   - If the user accepts as-is without removing the prefix, the `[INFERRED]` tag remains visible in the Notion page as an audit trail — whoever executes or reviews the task later knows that particular criterion was inferred, not explicitly stated.
-   - If the user edits the line and removes the prefix, that manual edit is treated as confirmation that the criterion is now grounded.
+2. **Hallucination guard (grounding)**: Every criterion must reference a specific keyword, entity, file path, URL, or metric that appears in the original message text or thread context. If the LLM is inclined to add a criterion that is not grounded in the source text, it must prefix that criterion with `[INFERRED] ` in the AC text. The prefix is persisted (not stripped before save).
+
+   **`[INFERRED]` is a protocol-reserved prefix and blocks Ready (v4.0.0).** It no longer means "an inferred line, visible on a Ready task as an audit trail" — it means "an assertion nobody has resolved yet", and Layer 1 rejects it at Ready and above like any other reserved placeholder. So:
+   - The user sees it during the Phase B review and either confirms it or leaves it.
+   - A draft that still carries `[INFERRED]` when accepted **is created at Backlog, not Ready** — see Phase B. This is not a failure mode; Backlog is where an unresolved assertion belongs.
+   - Removing the prefix means the issuer **adopted the line into the contract**, not that they originally said it. Record the adoption in the Confirmation Log block on `Context` (format owned by `reviewing-quality`) so the distinction survives.
+   - Note that `[INFERRED]` is a Layer 1 marker, not a Fidelity finding: `reviewing-quality` runs Layer 1 first and does not spawn the Reviewer when it fails, so a draft carrying the prefix never reaches the Fidelity axis at all.
+
+   Material the sender presented as a **quotation, a sample, or "for reference"** is a style exemplar, not a requirement. Feature names, proper nouns, and people appearing inside such material are not adopted as criteria for this task until confirmed against this task's own target — copying one in and prefixing it `[INFERRED]` is still adopting it, just with a label.
 
 3. **Execution Plan** — 3 to 7 numbered steps. Each step is an action verb + target + expected outcome. Same grounding rule: steps should reference entities present in the message.
 
@@ -557,7 +576,7 @@ Before showing the auto-generated draft to the user:
 
 1. **Skip-path check** — if the message was classified `worthiness=calendar-like` or `worthiness=info-only`, skip this entire phase. The Phase B confirmation table will default the row to `[Skip]` and the user decides whether to `[Create as task]`, `[Convert to note]`, or `[Discard]` (see "Phase B" below). No Reviewer cost is incurred for non-task items.
 
-2. **Structural checks (Layer 1)** — invoke the `validating-fields` skill with the generated task data and target status `"Ready"`. It returns `{valid, errors, warnings}`.
+2. **Structural checks (Layer 1)** — invoke the `validating-fields` skill with the generated task data and target status `"Ready"`. It returns `{valid, errors, warnings}`. A draft carrying `[INFERRED]` fails here, which is intended: the draft is not broken, it is unresolved, and the Reviewer is deliberately not spawned for it (see the grounding rule in Phase A).
 
 3. **Reviewer (Layer 2)** — if Layer 1 passes, invoke the `reviewing-quality` skill in `live` mode. **Important**: at this stage the task does not exist yet (Step 3 creates it). Pass the generated draft fields directly to `reviewing-quality`; receive the verdict — and, on non-PASS, the rendered findings block — **in memory** for use in Phase B's display, and persist both **as part of Step 3's task creation** (one `create_task` call carrying Title / Description / AC / EP / Status / Quality Verdict — plus the findings block appended to `Context` when the verdict is non-PASS — in a single payload), not as separate writes.
 
@@ -567,7 +586,7 @@ Before showing the auto-generated draft to the user:
 
 If the structural check fails (`valid: false`), do NOT spawn the Reviewer — the draft is marked `[NEEDS-REFINE]` and the structural errors are surfaced. (Layer 1 is the free pre-filter; the protocol forbids spending Reviewer dollars on tasks that already fail the deterministic check.)
 
-If the user edits the draft in Phase B, the in-memory verdict — and any findings block that came with it — is invalidated: neither matches the actual content anymore (the block's hash would disagree with a fresh verdict's hash anyway). A Category B task is created at `Status: Ready`, which requires a valid verdict in the same create payload (see the Ready+ rule in `references/task-creation-templates.md`), so an edited draft cannot be created at Ready with an empty verdict. Resolve it one of two ways at task-creation time in Step 3:
+If the user edits the draft in Phase B, the in-memory verdict — and any findings block that came with it — is invalidated: neither matches the actual content anymore (the block's hash would disagree with a fresh verdict's hash anyway). A Category B task **may** be created at `Status: Ready` — it is not created there unconditionally: a draft still carrying an `[INFERRED]` line goes to Backlog regardless of its verdict, because Layer 1 rejects the prefix at Ready. A Ready create requires a valid verdict in the same create payload (see the Ready+ rule in `references/task-creation-templates.md`), so an edited draft cannot be created at Ready with an empty verdict. Resolve it one of two ways at task-creation time in Step 3:
 - **Re-review** — invoke `reviewing-quality` in `live` mode on the edited content, and persist the returned `verdict_string` as `Quality Verdict` in the Ready create payload (on non-PASS, carry the freshly returned findings block into `Context` — never the stale one); or
 - **Defer** — create the task at `Status: Backlog` instead (verdict and findings block both omitted); the next Ready transition (via `planning-tasks`, `managing-tasks`, or `running-daily-tasks` Step 2.6) computes a fresh verdict on the actual content before promotion.
 
@@ -588,7 +607,7 @@ Within each page, **rank messages** so the ones most likely to need the user's a
 
 For each page, present the following top-level options:
 
-- **[Accept all clean]** — auto-accept every message in the page that has no worthiness flag, no `[NEEDS-REFINE]` mark, and no `[INFERRED]` criteria. Single click, whole batch moves.
+- **[Accept all clean]** — auto-accept every message in the page that has no worthiness flag, no `[NEEDS-REFINE]` mark, and no `[INFERRED]` criteria. Single click, whole batch moves. The exclusion is what keeps this safe: a draft carrying an unresolved marker never rides a bulk approval, because nobody looked at it.
 - **[Review individually]** — walk through each message with per-message options.
 - **[Skip batch]** — create every message in the page with the original message text only, no auto-generated AC/EP/Priority.
 
@@ -600,8 +619,9 @@ When the user chooses "Review individually", **worthiness-flagged** messages (`c
 
 For normal (worthiness=task) messages, each gets these per-message options:
 
-- **[Accept]** — use the auto-generated draft exactly as shown. `[INFERRED]` prefixes remain in the saved AC as an audit trail.
-- **[Edit]** — user rewrites the AC/EP/Priority inline. The edited result is treated as authoritative (user-edits are NOT re-run through Reviewer — only the Layer 1 structural check applies on the next Ready transition).
+- **[Accept]** — use the auto-generated draft exactly as shown. If it carries no `[INFERRED]` line, it is created at its normal status. **If it still carries one, the task is created at `Status: Backlog`** with the prefix intact, and no verdict — an `[INFERRED]` line fails the Layer 1 check that Ready requires, so creating it at Ready would produce a task that immediately fails its own gate.
+- **[Confirm inferred lines]** — shown only when the draft carries `[INFERRED]`. Walk the inferred lines with the user; for each, either the user confirms it (remove the prefix and append an entry to the Confirmation Log block on `Context`) or it stays. Once every prefix is removed, re-run `reviewing-quality` on the result — the content changed, so the earlier verdict and findings block are both invalid — and create at Ready if it passes. If any prefix remains, create at Backlog.
+- **[Edit]** — user rewrites the AC/EP/Priority inline. The edited result is treated as authoritative. **Editing invalidates both the in-memory verdict and the findings block** — neither describes the new content, and the block's hash would disagree with a fresh verdict's anyway. Discard both rather than carrying them into the create payload; the task is created at Backlog unless it is re-reviewed first (see Phase A.5).
 - **[Manual]** — discard the auto-generated draft and capture manual AC/EP/Priority from scratch via `AskUserQuestion` sub-prompts.
 - **[Skip]** — create with message content only (no AC/EP/Priority). Useful when the task is genuinely trivial or the user wants to plan it later via `planning-tasks`.
 

@@ -123,7 +123,7 @@ If the analysis script is not available (no bash, no jq), compute the metrics ma
 6. **Quality Debt**: All categories are deterministic and structural — no LLM call and no semantic judgment in default monitoring (v3.0.0: the keyword-heuristic categories SHALLOW_AC / SHALLOW_EP_STEPS / MISSING_CONCRETE_ARTIFACT_EP were removed with Layer 1's semantic rules; semantic quality debt surfaces through the Ready Health Score and the `--deep` Reviewer batch instead). The optional `--deep` flag (see Step 5) escalates to a live Reviewer batch.
 
    **Always evaluated (structural / deterministic):**
-   - **DRAFT placeholders**: Tasks whose AC or EP contains a reserved placeholder AND status is not Blocked / Done / Cancelled. (Recognized placeholders: `[DRAFT-AC]`, `[DRAFT-EP]`, `[NEEDS-REFINE]`.)
+   - **Unresolved placeholders**: Tasks whose AC or EP contains a reserved placeholder AND status is not Blocked / Done / Cancelled. (Recognized placeholders: `[DRAFT-AC]`, `[DRAFT-EP]`, `[NEEDS-REFINE]`, `[INFERRED]`.) All four block Ready+ at Layer 1, so all four count as debt — and all four are searched in **both** fields, not just AC.
    - **EMPTY_AC_READY_PLUS**: Status ∈ {Ready, In Progress, In Review} AND Acceptance Criteria is empty.
    - **EMPTY_EP_READY_PLUS**: Status ∈ {Ready, In Progress, In Review} AND Execution Plan is empty.
    - **STUB_INGEST_AGED**: Tasks tagged `ingesting-messages` or `stub-import` that have been Backlog for ≥3 days.
@@ -131,7 +131,15 @@ If the analysis script is not available (no bash, no jq), compute the metrics ma
    - **Priority missing**: Non-Done / non-Cancelled tasks without a Priority set.
    - **Test tasks**: Titles matching placeholder patterns (`test task — delete me`, `delete me`, `wip delete`, bare `test task`). These should be cleaned up.
 
-   **Ready Health Score**: `(Ready tasks with cached Reviewer verdict = PASS) / (total Ready tasks)`. Displayed at the top of Section 6 as a single percentage. <70% indicates broad quality debt.
+   **Ready Health Score**: `(Ready tasks with a v2 PASS verdict) / (total Ready tasks)`, from the analysis script's `ready_health.score_pct`. Displayed at the top of Section 6 as a single percentage. <70% indicates broad quality debt. The script also reports `ready_legacy_v1_pass` and `ready_non_pass_or_missing`, which is what distinguishes "not yet re-reviewed" from "actually bad". Those three counts **partition** `ready_total` exactly — if they do not sum, something is being silently dropped. `ready_malformed_verdict` is a sub-count of the unhealthy bucket, not a fourth bucket: a Ready task whose verdict field holds text that does not parse at all, which usually means someone typed into it directly.
+
+A verdict counts as a PASS only when the **whole cache line is well-formed** — the same shape Layer 1 requires, lowercase 8-hex hash included. Reading the verdict word and the version out of the field independently would score a hand-typed `PASS hash=nope @x v2` as healthy, and a verdict typed into the provider UI is exactly the bypass this report exists to surface. A well-shaped PASS carrying an unknown version (`v3`, `v0`) is unhealthy too, since validation rejects unknown versions.
+
+   **This score checks the verdict's shape, not its freshness** (`hash_freshness_checked: false` in the output). A task whose AC was hand-edited while keeping a matching-shape `v2` PASS counts as healthy here. That is deliberate: detecting a stale hash means recomputing the review input, and a second implementation of that hash — in a shell script, kept in step with the one in `reviewing-quality` by hand — would drift. A drifted hash does not fail loudly; it reports healthy tasks as stale and stale tasks as healthy, which is worse than not reporting freshness at all. Hash staleness is detected on the paths that go through `reviewing-quality` and therefore use the single implementation: `--deep` here, and the daily health check.
+
+   A `v1` PASS counts as *not* healthy: it was produced under the five-axis rubric and was never evaluated on Fidelity.
+
+   Immediately after v4.0.0 this score drops sharply, because every pre-upgrade Ready task carries a `v1` verdict. That is the migration surfacing itself, not a regression — the score recovers as `--deep` and the daily sweep re-review those tasks. Say so when reporting it, and quote `ready_legacy_v1_pass` alongside the percentage, rather than presenting the drop as new quality debt.
 
 ## Step 4: Render Report
 
@@ -169,9 +177,10 @@ Table: Title | Assignee | Issuer | Unacknowledged Days | Status
 ## 6. Quality Debt
 **Ready Health Score**: {pct}% (Ready tasks with cached Reviewer PASS / total Ready)
 
-### DRAFT placeholders ({count})
+### Unresolved placeholders ({count})
 Table: Title | Status | Age (days) | AC/EP Preview
-  (tasks where AC or EP contains [DRAFT-AC] / [DRAFT-EP] / [NEEDS-REFINE] and status is not Blocked / Done / Cancelled)
+  (tasks where AC or EP contains [DRAFT-AC] / [DRAFT-EP] / [NEEDS-REFINE] / [INFERRED] and status is not Blocked / Done / Cancelled)
+  Each row names the field the marker was found in (`placeholder_field`) and previews that field, not AC unconditionally — a marker sitting only in EP would otherwise be shown with unrelated AC text.
 
 ### EMPTY_AC_READY_PLUS ({count})
 Table: Title | Status | Age (days)
@@ -246,5 +255,5 @@ Generate 3-5 actionable recommendations based on findings. Focus on:
 - **AI delegation opportunity**: If human executor ratio is above 70%, suggest reviewing Ready tasks for AI-executable candidates
 - **Unset executors**: Tasks in Ready/In Progress without an Executor assigned
 - **Unacknowledged tasks**: Tasks not seen by assignee for 2+ days — suggest sending a reminder or Slack notification
-- **Quality debt (retroactive)**: If the DRAFT AC count or Priority missing count is non-zero, surface the copy-paste command shown in section 6 so the user can run `planning-tasks` in batch. Keep this a user-initiated suggestion — do not auto-dispatch, to avoid bulk side-effects.
+- **Quality debt (retroactive)**: If the unresolved-placeholder count or Priority missing count is non-zero, surface the copy-paste command shown in section 6 so the user can run `planning-tasks` in batch. Keep this a user-initiated suggestion — do not auto-dispatch, to avoid bulk side-effects.
 - **Test task cleanup**: If test tasks are detected, list them and ask the user to cancel or delete them.

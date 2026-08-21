@@ -126,7 +126,7 @@ core/skills/
 core/agents/
 ├── task-agent.md             # Autonomous task execution
 ├── task-planning-agent.md    # AC/EP planning (codebase exploration + domain templates)
-└── task-quality-reviewer-agent.md  # Layer 2 quality review (5-axis IRC)
+└── task-quality-reviewer-agent.md  # Layer 2 quality review (6-axis IRC)
 providers/
 ├── notion/                   # Notion provider
 ├── sqlite/                   # SQLite provider

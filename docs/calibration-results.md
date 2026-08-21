@@ -125,3 +125,32 @@ We chose to ship v2.8.2 without a Case B fix because:
 1. **Task-granularity axis** — introduce a sixth axis or strengthen Boundary clarity so that ACs which conflate Pre-requirements, design outputs, and implementation completion criteria are flagged. Case B is the canonical test case.
 2. **Full 30-task re-run** against the v2.8.3 prompt to confirm both v2.8.0 disagreements (Case A and Case B) are resolved without introducing new false positives elsewhere.
 3. **Worthiness classifier calibration** (originally a v2.8.1 follow-up) — still pending; the Step 5a deferral in `docs/quality-calibration.md` continues to apply.
+
+---
+
+# v4.0.0 — calibration NOT measured
+
+**This release shipped without running the calibration measurement. The agreement rate below was not measured, because no measurement was performed. Do not read the v2.8.x numbers above as covering v4.0.0.**
+
+- Date of this record: 2026-08-19
+- Measurement performed: **no**
+- Agreement rate: **not measured**
+- Sample size: **0** (the protocol's recommended bar is ≥80% on 30 hand-labeled tasks)
+
+## Why
+
+v4.0.0 adds a sixth Reviewer axis (Fidelity) and changes what `PASS` means, which is exactly the condition under which `waggle-protocol` § Calibration Requirement says the measurement MUST be re-run rather than inherited. It was skipped as an explicit, one-time exception decided by the project owner, not because the requirement was judged inapplicable.
+
+**The requirement itself is unchanged.** `waggle-protocol` § Calibration Requirement still states the MUST, and it was deliberately not relaxed to match what this release did. A norm that is quietly rewritten to match the first release that broke it stops constraining anything; a norm with a recorded exception still does.
+
+## What this means for a reader
+
+- The v2.8.x agreement figures above were measured against the **five-axis** rubric. They say nothing about how the six-axis rubric behaves.
+- Fidelity's false-positive and false-negative rates are unknown. In particular, the △/✗ boundary on "unsourced proper noun" has not been checked against hand labels, and it is the axis most likely to fire on legitimate specs.
+- Anyone shipping this to an environment where a wrong verdict is costly should run the measurement first. The procedure is in `docs/quality-calibration.md`.
+
+## Follow-up
+
+Run the 30-task measurement against the six-axis rubric and record it here, replacing this section with real numbers. Until that happens, this section is the honest answer to "was v4.0.0 calibrated?".
+
+Note that the "task-granularity axis" follow-up recorded for v2.8.3+ above is **not** what Fidelity is. Fidelity asks whether the spec is true to the request; task granularity asks whether the AC is well-formed at the right scope. Case B remains open.

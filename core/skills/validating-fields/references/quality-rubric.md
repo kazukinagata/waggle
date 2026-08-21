@@ -2,13 +2,13 @@
 
 Deterministic rules applied at every status transition into Ready or beyond. No LLM involvement; this is a fast, free pre-filter that catches structurally broken specs before any expensive Reviewer call.
 
-This document is the canonical Layer 1 definition. The `task-quality-reviewer-agent` (Layer 2) is the canonical owner of the 5 IRC axes; both layers are referenced by `reviewing-quality`, `monitoring-tasks`, `planning-tasks`, `running-daily-tasks`, and the protocol spec.
+This document is the canonical Layer 1 definition. The `task-quality-reviewer-agent` (Layer 2) is the canonical owner of the IRC axes; both layers are referenced by `reviewing-quality`, `monitoring-tasks`, `planning-tasks`, `running-daily-tasks`, and the protocol spec.
 
 ## Design Boundary: Structural Only
 
 Layer 1 checks only properties a script can decide **exactly and language-independently**: emptiness, length, reserved placeholder strings, and verdict-line integrity. It makes no judgment about the *meaning* of AC/EP text.
 
-Semantic quality — verifiability, groundedness, echo-of-title, step richness, concrete artifacts — is owned entirely by Layer 2 (the `task-quality-reviewer-agent`'s 5 axes: goal clarity, boundary clarity, verifiability, reproducibility, hidden context).
+Semantic quality — verifiability, groundedness, echo-of-title, step richness, concrete artifacts — is owned entirely by Layer 2 (the `task-quality-reviewer-agent`'s axes: goal clarity, boundary clarity, verifiability, reproducibility, hidden context, and fidelity). Fidelity — whether the spec is true to the request it claims to serve — is likewise a Layer 2 judgment: whether a proper noun has a citable source is not something a script can decide language-independently.
 
 > **History (v3.0.0)**: earlier versions defined semantic heuristics at Layer 1 (rules R-AC1–R-AC3, R-EP1–R-EP4: verifiable-indicator keyword lists, echo-of-title token overlap, step-count/step-length thresholds, concrete-artifact detection). They were removed because keyword heuristics cannot judge semantics: the implemented `semantic_quality` check hard-rejected well-specified Japanese ACs (its command/verb/unit vocabularies were English-only) while passing vague English prose that happened to contain a `/` or the word "test". Every semantic axis those rules approximated is evaluated better by Layer 2. Do not reintroduce semantic keyword rules at this layer.
 
@@ -30,15 +30,25 @@ All rules are enforced by `scripts/validate-task-fields.sh` (see SKILL.md for th
 |---|---|---|---|
 | `min_length` | Description | ≥50 characters | error |
 | `required_non_empty` | Acceptance Criteria | Non-empty | error |
-| `placeholder_present` | Acceptance Criteria | No reserved placeholder (`[DRAFT-AC]` / `[DRAFT-EP]` / `[NEEDS-REFINE]`) remains | error |
+| `placeholder_present` | Acceptance Criteria | No reserved placeholder (`[DRAFT-AC]` / `[DRAFT-EP]` / `[NEEDS-REFINE]` / `[INFERRED]`) remains | error |
 | `required_non_empty` | Execution Plan | Non-empty | error |
 | `placeholder_present` | Execution Plan | No reserved placeholder remains | error |
 | `verdict_format` | Quality Verdict | When supplied, matches the cache format (lowercase 8-hex hash; fabricated/mnemonic hashes rejected) | error |
 | `verdict_not_pass` | Quality Verdict | When supplied, must be `PASS` for Ready+ | error |
+| `verdict_stale_format` | Quality Verdict | At **Ready** only: the verdict's format version is `v2`. `v1` predates the six-axis rubric and the review-input hash. In Progress and beyond still accept `v1` during the migration window | error |
+| `verdict_unknown_version` | Quality Verdict | The version is one of the two defined (`v2` current, `v1` legacy). Anything else — `v0`, `v3`, `v11` — is rejected at every gate | error |
 | `verdict_recommended` | Quality Verdict | Absent verdict — a fresh `reviewing-quality` PASS should travel in the same update as the Status change | warning |
 | `required_set` | Executor | In Progress only: Executor must be set | error |
 | `required_for_ai` | Working Directory | In Progress only: required for AI executors | error |
 | `recommended` / `recommended_code_task` | Issuer, Assignee, Priority, Branch, Working Directory, Repository | Advisory field hygiene (code-task detection via `config/code-task-keywords.txt`) | warning |
+
+#### Notes on the `verdict_*` rules
+
+**The four error rules are listed in the order the script evaluates them**, and the order is observable: a `v1` line that is also non-PASS reports `verdict_not_pass`, not `verdict_stale_format`, because the PASS rule is checked first. That is deliberate — it tells the user the actionable thing (refine the spec) rather than a fact about the format — and `tests/run.sh` pins it. Keep this table in evaluation order; a reader resolving a conflict between two rules needs to know which one fires.
+
+**The shape check deliberately accepts any `v[0-9]+`.** The cache format requires parsers to tolerate unknown **trailing keys** — not unknown **versions**. The two are not the same: a trailing key carries no semantics by contract, whereas the hash behind an unknown version was computed over an input the parser does not know, so accepting it would admit a verdict nobody can recompute or verify. Hence the separate version rules.
+
+**All four judge the verdict *travelling in a promotion write*,** not whatever is currently stored on the task. A caller running a structural pre-check *before producing* a verdict must omit the field entirely — validating the stale verdict it is about to replace would reject exactly the tasks that most need re-reviewing, and a legacy `v1` task could then never be upgraded.
 
 ### Blocked
 
@@ -55,7 +65,7 @@ All rules are enforced by `scripts/validate-task-fields.sh` (see SKILL.md for th
 
 ## Reserved Placeholders
 
-The protocol reserves exactly two prefixes (three strings): `[DRAFT-AC]` / `[DRAFT-EP]` (field is an intentional stub) and `[NEEDS-REFINE]` (Reviewer flagged the field). Any of the three appearing in AC **or** EP blocks Ready+ — a `[DRAFT-EP]` string sitting in the AC field is just as much unresolved work as one in EP.
+The protocol reserves three prefixes (four strings): `[DRAFT-AC]` / `[DRAFT-EP]` (field is an intentional stub), `[NEEDS-REFINE]` (Reviewer flagged the field), and `[INFERRED]` (the line is an unresolved assertion — not traceable to the issuer's words or a citable source). Any of the four appearing in AC **or** EP blocks Ready+ — a `[DRAFT-EP]` string sitting in the AC field is just as much unresolved work as one in EP, and an `[INFERRED]` line is unresolved wherever it sits.
 
 ## Verdict Composition
 
@@ -91,4 +101,4 @@ Semantic quality debt (vague but non-empty ACs) is no longer enumerated here —
 
 ## Worthiness Tag Skip
 
-Tasks with `Tags` containing `worthiness:calendar-like` or `worthiness:info-only` skip Layer 2 entirely per the protocol Quality Spec. Layer 1 structural checks (including `placeholder_present`) apply to them like any other task: a worthiness-tagged task with `[DRAFT-AC]` / `[DRAFT-EP]` / `[NEEDS-REFINE]` remaining cannot be promoted to Ready until the user removes the placeholder. This prevents accidentally promoting a never-refined worthiness-tagged stub.
+Tasks with `Tags` containing `worthiness:calendar-like` or `worthiness:info-only` skip Layer 2 entirely per the protocol Quality Spec. Layer 1 structural checks (including `placeholder_present`) apply to them like any other task: a worthiness-tagged task with `[DRAFT-AC]` / `[DRAFT-EP]` / `[NEEDS-REFINE]` / `[INFERRED]` remaining cannot be promoted to Ready until the user removes the placeholder. This prevents accidentally promoting a never-refined worthiness-tagged stub.

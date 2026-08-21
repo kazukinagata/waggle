@@ -173,16 +173,16 @@ Applied at every status transition into Ready or beyond. No LLM involvement. Lay
 | Check | Rule |
 |---|---|
 | Description | Non-empty; ≥50 characters at Ready+ |
-| Acceptance Criteria | Non-empty; no reserved placeholder (`[DRAFT-AC]` / `[DRAFT-EP]` / `[NEEDS-REFINE]`) remaining |
+| Acceptance Criteria | Non-empty; no reserved placeholder (`[DRAFT-AC]` / `[DRAFT-EP]` / `[NEEDS-REFINE]` / `[INFERRED]`) remaining |
 | Execution Plan | Non-empty; no reserved placeholder remaining |
-| Quality Verdict | When supplied, well-formed per the cache format below; must be `PASS` for Ready+ |
+| Quality Verdict | When supplied, well-formed per the cache format below; must be `PASS` for Ready+, and format `v2` at Ready (`v1` still accepted at In Progress and beyond during the migration window) |
 | Executor / Working Directory | Executor set at In Progress; Working Directory set for AI executors (cli / claude-code / claude-desktop / cowork) |
 
 > **v3.0.0 breaking change**: v2.8.x defined semantic rules at this layer (R-AC1–R-AC3, R-EP1–R-EP4: verifiable-indicator keyword lists, echo-of-title detection, step-count/step-richness thresholds, concrete-artifact detection). They were removed. Keyword heuristics cannot judge semantics language-independently — the shipped check hard-rejected well-specified non-English ACs while passing vague English prose — and every axis those rules approximated is evaluated by Layer 2. Implementations MUST NOT gate status transitions on semantic keyword heuristics.
 
 ### Layer 2: Intent Reproducibility Check (LLM)
 
-The `task-quality-reviewer-agent` evaluates a task spec along 5 axes from the perspective of "a new colleague handed only this spec, with access to the team's tools — can they reproduce the issuer's intent?":
+The `task-quality-reviewer-agent` evaluates a task spec along 6 axes from the perspective of "a new colleague handed only this spec, with access to the team's tools — can they reproduce the issuer's intent?":
 
 | Axis | Question |
 |---|---|
@@ -191,35 +191,160 @@ The `task-quality-reviewer-agent` evaluates a task spec along 5 axes from the pe
 | Verifiability | How do I know I'm done? Is there a checkable signal? |
 | Reproducibility | Are tools/paths/commands/datasets named? |
 | Hidden context | Is there organizational knowledge the issuer assumed but didn't write down? |
+| Fidelity | Is every statement in the spec traceable to the request it claims to serve? |
+
+> **v4.0.0 breaking change**: Fidelity is new, and `PASS` now means all **six** axes.
+> The first five all measure clarity, so a clearly written fabrication passed every
+> one of them — which is what shipped a task naming a feature that does not exist and
+> a person from an unrelated case. Fidelity asks whether the AC/EP contradict the
+> original request, title, or description; whether they introduce a proper noun,
+> feature, or person without a citable source; and whether they assert a material
+> means the issuer never specified without the alternatives having been surfaced.
+> The reviewer detects unsupported commitment — it does not enumerate the
+> alternatives, because its turn and file budget is small and route discovery belongs
+> to planning.
+
+Fidelity compares against the verbatim original request when the task carries one
+(the `## Original request (verbatim)` section of `Description`, or the original
+message text stored by the ingest path), and against the issuer-authored
+`Description` and `Title` otherwise.
+
+A premise the specification itself introduced — a test method, an operating
+procedure, a property of the environment — is **not** rescued by "a skilled executor
+would know this". That exemption belongs to the request-time / execute-time boundary
+and covers details the executor resolves at run time; it does not license the spec to
+assert an unsourced fact about the environment. Unsourced environment assertions are
+a Fidelity finding.
 
 Verdict (rules applied in order — first match wins):
 - `REJECT` — ≥1 axis ✗ (fundamental rewrite required)
 - `NEEDS_REFINEMENT` — ≥1 axis △ and no ✗ (specific suggested fixes can elevate to PASS; the number of △ axes is informational only)
-- `PASS` — all 5 axes ◯
+- `PASS` — all 6 axes ◯
+
+### Source Citations
+
+Fidelity turns on whether an assertion is *sourced*. Exactly two things count:
+
+- **the issuer's own words**, or
+- **a named reference** carrying all four of: the identifier (document, skill, page), the section it points at, the specific claim or plan step it supports, and — for a mutable source — a version, commit, or date.
+
+A citation supports **one** assertion. It does not implicitly license every proper noun introduced near it. A bare source name is not a citation: it proves neither which revision was read nor which claim came from it.
 
 ### Reserved Placeholder Prefixes
 
-Exactly 2 prefixes are reserved at the protocol level:
+Exactly 3 prefixes are reserved at the protocol level:
 
 | Prefix | Meaning |
 |---|---|
 | `[DRAFT-AC]` / `[DRAFT-EP]` | Field is intentionally an empty stub; refinement pending |
 | `[NEEDS-REFINE]` | Reviewer returned NEEDS_REFINEMENT or REJECT; field needs work before promotion |
+| `[INFERRED]` | The line is an **unresolved assertion** — not traceable to the issuer's words or a citable source |
+
+All three block Ready and above: they are part of the Layer 1 reserved-placeholder check, which is a structural, language-independent string test.
 
 Skills MUST NOT introduce additional reserved prefixes. Other tags (e.g., `worthiness:*`) live on the `Tags` field, not as title or AC prefixes.
 
-### Quality Verdict Cache Format (v1)
+> **v4.0.0 breaking change**: `[INFERRED]` was already being persisted by the ingest path as an audit trail on tasks that reached Ready — the table said two prefixes while shipped code wrote a third, and a fourth (`[LOW CONFIDENCE]`) was documented elsewhere. The table is now aligned with reality, and the meaning changes: `[INFERRED]` no longer marks "an inferred line, visible on a Ready task"; it marks "an assertion nobody has resolved yet", and it blocks promotion. `[LOW CONFIDENCE]` is removed entirely — the planning agent's disengagement fallback uses `[NEEDS-REFINE]`.
+>
+> **Resolution has exactly two outcomes**: the issuer confirms the line and the prefix is removed, or the task stays in Backlog. Removing the prefix means "the issuer adopted this into the contract", not "the issuer originally said this" — which is why the verbatim original request and the Confirmation Log both exist.
+>
+> Note the interaction with Layer 2: `reviewing-quality` runs Layer 1 first and does not spawn the Reviewer when a structural check fails. A draft carrying `[INFERRED]` is therefore rejected **before** Fidelity ever runs. `[INFERRED]` is a Layer 1 defect marker, not a Fidelity flag — which is why bulk approval must be gated on the planning agent's own metadata rather than on a review that never happened.
+
+> **Rejected alternative**: an authorship tag vocabulary (`[USER]` / `[KNOWLEDGE:topic]` / `[INFERRED]`) inside AC text. AC is the field the executor reads; every additional reserved prefix couples Layer 1, the dispatch prompt, the view server, and the monitoring scripts to a growing vocabulary. And under this release an unsourced inferred line must not reach a Ready task at all, so labelling it as metadata to carry forward is the wrong shape. Knowledge-derived lines cite their source inline instead of being tagged.
+
+### Quality Verdict Cache Format (v2)
 
 The `Quality Verdict` core field stores at most one line in the format:
 
 ```
-{verdict} hash=<sha256(Title|Description|AC|EP)[:8]> @<iso8601> v1
+{verdict} hash=<review-input hash [:8]> @<iso8601> v2
 ```
 
 - `verdict` ∈ `PASS`, `NEEDS_REFINEMENT`, `REJECT`
-- `hash` is a content fingerprint over the first 8 hex chars of SHA-256 of `Title|Description|AC|EP` (pipe-delimited). Any edit to those fields invalidates the cache automatically.
-- `v1` is the format version. Future versions remain parse-compatible.
+- `hash` is the first 8 lowercase hex chars of SHA-256 over the **normalized review input** defined below.
+- `v2` is the format version literal. Parsers MUST return the version they parsed rather than discarding it — the version is load-bearing (see § Format Versions and the Migration Window).
 - Parsers MUST ignore unknown trailing `key=value` tokens after the version literal. This covers forward compatibility and the retired v2.x `suppressed-until` key: the 7-day re-review suppression was removed in v3.0.0 (it kept returning frozen verdicts even after the user substantively fixed the spec; the content hash plus user-gated refine loops already bound re-review cost). Legacy lines carrying the key parse normally and the key carries no semantics.
+
+#### The normalized review input
+
+The hash must be recomputable by anyone holding the task — a downstream deterministic
+gate recomputes it to detect a fabricated or stale verdict — so the input is specified
+exactly. It is these **six components, in this order, joined by a single `|`**:
+
+| # | Component |
+|---|---|
+| 1 | `Title` |
+| 2 | `Description` |
+| 3 | `Acceptance Criteria` |
+| 4 | `Execution Plan` |
+| 5 | reviewer-visible `Context` |
+| 6 | the rubric identifier literal `irc-6axis` |
+
+Normalization, applied to each component before joining:
+
+- A field the provider does not support, or that is absent or null, is the **empty string**. It is never omitted — the component and its delimiter always occupy their position, so the pipe count is constant.
+- Line endings are normalized to `LF`.
+- Trailing whitespace at the **end of the component** is removed. Internal whitespace and blank lines are preserved exactly.
+- The joined string is encoded as UTF-8 with no trailing newline.
+
+**Reviewer-visible `Context`** means `Context` with the **machine-written blocks** removed:
+the Quality Review Findings block and the Delegation History block. Both are written by the
+pipeline and carry no requirement — one is its own prior judgment, the other is audit
+metadata — so the Reviewer must not read them and the hash must not cover them. The removal must be byte-identical to the strip performed
+before the spec is handed to the Reviewer: the hash covers exactly what the Reviewer read,
+no more and no less. This is what lets the findings block be written, replaced, or deleted
+without invalidating the verdict, while an issuer's edit to their own `Context` prose does
+invalidate it.
+
+The **Confirmation Log block is not stripped** — from either the hash or the review. It
+records issuer decisions rather than pipeline judgments, and the Reviewer needs it: a line
+the issuer confirmed is sourced *by that confirmation*, and a Reviewer who cannot see it
+judges the line unsourced. See § Confirmation Log.
+
+The rule divides `Context` by **authorship**, not by whether something is a block: issuer
+prose and issuer decisions are specification and stay in; pipeline judgments and audit
+metadata stay out. A skill that appends a bare line to `Context` violates it — the line
+enters the hash and invalidates a verdict although nothing about the specification changed.
+Machine-written additions go in a delimited block.
+
+> **v4.0.0 breaking change**: `Context` was previously outside the hash. A citation or
+> constraint in `Context` could be added, changed, or removed while a `PASS` stood.
+> That was already a latent defect; with Fidelity treating citations as evidence it
+> becomes a way to hold a PASS while changing what the PASS was based on. The accepted
+> consequence is more re-review: **an edit to `Context` now invalidates a PASS.** That
+> is the intended behavior — a judgment about a specification must not survive a change
+> to the specification the judgment read.
+
+The rubric identifier is inside the hash because a sixth axis changes what `PASS`
+means. Without it, a verdict produced under the five-axis rubric would be
+indistinguishable from one produced under six.
+
+#### Format versions and the migration window
+
+| Transition | Accepted verdict format |
+|---|---|
+| Backlog → Ready | current `v2` PASS only |
+| Ready → In Progress / In Review / Done | `v2` PASS, **or** a legacy `v1` PASS |
+
+New verdict producers emit `v2` only; `v1` is never written again.
+
+Dispatch is cache-only and cannot fall back to a live review, so invalidating `v1`
+wholesale would make every existing Ready task undispatchable. A `v1` line is therefore
+still *usable* on the cache-only path, validated against the legacy hash it was produced
+under (`Title|Description|AC|EP`) rather than against the v2 hash it can never match. On
+any path that performs a live review, a `v1` line is not a hit and a `v2` verdict is
+produced instead — so every caller that pays for a review upgrades the task it touches,
+and the daily health check and monitoring sweep the rest. That is what makes this a
+migration window rather than a cutover.
+
+Accepted consequence: a task already at Ready keeps dispatching without ever having
+been evaluated on Fidelity, until the daily sweep reaches it.
+
+> **Rejected alternative**: keeping format `v1` and adding a `rubric=v2` trailing token.
+> The format spec above requires parsers to *ignore* unknown trailing tokens, and every
+> shipped parser accepts any `v[0-9]+` with arbitrary trailing keys. Giving normative
+> meaning to a token the contract declares ignorable would require changing every one
+> of those parsers while the contract still says the token means nothing.
 
 Live Reviewer invocation is allowed at: `planning-tasks`, `managing-tasks` planning-assisted creation, `ingesting-messages` Phase A.5, `running-daily-tasks` Step 2.6, `delegating-tasks` (cache miss), `monitoring-tasks --deep`.
 
@@ -231,10 +356,51 @@ A non-PASS verdict line alone tells a later session *that* a spec fell short, no
 
 - The block is managed by the verdict pipeline (`reviewing-quality` skill) — written on non-PASS verdicts, replaced in place on re-review, **removed on PASS**. Users do not edit it directly.
 - It carries the same content `hash` as the verdict line; a hash mismatch marks the findings as stale and they are ignored.
-- `Context` is not part of the content hash, so managing the block never invalidates the verdict cache.
+- The block is **stripped before hashing**, exactly as it is stripped before review, so managing it never invalidates the verdict cache. (Under v1 this held for a different reason — `Context` was outside the hash entirely. Under v2 `Context` is inside it, and only the managed blocks are excluded.)
 - Graceful degradation: when a provider does not support `Context`, findings surface in conversation only and the verdict line still caches.
 
 This is what makes the cache-only hot paths able to present "what to fix" (not just the verdict) when gating a promotion or dispatch. The exact block format is owned by the `reviewing-quality` skill's reference documentation, kept in sync with this section.
+
+### Confirmation Log
+
+A second managed block, in the same field and with the same lifecycle rules as the findings block.
+
+When an `[INFERRED]` line is confirmed by the issuer, the prefix is removed (see § Reserved Placeholder Prefixes) — and at that moment nothing records that the line was *adopted* rather than originally stated. The Confirmation Log block records it:
+
+- One block per task, inside the `Context` extended field, with exact delimiters.
+- Written when an inferred line is confirmed; each entry names the line and who confirmed it.
+- **Visible to the Reviewer, and inside the review-input hash.** Unlike the findings block, this one is *not* stripped, and that is load-bearing rather than incidental.
+- Graceful degradation: when a provider does not support `Context`, the confirmation is surfaced in conversation only — and a line confirmed there cannot be evidenced to the Reviewer, so fold the confirmed statement into `Description` instead.
+
+Removing an `[INFERRED]` prefix means "the issuer adopted this into the contract", not "the issuer originally said this" — which is exactly the distinction this block preserves. The block format is owned by the `reviewing-quality` skill's reference documentation, kept in sync with this section.
+
+**Why it is not stripped.** Confirming a line removes its `[INFERRED]` prefix and re-runs review. If the Reviewer could not see the confirmation, Fidelity would compare the newly adopted assertion against the original request alone, find no source for it, and flag it — so the only way to resolve an `[INFERRED]` line would produce a spec that can never PASS, and `Ready` would be unreachable for it. A confirmation is the issuer's own words about that line, which is the strongest form of sourcing this protocol recognizes; withholding it from the Reviewer defeats both the marker and the axis.
+
+The symmetric argument — "strip it so confirming a line does not invalidate the verdict" — does not survive contact with the flow. Confirming a line edits `Acceptance Criteria` (the prefix comes off), which invalidates the verdict through the AC component no matter what `Context` does. There was never a verdict to preserve at that moment, so stripping bought nothing and cost the axis its evidence.
+
+### No Open Questions Field
+
+Core provides **no** field for carrying unresolved items, and the Reviewer's PASS condition is not relaxed to "remaining questions are declared".
+
+`Ready` means an executor can start without asking back. A field that lets a task reach Ready with unresolved questions lowers exactly the bar this protocol exists to hold. The argument for such a field is that banning fabrication while keeping a zero-questions PASS creates a deadlock — the review cannot pass, filling the gap is forbidden, so users route around the gate. That deadlock does not exist: there are five exits, all using machinery that already ships (surface the routes; a fact question with the task resting in Backlog; a consultation task with the main task Blocked; a verification step in the Execution Plan; or an issuer-approved decision rule delegating bounded authority). If none applies, the task correctly stays in Backlog or Blocked — an unresolved dependency, not a protocol deadlock.
+
+**If a deployment adds its own field for unresolved items**, that is legitimate — an issuer does need somewhere to write down what they do not yet know. The constraint is on its lifecycle, not its existence:
+
+- It is a **Backlog-only working field**. It must be empty before promotion, and the promotion gate is where that is checked — prose alone gets skipped under time pressure.
+- The only sanctioned ways to empty it are the five exits above. Deleting the entry without doing one of them is fabrication, not resolution.
+
+A field that can carry unresolved entries **past** promotion is the Open Questions field rejected here, whatever it is called and whichever layer owns it.
+
+### A Task Is Self-Contained
+
+A task's spec must be readable on its own. An executor holding only the task's fields — Title, Description, AC, EP, Context — must be able to determine what is required without opening an attachment, a file property, or an external document to find a requirement that exists nowhere else.
+
+This is a constraint on **where requirements live**, not a ban on attachments:
+
+- **Text-bearing attachments** (a pasted log, a CSV of target values, a snippet, a config): inline the relevant content into the page body as a code block. The attachment may stay as the archival original; the spec must not depend on opening it.
+- **Binary attachments** (a screenshot, a PDF, a design file): attach them, and additionally summarize in the spec the preconditions they establish that affect implementation — the observed state, the values, the constraint. "See the attached screenshot" is not a requirement; "the Submit button is hidden behind the address fields at 375px (see attachment)" is.
+
+A provider-side tool for reading attachments does not remove this requirement. Tooling makes an attachment reachable; it does not make a spec that lives inside one readable, reviewable, or hashable — and the reviewer judges the spec, not the attachment.
 
 ### Calibration Requirement
 

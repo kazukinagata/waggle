@@ -44,6 +44,8 @@ jq -n \
 # Helper: extract flat task record from a Notion page object
 def extract_task:
   (.properties["Acceptance Criteria"].rich_text // [] | map(.plain_text) | join("")) as $ac_text |
+  (.properties["Execution Plan"].rich_text // [] | map(.plain_text) | join("")) as $ep_text |
+  (.properties["Quality Verdict"].rich_text // [] | map(.plain_text) | join("")) as $verdict_text |
   (.properties.Title.title[0].plain_text // "Untitled") as $title_text |
   {
     id: .id,
@@ -66,10 +68,40 @@ def extract_task:
     issuer_ids: [.properties.Issuer.created_by.id // empty],
     assignee_ids: [.properties.Assignee.people[]? | .id],
     ac_text: $ac_text,
+    ep_text: $ep_text,
+    # Which field the reserved placeholder was found in, so the report can preview
+    # the line that actually needs work. AC is named when both match.
+    placeholder_field: (
+      if (($ac_text // "") | test("\\[(DRAFT-AC|DRAFT-EP|NEEDS-REFINE|INFERRED)\\]"; "i")) then "Acceptance Criteria"
+      elif (($ep_text // "") | test("\\[(DRAFT-AC|DRAFT-EP|NEEDS-REFINE|INFERRED)\\]"; "i")) then "Execution Plan"
+      else null end
+    ),
+    # Verdict shape only: is the line well-formed, is it a PASS, which format
+    # version. Deliberately NOT the content hash — see the Ready Health Score note
+    # in SKILL.md.
+    #
+    # The full cache-line shape is required before the verdict word or the version
+    # is trusted, using the same pattern Layer 1 enforces (lowercase 8-hex hash and
+    # all). Reading "PASS" and "v2" out of a line independently would count a
+    # hand-typed `PASS hash=nope @x v2` as healthy — and a verdict typed into the
+    # provider UI is exactly the bypass this report exists to surface.
+    has_verdict: ((($verdict_text // "") | test("\\S"))),
+    verdict_wellformed: (($verdict_text // "") | test("^(PASS|NEEDS_REFINEMENT|REJECT)\\s+hash=[0-9a-f]{8}\\s+@\\S+\\s+v[0-9]+(\\s+\\S+=\\S+)*\\s*$")),
+    verdict_is_pass: (
+      (($verdict_text // "") | test("^(PASS|NEEDS_REFINEMENT|REJECT)\\s+hash=[0-9a-f]{8}\\s+@\\S+\\s+v[0-9]+(\\s+\\S+=\\S+)*\\s*$"))
+      and (($verdict_text // "") | test("^PASS\\b"))
+    ),
+    verdict_version: (
+      if (($verdict_text // "") | test("^(PASS|NEEDS_REFINEMENT|REJECT)\\s+hash=[0-9a-f]{8}\\s+@\\S+\\s+v[0-9]+(\\s+\\S+=\\S+)*\\s*$"))
+      then ((($verdict_text // "") | capture("\\s+v(?<v>[0-9]+)\\b") | .v | tonumber)? // null)
+      else null end
+    ),
     # Quality debt signals:
-    # - DRAFT AC: AC text contains "[DRAFT" (case-insensitive), indicating a
-    #   placeholder left after an ingest flow that was never filled in.
-    has_draft_ac: (($ac_text // "") | test("\\[DRAFT"; "i")),
+    # - Reserved placeholder: AC *or* EP contains any protocol-reserved string,
+    #   left after a flow that was never finished. All four block Ready+ at
+    #   Layer 1, so all four are debt — testing only "[DRAFT" in AC missed a
+    #   [NEEDS-REFINE] or [INFERRED] line, and missed everything sitting in EP.
+    has_draft_ac: ((($ac_text // "") + " " + ($ep_text // "")) | test("\\[(DRAFT-AC|DRAFT-EP|NEEDS-REFINE|INFERRED)\\]"; "i")),
     # - Test task: title matches common patterns for scratch/test placeholders
     #   ("Test task — delete me", "delete me", "WIP delete", bare "Test task").
     #   Anchored so legitimate titles like "Unit test for DELETE endpoint" do
@@ -210,9 +242,9 @@ def executor_counts:
 # === Dimension 6: Quality Debt ===
 # Debt signals that highlight tasks needing retroactive quality improvement.
 
-# DRAFT AC: AC text contains "[DRAFT" and status is not Blocked (Blocked is
-# expected to have DRAFT AC while waiting on hearing; once unblocked, the AC
-# should have been refined).
+# Reserved placeholder in AC or EP, status is not Blocked (Blocked is expected to
+# carry one while waiting on a hearing; once unblocked, it should have been
+# resolved). Covers [DRAFT-AC] / [DRAFT-EP] / [NEEDS-REFINE] / [INFERRED].
 ($tasks_aged
   | map(select(.has_draft_ac and (.status != "Blocked") and (.status != "Done") and (.status != "Cancelled")))
   | sort_by(-.age_days)
@@ -222,7 +254,12 @@ def executor_counts:
       title: .title,
       status: .status,
       age_days: .age_days,
-      ac_preview: (.ac_text // "" | .[:80])
+      placeholder_field: .placeholder_field,
+      # Preview the field the marker was found in. Previewing AC unconditionally
+      # showed unrelated (or empty) text whenever the marker sat only in EP.
+      preview: (
+        (if .placeholder_field == "Execution Plan" then (.ep_text // "") else (.ac_text // "") end) | .[:80]
+      )
     })
 ) as $draft_ac_tasks |
 
@@ -272,6 +309,30 @@ def executor_counts:
   acknowledgment: {
     unacknowledged_count: ($unacknowledged | length),
     unacknowledged_tasks: $unacknowledged
+  },
+  ready_health: {
+    # Ready tasks carrying a current-format PASS, over all Ready tasks.
+    # Shape only: PASS and format v2. Hash freshness is NOT evaluated here — see
+    # the note in SKILL.md for why this script must not reimplement the hash.
+    # The three buckets partition ready_total exactly. A well-shaped PASS carrying
+    # an unknown version (v3, v0) belongs in the unhealthy bucket, not outside all
+    # of them: validation rejects unknown versions, so leaving it uncounted would
+    # hide a direct provider edit behind buckets that no longer sum.
+    ready_total: ($tasks_aged | map(select(.status == "Ready")) | length),
+    ready_v2_pass: ($tasks_aged | map(select(.status == "Ready" and .verdict_is_pass and .verdict_version == 2)) | length),
+    ready_legacy_v1_pass: ($tasks_aged | map(select(.status == "Ready" and .verdict_is_pass and .verdict_version == 1)) | length),
+    ready_non_pass_or_missing: ($tasks_aged | map(select(.status == "Ready" and (((.verdict_is_pass | not) or (.verdict_version == null)) or ((.verdict_version != 1) and (.verdict_version != 2))))) | length),
+    # Sub-count of the unhealthy bucket, not a fourth bucket: a Ready task whose
+    # verdict field is non-empty but does not parse at all. Worth naming separately
+    # because it means someone typed into the field.
+    ready_malformed_verdict: ($tasks_aged | map(select(.status == "Ready" and .has_verdict and (.verdict_wellformed | not))) | length),
+    score_pct: (
+      ($tasks_aged | map(select(.status == "Ready")) | length) as $t
+      | if $t == 0 then null
+        else (($tasks_aged | map(select(.status == "Ready" and .verdict_is_pass and .verdict_version == 2)) | length) * 100 / $t | floor)
+        end
+    ),
+    hash_freshness_checked: false
   },
   quality_debt: {
     draft_ac: {
