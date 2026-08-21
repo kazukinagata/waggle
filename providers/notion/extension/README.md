@@ -149,6 +149,80 @@ The response is a mixed content array: first a text part with a JSON summary, th
 
 Images over 5MB, non-raster types (svg, tiff, heic), and requested `block_ids` that match no image block are listed in `skipped` (with a reason) instead of returned inline. `total_found` always counts every image discovered on the page before filtering.
 
+## Tool: notion-read-files-property
+
+Reads the **contents** of a Notion files-type page property. The mirror of `notion-set-files-property`: the write side has existed since v2.13.0, the read side did not, so an executor holding only a task could see *that* a file was attached but never what it said.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `page_id` | string | yes | Notion page UUID to read from |
+| `property_name` | string | yes | files-type property name (e.g., "Attachments") |
+| `names` | string[] | no | Display names to read. **Omit** to read every entry up to `max_files`; an explicitly empty list selects nothing. Must be an array of non-empty strings — a bare string is rejected rather than ignored, because ignoring it would silently widen the call from one file to `max_files` of them. |
+| `max_files` | number | no | Maximum entries to retrieve (default 5) |
+| `out_dir` | string | no | Directory for downloaded non-text files. Defaults to a **fresh private directory** created per invocation under the system temp dir. |
+| `metadata_only` | boolean | no | List entries without retrieving content (default `false`) |
+
+Works on any files-type property, not only a waggle Tasks DB.
+
+### Two kinds of entry, handled differently
+
+A Notion files property holds two things, and the difference decides the behavior:
+
+| Entry | Where the bytes live | What this tool does |
+|---|---|---|
+| **Notion-hosted** (`type: file` / `file_upload`, from an upload) | Notion's storage, reachable only through a **signed URL that expires after ~1h** | Fetches it and returns the content. This is the case that needed a tool. |
+| **External** (`type: external`, a URL someone pasted) | Not in Notion at all — Notion stores only the URL | **Not fetched.** Returns the name and URL so the caller can fetch it with a general-purpose tool. |
+
+Not fetching external URLs is deliberate. The bytes were never in Notion, the URL is not a secret (it is visible in Notion's own UI), and the caller already has a general-purpose fetcher — there is no reason for this server to become one, and every reason not to make it reach arbitrary hosts.
+
+### Signed URLs are treated as credentials
+
+A Notion-hosted entry resolves to a pre-signed storage URL. Possession *is* authorization, for about an hour. So:
+
+- **The URL is never returned.** Not in the result, not in an error message, not in a log line. Entries are identified by name and index. Download errors are scrubbed of any URL before they surface, because the fetch layer routinely embeds the failing URL in its own messages.
+- **The Notion token is never sent to it.** The URL points at Notion's storage host, not `api.notion.com`; the signature is the authorization, and attaching a bearer token would hand the integration credential to a host with no business holding it.
+- **Expiry is checked before fetching**, with a 60s skew so a download does not fail mid-transfer. If any selected entry has an expired URL, the page is re-retrieved **once** and *every* selected entry is remapped from the fresh list, keyed on the stored entry index rather than the display name (names are not unique, so a name-keyed remap maps every duplicate onto the first match and returns one attachment's contents several times) — refreshing only the entry being looked at left a second expired attachment in the same call reported as expired despite a usable URL having just been fetched.
+- **Redirects are followed manually**, up to 5 hops, re-checking each. The first URL comes from Notion; a redirect target does not, so every hop is validated twice over: syntactically (https only, and not an internal literal — IPv6 literals are expanded and judged numerically rather than matched as strings, which covers every spelling of an embedded IPv4 address at once — mapped (`::ffff:127.0.0.1`), compatible (`::127.0.0.1`), and NAT64 (`64:ff9b::/96`) alike, in dotted or hextet form, since the URL parser rewrites all of them. NAT64's well-known prefix is unwrapped rather than refused: on an IPv6-only network that prefix is how a legitimate public IPv4 host is reached, so blocking it would break downloads there while unwrapping still catches `64:ff9b::7f00:1`. RFC 8215's local-use prefix `64:ff9b:1::/48` is refused wholesale instead — it is not globally routed, so there is no public host behind it to preserve access to, and at `/48` the embedded address is split around a mandatory-zero octet rather than sitting in the suffix), and by **resolving the hostname** and rejecting it if any address lands in loopback, private, link-local, CGNAT, or multicast space — IPv4 and IPv6 alike.
+
+  Residual risk, stated rather than papered over: the resolution check is a check-then-connect, so a name that resolves differently between the lookup and the fetch (DNS rebinding) is not prevented. Closing that needs pinning the resolved address into the connection through a custom agent. What is closed is the straightforward path — a redirect to an internal literal, or to a name that simply points at one.
+- **Display names never decide the path.** A name like `../../etc/passwd` is reduced to its basename before it is joined with `out_dir`.
+- **The default download directory is created with `mkdtemp`, 0700, per invocation** — not a predictable `notion-attachments-<page_id>` path. A predictable path in a shared temp directory lets another local user pre-create it and plant a symlink at the filename about to be written, turning a download into an overwrite of any file this process can write. It also stops one invocation from overwriting an earlier one's downloads for the same page.
+- **Files are created exclusively (`O_EXCL`), never overwritten.** This tool does not replace a file it did not create, and the exclusive flag also refuses to follow a planted symlink. In a caller-supplied `out_dir`, a pre-existing file at the target path is reported in the result rather than silently replaced.
+- **Each download hop carries a 120s abort budget**, so a stalled storage host or redirect target cannot block the MCP request for as long as the peer keeps the socket open. It is a separate, longer budget than the 30s used for API calls — this covers transferring up to the 50MB cap, not a JSON round trip — and it does not reuse the shared timeout helper, because that helper names the URL in its timeout message and here the URL is a credential.
+
+### Delivery
+
+- **Text-bearing** (`text/*`, `application/json`, `application/xml`, yaml): returned inline as content, capped at 256KB with truncation reported in the summary. A 40MB log must not silently become 40MB of context. The type comes from the response header, except that a **generic** header (`application/octet-stream` and friends) falls back to the filename extension — object storage routinely serves that for anything whose type was not set at upload, and trusting it would send a `.csv` to disk as binary.
+- **Everything else**: written under `out_dir`; only the local path is returned. A PDF or spreadsheet inlined as bytes costs tokens without conveying the file. The filename is prefixed with the entry index (`00-spec.pdf`), because display names are not unique on a Notion files property — two entries called `spec.pdf` would otherwise resolve to one path and the second download would overwrite the first.
+- Entries over 50MB, unrecognized entry types, and requested `names` that match nothing are reported with a reason instead of being silently dropped. The size cap is enforced **while reading** — refused up front on a declared `Content-Length`, and otherwise stopped mid-stream — so an oversized attachment cannot exhaust the extension process's memory on its way to being rejected.
+
+The response is a JSON summary followed by one text part per inline file:
+
+```json
+{
+  "ok": true,
+  "page_id": "<uuid>",
+  "property_name": "Attachments",
+  "total_found": 3,
+  "files": [
+    {"index": 0, "name": "targets.csv", "source": "notion_hosted", "url": null,
+     "retrieved": true, "delivery": "inline", "mime_type": "text/csv", "size_bytes": 812, "truncated": false},
+    {"index": 1, "name": "spec.pdf", "source": "notion_hosted", "url": null,
+     "retrieved": true, "delivery": "file", "path": "/tmp/notion-attachments-<uuid>/spec.pdf",
+     "mime_type": "application/pdf", "size_bytes": 148213},
+    {"index": 2, "name": "Figma board", "source": "external", "url": "https://www.figma.com/file/...",
+     "retrieved": false, "reason": "external entry; fetch the url with a general-purpose tool"}
+  ],
+  "skipped": []
+}
+```
+
+Note `"url": null` on both hosted entries. That is the signed URL being withheld, not a missing value.
+
+### A tool is not a substitute for a readable spec
+
+waggle's protocol requires a task to be self-contained: an executor holding only the task's fields must be able to tell what is required without opening an attachment. This tool makes an attachment *reachable*; it does not make a spec that lives inside one reviewable or hashable, and the quality reviewer judges the spec, not the attachment. Inline text-bearing attachments into the page body and summarize what a binary one establishes — then use this tool for the detail.
+
 ## Tool: notion-set-files-property
 
 Sets or appends files on a Notion **files-type page property** (e.g. `Attachments`). `notion-update-page` cannot set files properties — use this tool. Local-file uploads require the integration's **Insert content** capability.
@@ -165,7 +239,7 @@ Sets or appends files on a Notion **files-type page property** (e.g. `Attachment
 
 Each `files` entry carries exactly one of `file_path` (a local file uploaded via the Notion File Upload API, max 20MB single-part) or `url` (an external file stored as-is). For `file_path`, `name` defaults to the basename.
 
-Returns the post-update file list in read shape. Uploaded entries get a Notion-hosted **signed URL that expires after ~1 hour**; external entries keep their stable URL:
+Returns the post-update file list. **A Notion-hosted entry's URL is not included** (`"url": null`) — it is a pre-signed storage URL, i.e. a credential, and returning it from a write would put it in a tool result and from there into a transcript. External entries keep their URL, which is a non-secret string the user typed into Notion:
 
 ```json
 {
@@ -174,11 +248,13 @@ Returns the post-update file list in read shape. Uploaded entries get a Notion-h
   "property_name": "Attachments",
   "mode": "append",
   "files": [
-    {"name": "spec.pdf", "url": "https://prod-files.notion-static.com/...signed..."},
-    {"name": "Figma board", "url": "https://www.figma.com/file/..."}
+    {"index": 0, "name": "spec.pdf", "source": "notion_hosted", "url": null},
+    {"index": 1, "name": "Figma board", "source": "external", "url": "https://www.figma.com/file/..."}
   ]
 }
 ```
+
+> **Changed in 1.3.0.** Earlier versions returned the signed URL for uploaded entries here. To read an attachment's contents, use `notion-read-files-property`, which fetches through the signed URL without exposing it. Before that tool existed there was no other way to get at an attachment, which is presumably why this shape handed the URL out; there is now.
 
 ### Examples
 

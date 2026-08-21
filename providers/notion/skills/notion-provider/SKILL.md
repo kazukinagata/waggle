@@ -322,9 +322,35 @@ Returns `{ok, page_id, property_name, mode, files}` where `files` is the post-up
 
 - **Upload requires the integration's "Insert content" capability** (same as page-body image upload); a
   `403 restricted_resource` means it is missing.
-- Uploaded entries read back as `type:"file"` with a signed URL that **expires after ~1 hour**; external
-  entries return a stable `external.url`. Consumers needing a fresh URL re-fetch the task.
+- Uploaded entries are stored as `type:"file"` and Notion serves them through a signed URL that
+  **expires after ~1 hour**. **That URL is not returned to you** (extension v1.3.0+): a hosted entry
+  comes back with `url: null` from both the write and the read tool, because possession of the URL is
+  authorization for as long as it lives. External entries return their stable `external.url`, which is
+  not a secret. To read a hosted attachment's contents, use `notion-read-files-property`.
 - Local-file uploads are capped at 20MB (Notion single-part upload).
+
+## Reading the Attachments Property
+
+Setting `Attachments` has been possible since v2.13.0; **reading** it was not, so an executor holding only
+the task could see that a file was attached but never what it said. Use the
+`mcp__notion-extension__notion-read-files-property` tool (Desktop Extension v1.3.0+) with the page ID and
+the property name. There is no CLI script counterpart yet — in CLI, fall back to re-fetching the task and
+warn the user that attachment contents are unavailable rather than guessing at them.
+
+Two things to know before relying on it:
+
+- **External entries are not fetched.** A `type:"external"` entry means Notion stores only a URL; the bytes
+  were never there. The tool returns the name and URL, and you fetch it with a general-purpose tool if you
+  need to. Notion-hosted entries are the ones the tool actually retrieves.
+- **The signed URL is never returned.** A hosted entry comes back with `url: null` — that is the credential
+  being withheld, not a missing value. Do not try to reconstruct or log it. Text-bearing files come back
+  inline; everything else is written to a local path the tool reports.
+
+**A tool is not a substitute for a readable spec.** The protocol requires a task to be self-contained: an
+executor holding only the task's fields must be able to tell what is required without opening an attachment.
+This tool makes an attachment reachable; it does not make requirements that live inside one reviewable, and
+the quality reviewer judges the spec, not the attachment. Inline text-bearing attachments into the page body
+and summarize what a binary one establishes — then use this tool for detail.
 
 ## Page Body Images
 
@@ -452,7 +478,7 @@ This removes the page from views but retains it in Notion's trash (recoverable f
 | Tags | multi_select | `task_tags` | Free tags |
 | Parent Task | relation | `task_parent` | Self-relation (hierarchy) |
 | Assignee | people | `task_assignee` | Human executor assignment |
-| Attachments | files | `task_attachments` | Files attached as task data. Notion hosts uploads via the File Upload API (`supportsFileHosting=true`). Set with `attach-file.sh` (CLI) / `notion-set-files-property` (Desktop/Cowork) — `notion-update-page` cannot set it. v2.13.0+ |
+| Attachments | files | `task_attachments` | Files attached as task data. Notion hosts uploads via the File Upload API (`supportsFileHosting=true`). Set with `attach-file.sh` (CLI) / `notion-set-files-property` (Desktop/Cowork) — `notion-update-page` cannot set it. Read contents with `notion-read-files-property` (extension v1.3.0+); no CLI counterpart. v2.13.0+ |
 | Branch | rich_text | `task_branch` | Git branch name (e.g. feature/task-slug). Leave blank to work on the current branch |
 | Source Message ID | rich_text | `task_source_message_id` | Messaging tool message unique ID (e.g. Slack `channel_id:ts`). Used for cross-member dedup |
 | Acknowledged At | date | `task_acknowledged_at` | Auto-set when assignee sees the task. Reset on delegation. |

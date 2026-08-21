@@ -4,6 +4,86 @@ All notable changes to the Waggle project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## waggle-notion 3.8.0 / notion-extension 1.3.0 — read a task's attachments — 2026-08-20
+
+Setting a `files` property has been possible since v2.13.0. **Reading** one was not, in
+any environment: the hosted `notion-fetch` reports that a file is attached but cannot
+retrieve it, and there is no script path either. So an executor holding only the task
+could see *that* something was attached and never what it said — which is exactly the
+case where a requirement goes unread.
+
+`notion-read-files-property` is the mirror of `notion-set-files-property`. It works on
+any files-type property, not only a Tasks DB.
+
+### Two kinds of entry, handled differently
+
+A files property holds two things, and the difference decides the behavior:
+
+- **Notion-hosted** (from an upload): the bytes are in Notion's storage, reachable only
+  through a signed URL that expires after ~1h. The tool fetches these. This is the case
+  that needed a tool at all.
+- **External** (a pasted URL): Notion stores only the URL — the bytes were never there.
+  **The tool does not fetch these.** It returns the name and URL, and the caller uses a
+  general-purpose fetcher if it wants the content. The URL is not a secret (it is visible
+  in Notion's own UI), so returning it is safe, and returning it is sufficient — there is
+  no reason for this server to become a general-purpose fetcher, and every reason not to
+  let it reach arbitrary hosts.
+
+### Signed URLs are treated as credentials
+
+Possession of a pre-signed storage URL *is* authorization, for about an hour. So:
+
+- **The URL is never returned** — not in the result, not in an error message, not in a log.
+  A hosted entry comes back with `url: null`; that is the credential being withheld, not a
+  missing value. Download errors are scrubbed of any URL before surfacing, because the fetch
+  layer routinely embeds the failing URL in its own messages.
+- **The Notion token is never sent to it.** The URL points at Notion's storage host, not
+  `api.notion.com`. The signature is the authorization; attaching a bearer token would hand
+  the integration credential to a host with no business holding it.
+- **Expiry is checked before fetching**, with a 60s skew so a download does not fail
+  mid-transfer. An expired URL triggers one page re-retrieval rather than a 403 that reads
+  like a permissions problem and is not one.
+- **Redirects are followed manually**, 5 hops max, re-checking each hop: https only, never to
+  a loopback, private, link-local, or CGNAT address. The first URL comes from Notion; a
+  redirect target does not.
+- **Display names never decide the path.** `../../etc/passwd` is reduced to its basename
+  before being joined with `out_dir`.
+
+### Delivery
+
+Text-bearing files (`text/*`, json, xml, yaml) come back inline, capped at 256KB with
+truncation reported — a 40MB log must not silently become 40MB of context. Everything else
+is written under `out_dir` and only the local path is returned. Entries over 50MB,
+unrecognized entry types, and requested names matching nothing are listed in `skipped` with
+a reason rather than silently dropped.
+
+### Breaking: notion-set-files-property no longer returns the signed URL
+
+The write tool returned the post-update file list including the pre-signed URL of every
+freshly uploaded entry. That is a credential — possession is authorization for about an
+hour — written into a tool result, and from there into a transcript and any log that
+captures one. It was cheap to include, because the PATCH response already holds it; that
+is not a reason to hand it out.
+
+A Notion-hosted entry now comes back with `url: null` from both tools. External entries
+keep their URL, which is a string the user typed into Notion and not a secret.
+
+**If you were using that URL to read an attachment back**, use `notion-read-files-property`,
+which fetches through the signed URL without exposing it. Before this release there was no
+other way to reach an attachment's contents, which is presumably why the write shape handed
+the URL out in the first place.
+
+### This does not replace a readable spec
+
+Core requires a task to be self-contained: an executor holding only the task's fields must be
+able to tell what is required without opening an attachment. This tool makes an attachment
+*reachable*; it does not make requirements that live inside one reviewable or hashable, and
+the reviewer judges the spec, not the attachment. The norm ships in core 4.0.0 alongside this,
+deliberately — the tool is the complement, not the substitute.
+
+Extension test suite 67 → 228 cases. **The extension must be repacked
+(`npx @anthropic-ai/mcpb pack .`) and reinstalled** before the new tool appears.
+
 ## 4.0.0 — Intent fidelity — 2026-08-19
 
 Three field incidents showed the same failure shape: a task stopped being a record of
