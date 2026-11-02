@@ -4,6 +4,20 @@ All notable changes to the Waggle project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## 4.0.1 — `managing-tasks` no longer claims a project's "what's next" — 2026-11-02
+
+- **`waggle` 4.0.0 → 4.0.1** (PATCH — skill description and README only; no behavior change):
+  - **`managing-tasks` description scoped to individual tasks.** It listed a bare
+    "what's next" among its triggers, so a question about a whole project — what
+    the project should do next, or how far it has progressed — routed to task
+    management even when another installed skill tracks that project. The trigger
+    is now "pick the next task", and the description states that a project's next
+    step or progress is out of scope. The "next task" recommendation itself (Ready,
+    unblocked, by priority then due date) is unchanged, as is the body of the skill.
+  - Description length is 1020 characters (limit 1024). The opening sentence was
+    condensed to make room; no trigger phrase other than "what's next" was removed.
+  - README's usage example `"what's next?"` became `"what's my next task?"` to match.
+
 ## waggle-notion 3.8.0 / notion-extension 1.3.0 — read a task's attachments — 2026-08-20
 
 Setting a `files` property has been possible since v2.13.0. **Reading** one was not, in
