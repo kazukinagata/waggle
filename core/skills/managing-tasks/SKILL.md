@@ -1,12 +1,13 @@
 ---
 name: managing-tasks
 description: >
-  Creates, updates, deletes, and queries tasks in the configured data source.
-  Handles task creation with required confirmations, state transitions,
-  "next task" recommendations, and personal task dashboard.
+  Creates, updates, deletes, and queries individual tasks in the data
+  source, with required confirmations, state transitions, "next task"
+  recommendations, and a personal task dashboard.
   Use this skill for ANY task-related request — create, update, delete,
   query, list, filter by status/priority/assignee, mark done, block, assign
-  to self, change priority, view personal dashboards, or ask "what's next".
+  to self, change priority, view personal dashboards, or pick the next task.
+  Not for a project's next step or progress.
   Also handles task dependencies and links: block, unblock, blocked by,
   blocking, dependency/dependencies, parent task, subtask, child task,
   link tasks, relation, connect tasks. Also scoped queries such as

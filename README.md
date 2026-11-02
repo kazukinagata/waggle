@@ -62,7 +62,7 @@ Choose your provider:
 
 ```
 "add a task to research competitor pricing"
-"what's next?"
+"what's my next task?"
 "execute tasks"
 "show kanban"
 "delegate API task to Alice"
