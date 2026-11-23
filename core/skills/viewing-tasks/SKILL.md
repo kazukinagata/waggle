@@ -77,8 +77,10 @@ In Cowork, the dashboard is a single Live Artifact (`id = "waggle-tasks"`) that 
    - **Several candidates** (e.g. the Desktop Extension and a remote connector) → probe each with
      `page_size: 1` against the Intake Log database (`intakeLogDatabaseId` from the Waggle Config page) and
      no filter — it is small, so an older Desktop Extension that ignores `page_size` cannot overflow the
-     response. If `intakeLogDatabaseId` is not set, probe `tasksDatabaseId` instead, with a filter of
-     `Assignee` contains the Step 2 assignee (no filter if no assignee was chosen). Use the first candidate
+     response. If `intakeLogDatabaseId` is not set, use another small database the Waggle Config page
+     references. Never probe `tasksDatabaseId`: an older extension would return every task. If there is no
+     small database to probe, list the candidates by the server part of their names and ask the user which
+     one to bind. Use the first candidate
      whose response contains `has_more`. Skip a candidate that returns a permission error (e.g. HTTP 403, or
      a message that the user lacks permission), and tell the user that error text verbatim.
    - **No candidate, or every candidate failed** → surface the failure (with any permission error text) and
