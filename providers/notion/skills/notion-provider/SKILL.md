@@ -295,10 +295,11 @@ otherwise Path 3 (official connector) if available; otherwise warn the user.
 **Claude Desktop / Cowork:**
 1. A tool that sets a files property with `replace` / `append` modes is available (the Desktop Extension's
    `notion-set-files-property`, v1.2.0+) → Path 2
-2. Otherwise, the official Notion connector's file upload (`notion-create-file-upload`) and page update are
-   available, and you can run shell commands → Path 3
+2. Otherwise, the official Notion connector's page update (`notion-update-page`) is available → Path 3.
+   Uploading a **local file** on that path additionally needs `notion-create-file-upload` and a shell;
+   external URLs and clearing the property need neither.
 3. Otherwise → warn that the operation needs the Notion Desktop Extension v1.2.0+ or the official Notion
-   connector with a shell.
+   connector (with a shell, for local files).
 
 ### Path 1: Bash Script (CLI, requires NOTION_TOKEN)
 
@@ -334,8 +335,9 @@ Returns `{ok, page_id, property_name, mode, files}` where `files` is the post-up
 
 ### Path 3: Official Notion Connector (upload, then `notion-update-page`)
 
-Needs a shell that can reach the network (Claude Code, Claude Desktop, Cowork). In an environment without a
-shell (e.g. claude.ai), local files cannot be uploaded; only public URLs can be attached.
+Uploading a local file needs a shell that can reach the network (Claude Code, Claude Desktop, Cowork). In an
+environment without a shell (e.g. claude.ai), local files cannot be uploaded; public URLs can still be
+attached, and the property can still be cleared (write an empty list).
 
 1. For each local file, call `notion-create-file-upload`. Send the file's bytes from the shell as a
    multipart form-data POST to the upload URL it returns, as that tool's result instructs. Keep the file
