@@ -139,8 +139,8 @@ List every uncapped query tool in the session, then probe each one (see below):
 | Condition | Result |
 |---|---|
 | At least one uncapped query tool passes the probe | PASS: Uncapped Notion query tool available — name each passing tool by the server part of its full name |
-| A tool answers the probe but the response has no `has_more` | WARN: Outdated Notion Desktop Extension (v0.3.x or earlier — silently ignores `page_size`). Install v0.4.0 or later so `ingesting-messages` and large-database queries can paginate. Without this, the Intake Log query can overflow the MCP token cap and stall the run for many minutes. |
-| A tool returns a permission error (e.g. HTTP 403, or a message that the user lacks permission to use it) | WARN: The Notion query connector declined this user — quote the error verbatim. Ask whoever runs that connector for access, or install the Notion Desktop Extension. Until then, queries fall back to the official Notion connector and its shared quota. |
+| A tool answers the probe but the response has no `has_more` | WARN: This query tool ignores `page_size` — a Notion Desktop Extension older than v0.4.0, or a connector without pagination (name the tool by the server part of its name). Update the Desktop Extension, or use a query connector that paginates, so `ingesting-messages` and large-database queries can paginate. Without this, the Intake Log query can overflow the MCP token cap and stall the run for many minutes. |
+| A tool returns an access error — HTTP 403 or a message that the user lacks permission to use it, or HTTP 401 or a message that the login could not be verified or the user should reconnect (judge by meaning; the wording is the connector's own, often in the user's language) | WARN: The Notion query connector declined this user — quote the error verbatim. Ask whoever runs that connector for access (or reconnect it), or install the Notion Desktop Extension. Until then, queries fall back to the official Notion connector and its shared quota. |
 | No uncapped query tool is available | WARN: No uncapped Notion query tool. Install the Notion Desktop Extension (v0.4.0+) or connect a remote Notion query connector for paginated, filtered queries. Until then, queries fall back to the official Notion connector and its shared quota (if it is connected). |
 
 Report one row per tool when several are present (e.g. the Desktop Extension and a remote connector); the
@@ -151,8 +151,8 @@ check as a whole is PASS when any tool passes.
 Inspect the response:
 
 - Response object contains a `has_more` key → the tool honors `page_size`. PASS.
-- Response object does not contain `has_more` (only `results`) → the tool ignored `page_size` and aggregated everything → Desktop Extension v0.3.x or earlier. WARN.
-- The call returns a permission error → WARN as in the table above.
+- Response object does not contain `has_more` (only `results`) → the tool ignored `page_size` and aggregated everything → a Desktop Extension older than v0.4.0, or a connector without pagination. WARN.
+- The call returns an access error → WARN as in the table above.
 
 ---
 

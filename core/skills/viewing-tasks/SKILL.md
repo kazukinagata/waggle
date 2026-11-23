@@ -81,10 +81,12 @@ In Cowork, the dashboard is a single Live Artifact (`id = "waggle-tasks"`) that 
      references. Never probe `tasksDatabaseId`: an older extension would return every task. If there is no
      small database to probe, list the candidates by the server part of their names and ask the user which
      one to bind. Use the first candidate
-     whose response contains `has_more`. Skip a candidate that returns a permission error (e.g. HTTP 403, or
-     a message that the user lacks permission), and tell the user that error text verbatim.
-   - **No candidate, or every candidate failed** → surface the failure (with any permission error text) and
-     stop. The artifact cannot operate without an uncapped query tool; the user can install the Notion
+     whose response contains `has_more`. Skip a candidate that returns an access error (HTTP 401 or 403, or
+     a message that the user lacks permission or must reconnect), and tell the user that error text
+     verbatim. A candidate that answers without `has_more` ignores `page_size`; do not bind it — the
+     artifact would fetch the whole Tasks database on every reload.
+   - **No candidate, or every candidate failed** (an access error, or an answer without `has_more`) →
+     surface the failure (with any error text) and stop. The artifact cannot operate without an uncapped query tool; the user can install the Notion
      Desktop Extension or get access to the remote connector.
 
 4. Generate the bundled HTML. The 4th argument is the assignee Notion user ID; the 5th argument is the resolved MCP tool name from Step 3. The bundle will server-side filter to that assignee AND exclude Done/Cancelled at the Notion query layer:

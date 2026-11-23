@@ -10,12 +10,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
   - **`health-checking`** no longer checks whether one Desktop Extension tool exists by its full name.
     Its Notion query tool check lists every uncapped `notion-query` tool (Desktop Extension or a remote
     connector, whatever the server part of its name), probes each for pagination, and reports a connector
-    that declines the user as its own WARN. The separate row for the pre-rename extension is gone: that
-    version also lacks pagination, so the `has_more` probe already flags it.
+    that declines the user (HTTP 401 or 403, judged by meaning) as its own WARN. A tool that ignores
+    `page_size` is reported as such — an old Desktop Extension or a connector without pagination. The
+    separate row for the pre-rename extension is gone: that version also lacks pagination, so the
+    `has_more` probe already flags it.
   - **`viewing-tasks` / `managing-views`** (Cowork Live Artifacts) bind the uncapped query tool chosen at
     run time. Having both the Desktop Extension and a remote connector is now normal, so instead of
     stopping on two tools named `notion-query` they probe each and bind the first that answers with
-    `has_more`, skipping — and reporting — one that returns a permission error. The official connector's
+    `has_more`, skipping — and reporting — one that declines the user, and never binding one that ignores
+    `page_size`; if none qualifies they stop. The official connector's
     `notion-query-data-sources` is never bound. The generator scripts' examples no longer name a server.
   - **`ingesting-messages` / `managing-tasks`** describe the paginated query tool and the direct-write tools
     without the Desktop Extension's names.
