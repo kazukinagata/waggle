@@ -740,8 +740,16 @@ Query Path" below.
 ### Path 3: Official Connector's Data-Source Query (fallback only)
 
 Use only per the rule in "The Two Families of Notion Query Tools". Call `notion-query-data-sources` against
-the Tasks data source, translating the needed filter recipe into that tool's query form, and follow its
-own pagination. Tell the user once per run that the query used the official connector because no uncapped
+the data source of the **database the caller asked about** — the Tasks data source for task queries, but the
+Intake Log's, Active Threads', or an external database's own data source when the caller targets one (fetch
+that database with `notion-fetch` to find its data source if you do not have it). Translate the needed filter
+recipe into that tool's query form, and follow its own pagination.
+
+**Its rows are not Notion page objects.** They carry property values by property name, not the
+`properties.<Name>.<type>` structure that Paths 1 and 2 return. Before handing results on — to
+"Post-Processing", "Displaying Task Lists", or a caller that reads Notion page objects — map each row to the
+fields that consumer needs (page ID, title, status, priority, …) by property name. When a consumer needs
+the full page object (e.g. a relation's IDs, or a field the row did not carry), `notion-fetch` that page. Tell the user once per run that the query used the official connector because no uncapped
 query tool was usable. If it fails because the shared quota is exhausted, halt per "Error Handling for Query
 Path" below — do not retry in a loop and do not fall back to `notion-search`.
 
@@ -766,7 +774,7 @@ The `notion-search` fallback was removed in 2.5.6 because it cannot filter on pe
 
 ### Displaying Task Lists
 
-When displaying queried tasks to the user in list or table format, reduce each result to display-relevant fields to prevent output truncation. Apply this jq shape to the `results` array returned by the chosen query path:
+When displaying queried tasks to the user in list or table format, reduce each result to display-relevant fields to prevent output truncation. Apply this jq shape to the `results` array returned by Path 1 or Path 2 (for Path 3, produce the same fields from each row by property name, as described there):
 
 ```jq
 [.results[] | {
