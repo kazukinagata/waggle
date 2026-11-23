@@ -4,6 +4,26 @@ All notable changes to the Waggle project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## 4.1.0 — core skills pick the Notion query tool by intent — 2026-11-23
+
+- **`waggle` 4.0.1 → 4.1.0** (MINOR — needs `waggle-notion` 3.9.0 for the same rule on the provider side):
+  - **`health-checking`** no longer checks whether one Desktop Extension tool exists by its full name.
+    Its Notion query tool check lists every uncapped `notion-query` tool (Desktop Extension or a remote
+    connector, whatever the server part of its name), probes each for pagination, and reports a connector
+    that declines the user as its own WARN. The separate row for the pre-rename extension is gone: that
+    version also lacks pagination, so the `has_more` probe already flags it.
+  - **`viewing-tasks` / `managing-views`** (Cowork Live Artifacts) bind the uncapped query tool chosen at
+    run time. Having both the Desktop Extension and a remote connector is now normal, so instead of
+    stopping on two tools named `notion-query` they probe each and bind the first that answers with
+    `has_more`, skipping — and reporting — one that returns a permission error. The official connector's
+    `notion-query-data-sources` is never bound. The generator scripts' examples no longer name a server.
+  - **`ingesting-messages` / `managing-tasks`** describe the paginated query tool and the direct-write tools
+    without the Desktop Extension's names.
+  - **CI**: `core/scripts/check-no-hardcoded-tool-names.sh` rejects full `mcp__<server>__notion-*` names in
+    skills, hooks and guidance.
+  - **Evals**: `core/evals/` adds three cases for the health check (remote connector only, Desktop Extension
+    only, neither). Not run in CI.
+
 ## waggle-notion 3.9.0 — works without the Desktop Extension; tools chosen by intent, not by name — 2026-11-23
 
 `notion-provider` named its tools by their full names (`mcp__notion-extension__notion-query` and so on) and
