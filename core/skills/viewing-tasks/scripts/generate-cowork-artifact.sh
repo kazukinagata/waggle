@@ -14,8 +14,9 @@
 # <team_id> / <team_name> / <assignee_user_id> accept empty string. <mcp_tool_name>
 # is REQUIRED — the caller (the SKILL.md flow run by Claude) must resolve the
 # Notion-query MCP tool from its available tools and pass the exact full name
-# (e.g. mcp__notion-extension__notion-query). Hardcoding it here would break
-# any user whose installed extension version exposes a different prefix.
+# (mcp__<server>__notion-query, where <server> is whatever this session exposes:
+# the Notion Desktop Extension, a remote connector, or an opaque id such as a
+# UUID in Cowork). Hardcoding it here would break every other environment.
 #
 # When <assignee_user_id> is provided, the bundle's runtime fetch is scoped
 # server-side to that assignee (people.contains). Status is always restricted
@@ -38,7 +39,7 @@ MCP_TOOL_NAME="${5:-}"
 if [ -z "$MCP_TOOL_NAME" ]; then
   echo "Error: 5th argument <mcp_tool_name> is required and must be non-empty." >&2
   echo "       Pass the full MCP tool name your environment exposes" >&2
-  echo "       (e.g. mcp__notion-extension__notion-query). The caller is expected" >&2
+  echo "       (mcp__<server>__notion-query; <server> differs per environment). The caller is expected" >&2
   echo "       to resolve this from the available MCP tools rather than hardcode." >&2
   exit 1
 fi

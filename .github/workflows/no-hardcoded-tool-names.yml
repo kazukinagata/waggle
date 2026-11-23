@@ -1,0 +1,26 @@
+name: no-hardcoded-tool-names
+
+on:
+  pull_request:
+    paths:
+      - "**/*.md"
+      - "**/*.sh"
+      - "**/*.js"
+      - "**/*.json"
+      - "core/scripts/check-no-hardcoded-tool-names.sh"
+      - ".github/workflows/no-hardcoded-tool-names.yml"
+  push:
+    branches: [main]
+    paths:
+      - "**/*.md"
+      - "**/*.sh"
+      - "**/*.js"
+      - "**/*.json"
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Reject full Notion tool names in skills, hooks and guidance
+        run: bash core/scripts/check-no-hardcoded-tool-names.sh

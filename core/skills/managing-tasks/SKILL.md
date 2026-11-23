@@ -13,7 +13,7 @@ description: >
   link tasks, relation, connect tasks. Also scoped queries such as
   "tasks for {store/project}" or "filter tasks by store/project".
   Invoke this skill for any Tasks DB write — do not call
-  `notion-create-pages`, `notion-update-page`, or `notion-update-relation`
+  `notion-create-pages`, `notion-update-page`, or a relation-writing tool
   on task pages directly, even for single-field edits. Direct writes skip
   quality gates (AC/EP structural checks, executor invariants, Acknowledged At
   auto-set, subtask cascading).

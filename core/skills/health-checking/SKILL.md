@@ -2,7 +2,7 @@
 name: health-checking
 description: >
   Checks waggle configuration health: Scheduled Task remnants, custom intake settings,
-  config.json migration status, and Notion Desktop Extension version.
+  config.json migration status, and which Notion query tool is usable.
   Triggers on: "health check", "check config", "check setup", "ヘルスチェック",
   "設定チェック", "設定確認"
 user-invocable: true
@@ -123,25 +123,36 @@ Read `~/.waggle/config.json` via Bash: `cat ~/.waggle/config.json 2>/dev/null`
 
 ---
 
-### Check 4: Notion Desktop Extension Version (Claude Desktop / Cowork, Notion provider only)
+### Check 4: Notion Query Tool (Claude Desktop / Cowork, Notion provider only)
 
 **Skip if** `execution_environment = "cli"` or `active_provider` is not `"notion"`.
 
-Check available MCP tools, then probe pagination support:
+Waggle queries Notion databases with an **uncapped query tool**: a tool whose unqualified name is exactly
+`notion-query`, taking Notion API `filter` / `sorts` and paging with `page_size` / `start_cursor`. It is
+provided by the Notion Desktop Extension or by a remote MCP connector the organization runs; the server part
+of its full name differs per environment (it can be an opaque id such as a UUID), so look for the unqualified
+name, not a prefix. Do not count the official Notion connector's `notion-query-data-sources` — it shares one
+query quota across the workspace on some plans, which is why waggle uses it only as a last resort.
+
+List every uncapped query tool in the session, then probe each one (see below):
 
 | Condition | Result |
 |---|---|
-| `mcp__notion-extension__notion-query` tool is available AND pagination probe succeeds (see below) | PASS: Latest Notion Desktop Extension (v0.4.0+) is installed |
-| `mcp__notion-extension__notion-query` tool is available BUT pagination probe shows v0.3.x semantics | WARN: Outdated `notion-extension` detected (v0.3.x or earlier — silently ignores `page_size`). Install v0.4.0 or later so `ingesting-messages` and large-database queries can paginate. Without this, the Intake Log query can overflow the MCP token cap and stall the run for many minutes. |
-| `mcp__notion-query__notion-query` tool is available (but not `mcp__notion-extension__*`) | WARN: Outdated extension detected. Uninstall `notion-query` and install the new `notion-extension` v0.4.0+ |
-| Neither tool is available | WARN: Notion Desktop Extension is not installed. Install `notion-extension` v0.4.0+ for full functionality (paginated queries, relation field updates, people property filters) |
+| At least one uncapped query tool passes the probe | PASS: Uncapped Notion query tool available — name each passing tool by the server part of its full name |
+| A tool answers the probe but the response has no `has_more` | WARN: This query tool ignores `page_size` — a Notion Desktop Extension older than v0.4.0, or a connector without pagination (name the tool by the server part of its name). Update the Desktop Extension, or use a query connector that paginates, so `ingesting-messages` and large-database queries can paginate. Without this, the Intake Log query can overflow the MCP token cap and stall the run for many minutes. |
+| A tool returns an access error — HTTP 403 or a message that the user lacks permission to use it, or HTTP 401 or a message that the login could not be verified or the user should reconnect (judge by meaning; the wording is the connector's own, often in the user's language) | WARN: The Notion query connector declined this user — quote the error verbatim. Ask whoever runs that connector for access (or reconnect it), or install the Notion Desktop Extension. Until then, queries fall back to the official Notion connector and its shared quota. |
+| No uncapped query tool is available | WARN: No uncapped Notion query tool. Install the Notion Desktop Extension (v0.4.0+) or connect a remote Notion query connector for paginated, filtered queries. Until then, queries fall back to the official Notion connector and its shared quota (if it is connected). |
 
-**Pagination probe**: when `mcp__notion-extension__notion-query` is available, call it with `database_id: <intakeLogDatabaseId from the Waggle Config page>` and `page_size: 1`. The Intake Log is guaranteed to exist after the first `ingesting-messages` run and is always small (bounded by Step 4's TTL cleanup), so it is the safest probe target. If `intakeLogDatabaseId` is not yet set in config (first-ever waggle session, before `ingesting-messages` has created the DB), fall back to any other small config-referenced DB you already have an ID for. **Do not probe `tasksDatabaseId`** — on a v0.3.x host the probe itself will fetch the entire Tasks DB and trigger the very overflow this check is meant to detect.
+Report one row per tool when several are present (e.g. the Desktop Extension and a remote connector); the
+check as a whole is PASS when any tool passes.
+
+**Pagination probe**: call each uncapped query tool with `database_id: <intakeLogDatabaseId from the Waggle Config page>` and `page_size: 1`. The Intake Log is guaranteed to exist after the first `ingesting-messages` run and is always small (bounded by Step 4's TTL cleanup), so it is the safest probe target. If `intakeLogDatabaseId` is not yet set in config (first-ever waggle session, before `ingesting-messages` has created the DB), fall back to any other small config-referenced DB you already have an ID for. **Do not probe `tasksDatabaseId`** — on a v0.3.x host the probe itself will fetch the entire Tasks DB and trigger the very overflow this check is meant to detect.
 
 Inspect the response:
 
-- Response object contains a `has_more` key → server honors `page_size` → v0.4.0+. PASS.
-- Response object does not contain `has_more` (only `results`) → server ignored `page_size` and aggregated everything → v0.3.x or earlier. WARN.
+- Response object contains a `has_more` key → the tool honors `page_size`. PASS.
+- Response object does not contain `has_more` (only `results`) → the tool ignored `page_size` and aggregated everything → a Desktop Extension older than v0.4.0, or a connector without pagination. WARN.
+- The call returns an access error → WARN as in the table above.
 
 ---
 
@@ -157,7 +168,7 @@ Output a markdown report summarizing all check results:
 | Scheduled Task Remnant | PASS/FAIL | ... |
 | Custom Intake Instructions | INFO | ... |
 | config.json Migration | PASS/WARN | ... |
-| Notion Extension Version | PASS/WARN | ... |
+| Notion Query Tool | PASS/WARN | ... |
 ```
 
 If any checks resulted in FAIL or WARN, summarize the required actions at the end of the report.
