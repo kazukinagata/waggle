@@ -74,11 +74,13 @@ In Cowork, the dashboard is a single Live Artifact (`id = "waggle-tasks"`) that 
    with `notion` and `query` in it", which would match `notion-query-data-sources`.
 
    - **One candidate** → use it.
-   - **Several candidates** (e.g. the Desktop Extension and a remote connector) → call each with
-     `database_id: <tasksDatabaseId>`, `page_size: 1`, and a filter of `Assignee` contains the Step 2
-     assignee; use the first one whose response contains `has_more`. Skip a candidate that returns a
-     permission error (e.g. HTTP 403, or a message that the user lacks permission), and tell the user that
-     error text verbatim.
+   - **Several candidates** (e.g. the Desktop Extension and a remote connector) → probe each with
+     `page_size: 1` against the Intake Log database (`intakeLogDatabaseId` from the Waggle Config page) and
+     no filter — it is small, so an older Desktop Extension that ignores `page_size` cannot overflow the
+     response. If `intakeLogDatabaseId` is not set, probe `tasksDatabaseId` instead, with a filter of
+     `Assignee` contains the Step 2 assignee (no filter if no assignee was chosen). Use the first candidate
+     whose response contains `has_more`. Skip a candidate that returns a permission error (e.g. HTTP 403, or
+     a message that the user lacks permission), and tell the user that error text verbatim.
    - **No candidate, or every candidate failed** → surface the failure (with any permission error text) and
      stop. The artifact cannot operate without an uncapped query tool; the user can install the Notion
      Desktop Extension or get access to the remote connector.
