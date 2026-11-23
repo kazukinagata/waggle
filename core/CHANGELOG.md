@@ -41,9 +41,12 @@ connected.
   no uncapped one is available, or when every uncapped one returned a permission error. `page_size` is always
   passed (a remote connector returns only its first default-sized page without it). `notion-search` is still
   never a fallback for filtered queries.
-- **Permission errors.** A remote connector may decline a user who has not been granted access while still
-  listing its tool. On such an error the provider retries with another uncapped tool if there is one,
-  otherwise uses the official query, and relays the error text to the user.
+- **Access errors.** A remote connector may decline a user while still listing its tool — HTTP 403 (no
+  permission) or 401 (login not verified, reconnect), worded by whoever runs it and often in the user's
+  language. On such an error the provider retries with another uncapped tool if there is one, otherwise uses
+  the official query, and relays the error text to the user.
+- **A query tool that ignores `page_size`** is reported as such (a Desktop Extension older than v0.4.0, or a
+  connector without pagination), rather than assuming it is the extension.
 - **Relations, attachments and page-body images without the Desktop Extension.** The official connector's
   `notion-update-page` can set relation properties (an array of page IDs; it always replaces, so `append` is
   fetch + merge + write) and files properties (file upload IDs from `notion-create-file-upload`). Reading
@@ -58,9 +61,9 @@ connected.
 - **`providers/notion/CLAUDE.md`** no longer says `notion-update-page` cannot write relations or files.
 - **SessionStart guidance** describes the direct-write tools it warns against by what they do instead of the
   Desktop Extension's tool name.
-- **Evals.** `providers/notion/evals/` adds three `claude plugin eval` cases for the query-tool choice (both
-  families present; the uncapped tool declines the user; the Desktop Extension alongside a declining remote
-  connector). Not run in CI.
+- **Evals.** `providers/notion/evals/` adds four `claude plugin eval` cases for the query-tool choice (both
+  families present; the uncapped tool declines the user with a 403, or with a 401 asking to reconnect; the
+  Desktop Extension alongside a declining remote connector). Not run in CI.
 
 ## 4.0.1 — `managing-tasks` no longer claims a project's "what's next" — 2026-11-02
 

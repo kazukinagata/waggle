@@ -1,1 +1,1 @@
-Error: 403 Forbidden — you have not been granted permission to use this Notion query connector. Ask the connector administrator to grant you access.
+この道具を使う権限（notion_read）が付いていない（403）。SHP のアカウント管理で notion_read の付与を開発チームに依頼する。同じ引数で呼び直しても直らない。

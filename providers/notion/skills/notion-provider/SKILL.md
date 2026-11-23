@@ -603,7 +603,8 @@ criterion, not by which one is listed first:
   query fails for everyone.
 
 **Rule: use the uncapped query tool first. Use the official data-source query only when no uncapped query
-tool is available, or when every uncapped query tool returned a permission error.** Match the uncapped tool
+tool is available, or when every uncapped query tool returned an access error (see "Access errors" under
+Path 2).** Match the uncapped tool
 by the exact unqualified name `notion-query` — not by prefix and not by "a tool with `notion` and `query`
 in its name", which would select `notion-query-data-sources`.
 
@@ -718,24 +719,33 @@ Uses the same filter recipes as Path 1 above. Call the uncapped query tool with:
 Returns `{"results": [...], "has_more": <boolean>, "next_cursor": <string or null>}` in the same Notion API
 format as Path 1. Iterate while `has_more` is true.
 
-**Pagination requires Desktop Extension v0.4.0+**. Older extensions expose the same tool name but silently
-ignore `page_size` and `start_cursor` and always return the aggregated full result set — defeating the
-pagination strategy and risking the original token-cap overflow. **How to detect at runtime**: when calling
-with `page_size`, check whether the response contains a `has_more` field. If it does not, the tool is a
-Desktop Extension v0.3.x or earlier; halt the calling step and surface "Notion Desktop Extension is older
-than v0.4.0. Install the latest version to use paginated queries on this database." Users can also verify
-this proactively via the `health-checking` skill, which probes for it.
+**The tool must honor `page_size`.** A Desktop Extension older than v0.4.0 exposes the same tool name but
+silently ignores `page_size` and `start_cursor` and always returns the aggregated full result set —
+defeating the pagination strategy and risking the original token-cap overflow. A connector built without
+pagination would behave the same. **How to detect at runtime**: when calling with `page_size`, check whether
+the response contains a `has_more` field. If it does not, the tool is ignoring `page_size`; halt the calling
+step and surface "The Notion query tool in use ignores `page_size` (a Notion Desktop Extension older than
+v0.4.0, or a connector without pagination). Update the Desktop Extension, or use a query connector that
+paginates, to run paginated queries on this database." Users can also check this proactively via the
+`health-checking` skill, which probes for it.
 
-**Permission errors.** A remote connector may decline a user who has not been granted access to it (for
-example an HTTP 403, or an error saying the user lacks the permission to use the tool), even though the tool
-is listed. When the uncapped query tool returns such a permission error:
+**Access errors.** A remote connector can decline a user while still listing its tool. The decline comes back
+as the tool's error result, worded by whoever runs the connector and often in the user's language, so judge
+it by meaning, not by an exact phrase. Treat any of these as an access error:
+- an HTTP 403, or a message that the user lacks the permission (or grant, or role) to use the tool, or is
+  not allowed to use it;
+- an HTTP 401, or a message that the user's login could not be verified, or that the user should reconnect
+  or sign in again.
+
+Not access errors: "database not found" (handle per "Error Handling for Query Path" below), a rejected
+filter, or "busy, retry later" — switching tools does not help with those.
+
+When the uncapped query tool returns an access error:
 1. If another uncapped query tool is available (e.g. the Desktop Extension alongside a remote connector),
    retry the same call with it.
 2. Otherwise, use Path 3.
-3. Either way, tell the user the error text verbatim, so they can ask whoever runs that connector for access.
-
-A "database not found" error is not a permission error of this kind — handle it per "Error Handling for
-Query Path" below.
+3. Either way, tell the user the error text verbatim, so they can ask whoever runs that connector for access
+   (or reconnect it).
 
 ### Path 3: Official Connector's Data-Source Query (fallback only)
 
@@ -830,7 +840,7 @@ When querying ANY Notion database (not just the Tasks DB — e.g., Intake Log, e
 **Claude Desktop / Cowork:**
 1. An uncapped query tool is available → call it with the target database ID and filter, always passing
    `page_size` (1-100) and iterating with the response's `has_more` / `next_cursor`. See Path 2 above for
-   full parameter docs and for what to do on a permission error.
+   full parameter docs and for what to do on an access error (HTTP 401 or 403, or a decline of this user).
 2. Otherwise → the official connector's data-source query, per Path 3 above.
 3. Otherwise → halt and surface the error per "Error Handling for Query Path" above. Do not fall back to notion-search.
 
