@@ -16,7 +16,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
     `has_more` probe already flags it.
   - **`viewing-tasks` / `managing-views`** (Cowork Live Artifacts) bind the uncapped query tool chosen at
     run time. Having both the Desktop Extension and a remote connector is now normal, so instead of
-    stopping on two tools named `notion-query` they probe each and bind the first that answers with
+    stopping on two tools named `notion-query` they probe each candidate (even a sole one) and bind the first that answers with
     `has_more`, skipping — and reporting — one that declines the user, and never binding one that ignores
     `page_size`; if none qualifies they stop. The official connector's
     `notion-query-data-sources` is never bound. The generator scripts' examples no longer name a server.

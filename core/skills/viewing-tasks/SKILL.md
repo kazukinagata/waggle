@@ -73,14 +73,15 @@ In Cowork, the dashboard is a single Live Artifact (`id = "waggle-tasks"`) that 
    Notion plans. Match the exact unqualified name `notion-query` — not by prefix, and not by "the first tool
    with `notion` and `query` in it", which would match `notion-query-data-sources`.
 
-   - **One candidate** → use it.
-   - **Several candidates** (e.g. the Desktop Extension and a remote connector) → probe each with
+   - **Probe every candidate, even a sole one** (a remote connector can list its tool and still decline
+     this user; binding it would give an artifact that cannot load). There may be several, e.g. the
+     Desktop Extension and a remote connector. Probe each with
      `page_size: 1` against the Intake Log database (`intakeLogDatabaseId` from the Waggle Config page) and
      no filter — it is small, so an older Desktop Extension that ignores `page_size` cannot overflow the
      response. If `intakeLogDatabaseId` is not set, use another small database the Waggle Config page
      references. Never probe `tasksDatabaseId`: an older extension would return every task. If there is no
-     small database to probe, list the candidates by the server part of their names and ask the user which
-     one to bind. Use the first candidate
+     small database to probe, bind a sole candidate as is, or list several by the server part of their
+     names and ask the user which one to bind. Use the first candidate
      whose response contains `has_more`. Skip a candidate that returns an access error (HTTP 401 or 403, or
      a message that the user lacks permission or must reconnect), and tell the user that error text
      verbatim. A candidate that answers without `has_more` ignores `page_size`; do not bind it — the
