@@ -17,8 +17,8 @@
 #   block to <output_dir>/<block_id>.<ext>, and prints a JSON manifest.
 #   Notion "file"-type image URLs are signed and expire after ~1 hour, so
 #   images are downloaded immediately rather than returning URLs.
-#   Images over 5MB are skipped with a warning (mirrors the extension's
-#   notion-read-images limit — the model cannot view larger images anyway).
+#   Images over 5MB are skipped with a warning (the same limit as the Desktop
+#   Extension's image-reading tool — the model cannot view larger images anyway).
 #
 # Output:
 #   JSON: {"images": [{"block_id", "path", "mime_type", "source_type", "caption"}, ...]}
