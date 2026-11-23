@@ -4,6 +4,44 @@ All notable changes to the Waggle project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## waggle-notion 3.9.0 — works without the Desktop Extension; tools chosen by intent, not by name — 2026-11-23
+
+`notion-provider` named its tools by their full names (`mcp__notion-extension__notion-query` and so on) and
+stopped with "install the Desktop Extension" when they were absent. The server part of a full name differs
+per environment — a remote MCP connector is named by whoever runs it, and Cowork can show an opaque id such as
+a UUID — so in a session without the Desktop Extension nothing matched, even when an equivalent tool was
+connected.
+
+- **Tools are described by what they do.** The provider looks for "a tool that queries a Notion database with
+  a filter" (unqualified name `notion-query`) rather than a full name, so the Desktop Extension and a remote
+  query connector are both recognized.
+- **Which query tool to use is now a stated rule.** A session can hold two families of query tools: the
+  uncapped `notion-query`, and the official connector's `notion-query-data-sources`, which shares one query
+  quota across the workspace on some Notion plans. Use the uncapped one first; use the official one only when
+  no uncapped one is available, or when every uncapped one returned a permission error. `page_size` is always
+  passed (a remote connector returns only its first default-sized page without it). `notion-search` is still
+  never a fallback for filtered queries.
+- **Permission errors.** A remote connector may decline a user who has not been granted access while still
+  listing its tool. On such an error the provider retries with another uncapped tool if there is one,
+  otherwise uses the official query, and relays the error text to the user.
+- **Relations, attachments and page-body images without the Desktop Extension.** The official connector's
+  `notion-update-page` can set relation properties (an array of page IDs; it always replaces, so `append` is
+  fetch + merge + write) and files properties (file upload IDs from `notion-create-file-upload`). Reading
+  attachments and body images goes through `notion-fetch` / `notion-get-file-download-urls` and an immediate
+  download from the shell. These are added as the path after the CLI script and the Desktop Extension, which
+  stay first where available. Verified against the official connector on 2026-11-23.
+  - Appending to a files property through the official connector resets the existing entries' display names
+    (it returns them only as URLs). The provider uses the Desktop Extension for that when it can, and
+    otherwise confirms with the user before appending to a non-empty property.
+  - The official connector shows signed file URLs (they expire within minutes). The provider downloads at
+    once and never pastes such a URL outside the conversation.
+- **`providers/notion/CLAUDE.md`** no longer says `notion-update-page` cannot write relations or files.
+- **SessionStart guidance** describes the direct-write tools it warns against by what they do instead of the
+  Desktop Extension's tool name.
+- **Evals.** `providers/notion/evals/` adds three `claude plugin eval` cases for the query-tool choice (both
+  families present; the uncapped tool declines the user; the Desktop Extension alongside a declining remote
+  connector). Not run in CI.
+
 ## 4.0.1 — `managing-tasks` no longer claims a project's "what's next" — 2026-11-02
 
 - **`waggle` 4.0.0 → 4.0.1** (PATCH — skill description and README only; no behavior change):
