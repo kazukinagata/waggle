@@ -196,7 +196,7 @@ If you need to revert, restore from your backup JSON manually (no rollback scrip
 
 ## Updating Relation Fields
 
-`notion-update-page` properties only accept `string | number | null` — it cannot set relation fields (Blocked By, Parent Task, Sprint) which require arrays of `{id}` objects. Use the appropriate path below.
+Relation fields (Blocked By, Parent Task, Sprint) hold arrays of page IDs. Use the appropriate path below.
 
 ### Relation Update Path Detection
 
@@ -204,16 +204,19 @@ The available path depends on `execution_environment` because `NOTION_TOKEN` is 
 
 **CLI (`execution_environment = "cli"`):**
 1. `NOTION_TOKEN` env var available in shell (check: `[ -n "$NOTION_TOKEN" ] && echo "SET" || echo "NOT SET"`) → Path 1 (bash script)
-2. Otherwise → warn the user (no fallback)
+2. Otherwise → Path 3 (official connector), if available
+3. Otherwise → warn the user
 
 **Claude Desktop / Cowork (`execution_environment = "claude-desktop"` or `"cowork"`):**
-1. `mcp__notion-extension__notion-update-relation` tool available → Path 2 (Desktop Extension)
-2. Otherwise → warn the user (no fallback)
+1. A tool that writes a relation property with `replace` / `append` modes is available (the Desktop
+   Extension's `notion-update-relation`) → Path 2
+2. Otherwise, the official Notion connector's page update (`notion-update-page`) is available → Path 3
+3. Otherwise → warn the user
 
 If no path is available, warn the user. The warning depends on environment:
 
-- **CLI**: "Relation field updates require `NOTION_TOKEN` to be available in your shell environment. Set it in `~/.claude/settings.json` env block, or export it in your shell profile."
-- **Claude Desktop / Cowork**: "Relation field updates require the `notion-extension` Desktop Extension. Install it via the plugin setup."
+- **CLI**: "Relation field updates require `NOTION_TOKEN` to be available in your shell environment, or the official Notion connector. Set `NOTION_TOKEN` in `~/.claude/settings.json` env block, or export it in your shell profile."
+- **Claude Desktop / Cowork**: "Relation field updates need the Notion Desktop Extension or the official Notion connector. Install or connect one of them via the plugin setup."
 
 ### Path 1: Bash Script (CLI, requires NOTION_TOKEN)
 
@@ -251,26 +254,33 @@ Same block; only the arguments change.
 | Set Parent Task (single value) | `"<page_id>" "Parent Task" replace "<parent_id>"` |
 | Clear a relation | `"<page_id>" "Blocked By" replace` |
 
-### Path 2: Desktop Extension (notion-update-relation MCP tool, Claude Desktop / Cowork)
+### Path 2: Desktop Extension (relation-writing tool, Claude Desktop / Cowork)
 
-Available when the `mcp__notion-extension__notion-update-relation` tool is present.
-
-Call `mcp__notion-extension__notion-update-relation` with:
+Call the Desktop Extension's `notion-update-relation` tool with:
 - `page_id`: the Notion page UUID
 - `property_name`: relation property name (e.g., `"Blocked By"`, `"Parent Task"`)
 - `mode`: `"replace"` or `"append"`
 - `relation_ids`: array of page IDs (omit or `[]` with replace to clear)
 
-Returns a minimal confirmation echo: `{ok, page_id, property_name, mode, relation_ids}` where `relation_ids` is the post-update final state (the merged + deduplicated list for `append`). If you need other page fields after the update, re-fetch via `notion-fetch` or `notion-query`.
+Returns a minimal confirmation echo: `{ok, page_id, property_name, mode, relation_ids}` where `relation_ids` is the post-update final state (the merged + deduplicated list for `append`). If you need other page fields after the update, re-fetch the page.
+
+### Path 3: Official Notion Connector (`notion-update-page`)
+
+The official connector's `notion-update-page` accepts a relation property as an array of page IDs (or page
+URLs) in `update_properties`. It always **replaces** the whole relation, so:
+
+- **replace**: write exactly the target IDs.
+- **append**: fetch the page with `notion-fetch`, read the relation's current IDs, and write the existing IDs
+  plus the new ones (deduplicated). Never write only the new IDs — that drops the existing relations.
+- **clear**: write an empty array.
 
 ### When to use
 
-Use the relation update path for **any** relation field update. For non-relation fields, continue using `notion-update-page`. A single task update that changes both relation and non-relation fields requires two calls.
+Use the relation update path for **any** relation field update. For non-relation fields, continue using `notion-update-page`. On Paths 1 and 2, a single task update that changes both relation and non-relation fields requires two calls.
 
 ## Setting the Attachments Property
 
-`Attachments` is a `files`-type property (waggle `file[]`). Like relations, `notion-update-page` cannot set
-it (its `properties` accept only `string | number | null`). Local files are uploaded via the Notion File
+`Attachments` is a `files`-type property (waggle `file[]`). Local files are uploaded via the Notion File
 Upload API and Notion hosts them; external URLs are stored as-is. The Notion `files` array is **overwritten**
 on each write, so `append` is a read-modify-write (fetch existing entries, merge, write back).
 
@@ -280,11 +290,16 @@ Same environment split as relation updates — `NOTION_TOKEN` is exposed to the 
 Claude Desktop / Cowork the token is injected into MCP tool invocations and cannot drive a bash script.
 
 **CLI (`execution_environment = "cli"`):** `NOTION_TOKEN` available in shell → Path 1 (bash script);
-otherwise warn the user.
+otherwise Path 3 (official connector) if available; otherwise warn the user.
 
-**Claude Desktop / Cowork:** `mcp__notion-extension__notion-set-files-property` tool available → Path 2
-(Desktop Extension v1.2.0+); otherwise warn that the operation needs the `notion-extension` Desktop Extension
-v1.2.0 or later.
+**Claude Desktop / Cowork:**
+1. A tool that sets a files property with `replace` / `append` modes is available (the Desktop Extension's
+   `notion-set-files-property`, v1.2.0+) → Path 2
+2. Otherwise, the official Notion connector's page update (`notion-update-page`) is available → Path 3.
+   Uploading a **local file** on that path additionally needs `notion-create-file-upload` and a shell;
+   external URLs and clearing the property need neither.
+3. Otherwise → warn that the operation needs the Notion Desktop Extension v1.2.0+ or the official Notion
+   connector (with a shell, for local files).
 
 ### Path 1: Bash Script (CLI, requires NOTION_TOKEN)
 
@@ -308,9 +323,9 @@ bash "$SKILL_DIR/$SCRIPT" \
 
 Prints `{ok, page_id, property, files: [...]}` on success.
 
-### Path 2: Desktop Extension (notion-set-files-property MCP tool, Claude Desktop / Cowork)
+### Path 2: Desktop Extension (files-property tool, Claude Desktop / Cowork)
 
-Call `mcp__notion-extension__notion-set-files-property` with:
+Call the Desktop Extension's `notion-set-files-property` tool with:
 - `page_id`: the Notion page UUID
 - `property_name`: the files property name (e.g. `"Attachments"`)
 - `mode`: `"replace"` or `"append"`
@@ -318,26 +333,55 @@ Call `mcp__notion-extension__notion-set-files-property` with:
 
 Returns `{ok, page_id, property_name, mode, files}` where `files` is the post-update final state.
 
+### Path 3: Official Notion Connector (upload, then `notion-update-page`)
+
+Uploading a local file needs a shell that can reach the network (Claude Code, Claude Desktop, Cowork). In an
+environment without a shell (e.g. claude.ai), local files cannot be uploaded; public URLs can still be
+attached, and the property can still be cleared (write an empty list).
+
+1. For each local file, call `notion-create-file-upload`. Send the file's bytes from the shell as a
+   multipart form-data POST to the upload URL it returns, as that tool's result instructs. Keep the file
+   upload ID.
+2. Call `notion-update-page` with `update_properties` setting the files property to the list of entries:
+   file upload IDs for local files, and URLs for external entries.
+
+**`append` when the task already has attachments — confirm first.** The official connector returns existing
+entries only as URLs, without their display names. Writing them back together with the new entry resets every
+existing entry's display name to its stored file name (or, for an external link, to the name derived from the
+URL); the files and links themselves are kept. So before appending to a non-empty files property:
+- if the Desktop Extension's `notion-set-files-property` is available, use Path 2 instead (it keeps names);
+- otherwise tell the user that the existing attachments' display names will be reset, and append only if they
+  agree. Attaching to a task with no attachments yet, or `replace`, has no such loss.
+
 ### Caveats
 
 - **Upload requires the integration's "Insert content" capability** (same as page-body image upload); a
   `403 restricted_resource` means it is missing.
-- Uploaded entries are stored as `type:"file"` and Notion serves them through a signed URL that
-  **expires after ~1 hour**. **That URL is not returned to you** (extension v1.3.0+): a hosted entry
-  comes back with `url: null` from both the write and the read tool, because possession of the URL is
-  authorization for as long as it lives. External entries return their stable `external.url`, which is
-  not a secret. To read a hosted attachment's contents, use `notion-read-files-property`.
+- Uploaded entries are stored as `type:"file"` and Notion serves them through a short-lived signed URL.
+  The Desktop Extension (v1.3.0+) **does not return that URL**: a hosted entry comes back with `url: null`
+  from both its write and read tools, because possession of the URL is authorization for as long as it
+  lives. The official connector does show it; treat it as a credential and never paste it outside this
+  conversation. External entries return their stable `external.url`, which is not a secret. To read a hosted
+  attachment's contents, see "Reading the Attachments Property".
 - Local-file uploads are capped at 20MB (Notion single-part upload).
 
 ## Reading the Attachments Property
 
 Setting `Attachments` has been possible since v2.13.0; **reading** it was not, so an executor holding only
-the task could see that a file was attached but never what it said. Use the
-`mcp__notion-extension__notion-read-files-property` tool (Desktop Extension v1.3.0+) with the page ID and
-the property name. There is no CLI script counterpart yet — in CLI, fall back to re-fetching the task and
-warn the user that attachment contents are unavailable rather than guessing at them.
+the task could see that a file was attached but never what it said. Use the first available path:
 
-Two things to know before relying on it:
+1. **Desktop Extension** — its `notion-read-files-property` tool (v1.3.0+) with the page ID and the property
+   name. It never shows you the signed URL (see below).
+2. **Official Notion connector, with a shell** — `notion-fetch` the page; the files property comes back as a
+   list of URLs. A Notion-hosted entry's URL is signed and expires within minutes, so download each one
+   **immediately** from the shell into a private temporary directory and read the saved file. External
+   entries are plain URLs; fetch them with a general-purpose tool if needed. **The signed URL is a
+   credential while it lives: never paste it outside this conversation** (not into Slack, Notion, a task
+   field, a commit, or any record).
+3. Otherwise — re-fetch the task and warn the user that attachment contents are unavailable rather than
+   guessing at them. There is no CLI script counterpart yet.
+
+Two things to know before relying on the Desktop Extension tool:
 
 - **External entries are not fetched.** A `type:"external"` entry means Notion stores only a URL; the bytes
   were never there. The tool returns the name and URL, and you fetch it with a general-purpose tool if you
@@ -365,13 +409,17 @@ The available path depends on `execution_environment` because `NOTION_TOKEN` is 
 2. Otherwise → warn the user (no fallback)
 
 **Claude Desktop / Cowork (`execution_environment = "claude-desktop"` or `"cowork"`):**
-1. `mcp__notion-extension__notion-upload-image` / `mcp__notion-extension__notion-read-images` tools available → Path 2 (Desktop Extension)
-2. Otherwise → warn the user (no fallback)
+1. Tools that upload an image to a page body and read a page's body images are available (the Desktop
+   Extension's `notion-upload-image` / `notion-read-images`, v1.1.0+) → Path 2
+2. Otherwise, the official Notion connector is available and you can run shell commands → Path 3
+3. Otherwise → warn the user
+
+In CLI without `NOTION_TOKEN`, Path 3 applies too if the official connector is available.
 
 If no path is available, warn the user. The warning depends on environment:
 
-- **CLI**: "Page-body image operations require `NOTION_TOKEN` to be available in your shell environment. Set it in `~/.claude/settings.json` env block, or export it in your shell profile."
-- **Claude Desktop / Cowork**: "Page-body image operations require the `notion-extension` Desktop Extension v1.1.0 or later. Install or upgrade it via the plugin setup." (The tools were added in v1.1.0 — their absence on an otherwise-working install means an older extension version.)
+- **CLI**: "Page-body image operations require `NOTION_TOKEN` to be available in your shell environment, or the official Notion connector. Set `NOTION_TOKEN` in `~/.claude/settings.json` env block, or export it in your shell profile."
+- **Claude Desktop / Cowork**: "Page-body image operations need the Notion Desktop Extension v1.1.0 or later, or the official Notion connector with a shell. Install or connect one of them via the plugin setup." (The extension's image tools were added in v1.1.0 — their absence on an otherwise-working install means an older extension version.)
 
 ### Path 1: Bash Scripts (CLI, requires NOTION_TOKEN)
 
@@ -412,14 +460,14 @@ Prints a JSON manifest `{images: [{block_id, path, mime_type, source_type, capti
 
 ### Path 2: Desktop Extension (Claude Desktop / Cowork, extension v1.1.0+)
 
-**Upload** — call `mcp__notion-extension__notion-upload-image` with:
+**Upload** — call the Desktop Extension's `notion-upload-image` tool with:
 - `page_id`: the Notion page UUID
 - exactly one of `file_path` (local image file, max 20MB) or `external_url` (public image URL)
 - `caption`: optional caption text
 
 Returns `{ok, page_id, block_id, image_type}`.
 
-**Read** — call `mcp__notion-extension__notion-read-images` with:
+**Read** — call the Desktop Extension's `notion-read-images` tool with:
 - `page_id`: the Notion page UUID
 - `max_images`: optional cap on inline images (default 10)
 - `block_ids`: optional filter to specific image blocks
@@ -427,12 +475,23 @@ Returns `{ok, page_id, block_id, image_type}`.
 
 The result is a text part with a JSON summary (`{count, total_found, images, skipped}`; `images[i].index` maps to the i-th image part) followed by the images as inline image content — they are directly visible, no file handling needed.
 
+### Path 3: Official Notion Connector (with a shell)
+
+**Upload** — call `notion-create-file-upload`, send the image's bytes from the shell as a multipart
+form-data POST to the upload URL it returns (as that tool's result instructs), then call
+`notion-update-page` with `insert_content` to add an image block that references the file upload.
+
+**Read** — `notion-fetch` the page. Images in the body appear as `notion-file-block://` references; pass
+them to `notion-get-file-download-urls`, download each URL **immediately** from the shell into a private
+temporary directory (the URLs are signed and expire within minutes), and view the saved files with the Read
+tool. Never paste those URLs outside this conversation.
+
 ### Caveats
 
 - **Upload requires the integration's "Insert content" capability.** A `403 restricted_resource` on upload means the capability is missing — enable it at https://www.notion.so/profile/integrations (integration → Capabilities → Insert content), then retry. Read paths work without it.
 - Local-file uploads are capped at 20MB (Notion single-part upload); Notion free workspaces enforce a lower per-file cap and return their own error.
-- `file`-type image URLs returned by the Notion API are signed and expire after ~1 hour. Both paths download immediately, so callers never handle raw URLs; do not cache or re-share URLs from raw block fetches.
-- Both read paths skip images over 5MB (the model cannot view larger images): the extension tool reports them in `skipped`, the bash script warns on stderr. The extension tool additionally skips non-raster types (svg, tiff, heic) and reports requested `block_ids` that match no image — all in `skipped` with a reason.
+- `file`-type image URLs returned by the Notion API are signed and expire after ~1 hour (the official connector's download URLs within minutes). Paths 1 and 2 download immediately, so callers never handle raw URLs; on Path 3 download at once yourself. Do not cache or re-share URLs from raw block fetches.
+- Paths 1 and 2 skip images over 5MB (the model cannot view larger images): the extension tool reports them in `skipped`, the bash script warns on stderr. The extension tool additionally skips non-raster types (svg, tiff, heic) and reports requested `block_ids` that match no image — all in `skipped` with a reason.
 
 ## Delete Operation
 
@@ -478,7 +537,7 @@ This removes the page from views but retains it in Notion's trash (recoverable f
 | Tags | multi_select | `task_tags` | Free tags |
 | Parent Task | relation | `task_parent` | Self-relation (hierarchy) |
 | Assignee | people | `task_assignee` | Human executor assignment |
-| Attachments | files | `task_attachments` | Files attached as task data. Notion hosts uploads via the File Upload API (`supportsFileHosting=true`). Set with `attach-file.sh` (CLI) / `notion-set-files-property` (Desktop/Cowork) — `notion-update-page` cannot set it. Read contents with `notion-read-files-property` (extension v1.3.0+); no CLI counterpart. v2.13.0+ |
+| Attachments | files | `task_attachments` | Files attached as task data. Notion hosts uploads via the File Upload API (`supportsFileHosting=true`). Set and read per "Setting the Attachments Property" / "Reading the Attachments Property" (bash script, Desktop Extension, or the official connector). v2.13.0+ |
 | Branch | rich_text | `task_branch` | Git branch name (e.g. feature/task-slug). Leave blank to work on the current branch |
 | Source Message ID | rich_text | `task_source_message_id` | Messaging tool message unique ID (e.g. Slack `channel_id:ts`). Used for cross-member dedup |
 | Acknowledged At | date | `task_acknowledged_at` | Auto-set when assignee sees the task. Reset on delegation. |
@@ -528,18 +587,41 @@ The database ID is stored in the config page as `intakeLogDatabaseId`.
 
 ## Querying Tasks
 
-Use the first available query path. The detection depends on `execution_environment` because server-side filtering is delivered by different mechanisms in each environment — bash script (CLI) vs. Desktop Extension MCP tool (Claude Desktop / Cowork).
+Use the first available query path. The detection depends on `execution_environment` because server-side filtering is delivered by different mechanisms in each environment — bash script (CLI) vs. an MCP query tool (Claude Desktop / Cowork).
+
+### The Two Families of Notion Query Tools
+
+A session can expose two unrelated families of tools that both query a Notion database. Choose by this
+criterion, not by which one is listed first:
+
+- **The uncapped query tool** — queries a database with Notion API `filter` / `sorts` and pages through
+  results with `page_size` / `start_cursor` / `filter_properties`. It has no workspace-wide quota. It is
+  provided either by the Notion Desktop Extension or by a remote MCP connector your organization runs.
+  Recognize it by its unqualified name being exactly `notion-query` and by those parameters. The server
+  part of the full tool name differs per environment (a connector name chosen by the organization, or an
+  opaque id such as a UUID in Cowork), so never assume a particular prefix.
+- **The official Notion connector's data-source query** (unqualified name `notion-query-data-sources`) —
+  shares one query quota across the whole workspace on some Notion plans. When the quota is exhausted the
+  query fails for everyone.
+
+**Rule: use the uncapped query tool first. Use the official data-source query only when no uncapped query
+tool is available, or when every uncapped query tool returned an access error (see "Access errors" under
+Path 2).** Match the uncapped tool
+by the exact unqualified name `notion-query` — not by prefix and not by "a tool with `notion` and `query`
+in its name", which would select `notion-query-data-sources`.
 
 ### Query Path Detection
 
 **CLI (`execution_environment = "cli"`):**
 1. `NOTION_TOKEN` env var available in shell (check: `[ -n "$NOTION_TOKEN" ] && echo "SET" || echo "NOT SET"`) → Path 1 (bash script)
-2. Otherwise → halt the current step and surface the error to the user (no fallback). See "Error Handling for Query Path" below.
+2. Otherwise → Path 2 or Path 3 below, in that order, if available
+3. Otherwise → halt the current step and surface the error to the user. See "Error Handling for Query Path" below.
 
 **Claude Desktop / Cowork (`execution_environment = "claude-desktop"` or `"cowork"`):**
-In these environments `NOTION_TOKEN` is not exposed to the shell, so the bash script is not usable. Use the Desktop Extension MCP tool:
-1. `mcp__notion-extension__notion-query` tool available → Path 2 (Desktop Extension)
-2. Otherwise → halt the current step and surface the error to the user (no fallback). See "Error Handling for Query Path" below.
+In these environments `NOTION_TOKEN` is not exposed to the shell, so the bash script is not usable.
+1. An uncapped query tool is available → Path 2
+2. Otherwise, the official connector's data-source query is available → Path 3
+3. Otherwise → halt the current step and surface the error to the user. See "Error Handling for Query Path" below.
 
 ### Path 1: Notion API Bash Script (CLI, requires NOTION_TOKEN)
 
@@ -621,33 +703,78 @@ The script returns `{"results": [...]}` with full page objects including all pro
 
 **Check if a candidate parent is itself a subtask:** Fetch the candidate parent with `notion-fetch` and check if its `Parent Task` relation is empty. If non-empty, it is already a subtask and cannot be used as a parent (2-level limit).
 
-### Path 2: Desktop Extension (notion-query MCP tool, Claude Desktop / Cowork)
+### Path 2: Uncapped Query Tool (Desktop Extension or remote connector)
 
-Available when the `mcp__notion-extension__notion-query` tool is present. Uses the same filter recipes as Path 1 above.
-
-Call `mcp__notion-extension__notion-query` with:
+Uses the same filter recipes as Path 1 above. Call the uncapped query tool with:
 - `database_id`: the `tasksDatabaseId`
 - `filter`: filter JSON
 - `sorts`: sort JSON
-- `page_size` (optional, 1-100): when set, the tool returns one Notion API page at a time and the response includes `has_more` and `next_cursor` so the caller can iterate. When omitted, all pages are aggregated server-side — this risks overflowing the MCP host's token cap on databases with hundreds of rows.
-- `start_cursor` (optional): pass the previous response's `next_cursor` to fetch the next page. Only meaningful alongside `page_size`.
-- `filter_properties` (optional, array of Notion property IDs): when set, only the named properties appear in each result's `properties` object. Reduces payload but does not strip Notion's page-level metadata.
+- `page_size` (1-100): **always pass it.** The tool then returns one Notion API page at a time, and the
+  response includes `has_more` and `next_cursor` so the caller can iterate. Without it, the Desktop
+  Extension aggregates every page server-side (risking the MCP host's token cap on large databases), while
+  a remote connector returns only its first default-sized page — so omitting it either overflows or
+  silently truncates.
+- `start_cursor` (optional): pass the previous response's `next_cursor` to fetch the next page.
+- `filter_properties` (optional, array of Notion property IDs): when set, only the named properties appear
+  in each result's `properties` object. Reduces payload but does not strip Notion's page-level metadata.
 
-Returns `{"results": [...]}` in the same Notion API format as Path 1; when `page_size` is set, the response also includes `has_more` (boolean) and `next_cursor` (string or null).
+Returns `{"results": [...], "has_more": <boolean>, "next_cursor": <string or null>}` in the same Notion API
+format as Path 1. Iterate while `has_more` is true.
 
-**Pagination requires extension v0.4.0+**. The tool name `mcp__notion-extension__notion-query` is unchanged from v0.3.x, so the tool's mere presence does not guarantee pagination support. v0.3.x silently ignores `page_size` and `start_cursor` and always returns the aggregated full result set — defeating the pagination strategy and risking the original token-cap overflow. **How to detect at runtime**: when calling with `page_size`, check whether the response contains a `has_more` field. If it does not, the installed extension is v0.3.x or earlier; halt the calling step and surface "Notion Desktop Extension is older than v0.4.0. Install the latest version to use paginated queries on this database." Users can also verify their installed version proactively via the `health-checking` skill, which probes for this.
+**The tool must honor `page_size`.** A Desktop Extension older than v0.4.0 exposes the same tool name but
+silently ignores `page_size` and `start_cursor` and always returns the aggregated full result set —
+defeating the pagination strategy and risking the original token-cap overflow. A connector built without
+pagination would behave the same. **How to detect at runtime**: when calling with `page_size`, check whether
+the response contains a `has_more` field. If it does not, the tool is ignoring `page_size`; halt the calling
+step and surface "The Notion query tool in use ignores `page_size` (a Notion Desktop Extension older than
+v0.4.0, or a connector without pagination). Update the Desktop Extension, or use a query connector that
+paginates, to run paginated queries on this database." Users can also check this proactively via the
+`health-checking` skill, which probes for it.
 
-**When to paginate**: any time the target database may grow past a few hundred records (Intake Log, Tasks DB, custom-source mirrors). The legacy "no page_size" mode is preserved for short queries with bounded result sets where one round-trip is simpler.
+**Access errors.** A remote connector can decline a user while still listing its tool. The decline comes back
+as the tool's error result, worded by whoever runs the connector and often in the user's language, so judge
+it by meaning, not by an exact phrase. Treat any of these as an access error:
+- an HTTP 403, or a message that the user lacks the permission (or grant, or role) to use the tool, or is
+  not allowed to use it;
+- an HTTP 401, or a message that the user's login could not be verified, or that the user should reconnect
+  or sign in again.
+
+Not access errors: "database not found" (handle per "Error Handling for Query Path" below), a rejected
+filter, or "busy, retry later" — switching tools does not help with those.
+
+When the uncapped query tool returns an access error:
+1. If another uncapped query tool is available (e.g. the Desktop Extension alongside a remote connector),
+   retry the same call with it.
+2. Otherwise, use Path 3.
+3. Either way, tell the user the error text verbatim, so they can ask whoever runs that connector for access
+   (or reconnect it).
+
+### Path 3: Official Connector's Data-Source Query (fallback only)
+
+Use only per the rule in "The Two Families of Notion Query Tools". Call `notion-query-data-sources` against
+the data source of the **database the caller asked about** — the Tasks data source for task queries, but the
+Intake Log's, Active Threads', or an external database's own data source when the caller targets one (fetch
+that database with `notion-fetch` to find its data source if you do not have it). Translate the needed filter
+recipe into that tool's query form, and follow its own pagination.
+
+**Its rows are not Notion page objects.** They carry property values by property name, not the
+`properties.<Name>.<type>` structure that Paths 1 and 2 return. Before handing results on — to
+"Post-Processing", "Displaying Task Lists", or a caller that reads Notion page objects — map each row to the
+fields that consumer needs (page ID, title, status, priority, …) by property name. When a consumer needs
+the full page object (e.g. a relation's IDs, or a field the row did not carry), `notion-fetch` that page. Tell the user once per run that the query used the official connector because no uncapped
+query tool was usable. If it fails because the shared quota is exhausted, halt per "Error Handling for Query
+Path" below — do not retry in a loop and do not fall back to `notion-search`.
 
 ### Error Handling for Query Path
 
-- If the detected query path is unavailable, OR a structured query call returns a database-access error like `Could not find database with ID: <id>. Make sure the relevant pages and databases are shared with your integration <name>`, do NOT fall back to `notion-search`.
+- If no query path is available, OR a structured query call returns a database-access error like `Could not find database with ID: <id>. Make sure the relevant pages and databases are shared with your integration <name>`, do NOT fall back to `notion-search`.
 - Halt the current step (not the whole skill). Surface the Notion API error verbatim. The caller (e.g. `running-daily-tasks`) prompts the user `[Continue to next step] [End]` after surfacing the error.
 
 Halt-message templates per environment:
 
-- **CLI, `NOTION_TOKEN` missing**: "Cannot run Notion database query: NOTION_TOKEN is not exposed to the shell. Set it in `~/.claude/settings.json` env block, then re-run. Step halted."
-- **Claude Desktop / Cowork, `notion-extension` MCP missing**: "Cannot run Notion database query: the `notion-extension` Desktop Extension is not installed. Install it and re-run. Step halted."
+- **CLI, `NOTION_TOKEN` missing and no query tool usable**: "Cannot run Notion database query: NOTION_TOKEN is not exposed to the shell. Set it in `~/.claude/settings.json` env block, then re-run. Step halted."
+- **Claude Desktop / Cowork, no query tool usable**: "Cannot run Notion database query: no Notion query tool is available in this session. Install the Notion Desktop Extension, or connect a Notion query connector (remote MCP) or the official Notion connector, then re-run. Step halted."
+- **Official connector's shared quota exhausted (Path 3)**: surface the error verbatim, then add: "The official Notion connector's query quota is exhausted for now. Install the Notion Desktop Extension or connect a Notion query connector to query without that quota, or retry later. Step halted."
 - **Any environment, Notion API returned `Could not find database with ID …`**: surface the API error verbatim, then add: "The integration `<integration name from error>` does not have access to this database. In Notion, share the database with the integration. If you also use `ingesting-messages`, share the Intake Log and Active Threads databases with the same integration. Then re-run. Step halted."
 
 The `notion-search` fallback was removed in 2.5.6 because it cannot filter on people properties server-side and returned tasks owned by other assignees, while masking the real setup error.
@@ -659,7 +786,7 @@ The `notion-search` fallback was removed in 2.5.6 because it cannot filter on pe
 
 ### Displaying Task Lists
 
-When displaying queried tasks to the user in list or table format, reduce each result to display-relevant fields to prevent output truncation. Apply this jq shape to the `results` array returned by the chosen query path:
+When displaying queried tasks to the user in list or table format, reduce each result to display-relevant fields to prevent output truncation. Apply this jq shape to the `results` array returned by Path 1 or Path 2 (for Path 3, produce the same fields from each row by property name, as described there):
 
 ```jq
 [.results[] | {
@@ -684,8 +811,10 @@ To retrieve all tasks (e.g. for view server data push), use the detected query p
 - **Path 1 (CLI)**: the query-script block from "Path 1" above with `"<tasksDatabaseId>"`
   as the only argument (no filter/sort args). Keep the resolver lines — they are part of
   the invocation, not an optional preamble.
-- **Path 2 (Claude Desktop / Cowork)**: call `mcp__notion-extension__notion-query` with `database_id: <tasksDatabaseId>` and no `filter` / `sorts`
-- If neither Path 1 nor Path 2 is available: halt per "Error Handling for Query Path" above.
+- **Path 2**: call the uncapped query tool with `database_id: <tasksDatabaseId>`, no `filter` / `sorts`,
+  and `page_size: 100`; iterate with `next_cursor` while `has_more` is true.
+- **Path 3**: only per the rule in "The Two Families of Notion Query Tools".
+- If no path is available: halt per "Error Handling for Query Path" above.
 
 No post-processing needed (no Blocked By filter, no sort required).
 
@@ -708,11 +837,14 @@ When querying ANY Notion database (not just the Tasks DB — e.g., Intake Log, e
    [ -f "$SKILL_DIR/$SCRIPT" ] || { echo "waggle: skill directory unresolved; $SCRIPT not found. Operation not performed." >&2; exit 1; }
    bash "$SKILL_DIR/$SCRIPT" "<database_id>" '<filter_json>' '<sort_json>'
    ```
-2. Otherwise → halt and surface the error per "Error Handling for Query Path" above. Do not fall back to notion-search.
+2. Otherwise → the Claude Desktop / Cowork order below.
 
 **Claude Desktop / Cowork:**
-1. `mcp__notion-extension__notion-query` available → call the MCP tool with the target database ID and filter. For databases that may grow past ~200 rows (Intake Log, Tasks DB, custom-source mirrors), pass `page_size` (1-100) and iterate using the response's `has_more` / `next_cursor`. See Path 2 above for full parameter docs.
-2. Otherwise → halt and surface the error per "Error Handling for Query Path" above. Do not fall back to notion-search.
+1. An uncapped query tool is available → call it with the target database ID and filter, always passing
+   `page_size` (1-100) and iterating with the response's `has_more` / `next_cursor`. See Path 2 above for
+   full parameter docs and for what to do on an access error (HTTP 401 or 403, or a decline of this user).
+2. Otherwise → the official connector's data-source query, per Path 3 above.
+3. Otherwise → halt and surface the error per "Error Handling for Query Path" above. Do not fall back to notion-search.
 
 ## Task Record Reference
 

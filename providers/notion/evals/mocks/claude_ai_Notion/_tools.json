@@ -1,0 +1,59 @@
+{
+  "tools": [
+    {
+      "name": "notion-query-data-sources",
+      "description": "Query one or more Notion data sources with SQL-like filtering. Use data source URLs/IDs from notion-fetch.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "object",
+            "description": "Query specification: data_source_urls, query (SQL), params."
+          }
+        }
+      }
+    },
+    {
+      "name": "notion-fetch",
+      "description": "Retrieve a Notion page, database, or data source by URL or ID.",
+      "inputSchema": {
+        "type": "object",
+        "required": [
+          "id"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    {
+      "name": "notion-search",
+      "description": "Semantic search across the Notion workspace and connected sources.",
+      "inputSchema": {
+        "type": "object",
+        "required": [
+          "query"
+        ],
+        "properties": {
+          "query": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    {
+      "name": "notion-update-page",
+      "description": "Update a Notion page's properties or content.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "object"
+          }
+        }
+      }
+    }
+  ]
+}

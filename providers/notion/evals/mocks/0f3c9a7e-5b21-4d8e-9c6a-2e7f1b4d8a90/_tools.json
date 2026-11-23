@@ -1,0 +1,37 @@
+{
+  "tools": [
+    {
+      "name": "notion-query",
+      "description": "Query a Notion database with a Notion API filter and sorts. No shared rate quota. Returns one page of results per call: {results, has_more, next_cursor}. Pass page_size (1-100) and start_cursor to paginate.",
+      "inputSchema": {
+        "type": "object",
+        "required": [
+          "database_id"
+        ],
+        "properties": {
+          "database_id": {
+            "type": "string"
+          },
+          "filter": {
+            "type": "object"
+          },
+          "sorts": {
+            "type": "array"
+          },
+          "page_size": {
+            "type": "integer"
+          },
+          "start_cursor": {
+            "type": "string"
+          },
+          "filter_properties": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    }
+  ]
+}
